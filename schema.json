@@ -1,0 +1,39 @@
+{
+  "tables": {
+    "employees": {
+      "columns": {
+        "id": "INTEGER PRIMARY KEY",
+        "name": "VARCHAR",
+        "department_id": "INTEGER",
+        "role": "VARCHAR"
+      }
+    },
+    "departments": {
+      "columns": {
+        "id": "INTEGER PRIMARY KEY",
+        "name": "VARCHAR"
+      }
+    },
+    "products": {
+      "columns": {
+        "product_id": "INTEGER PRIMARY KEY",
+        "category_id": "INTEGER",
+        "price": "DECIMAL",
+        "stock": "INTEGER"
+      }
+    },
+    "sales": {
+      "columns": {
+        "sale_id": "INTEGER PRIMARY KEY",
+        "product_id": "INTEGER",
+        "quantity": "INTEGER"
+      }
+    },
+    "inventory": {
+      "columns": {
+        "product_id": "INTEGER PRIMARY KEY",
+        "quantity": "INTEGER"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Output:/app/Output
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - ENV=local
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

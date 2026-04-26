@@ -1,0 +1,6 @@
+prefect
+httpx
+python-dotenv
+sqlglot
+uvicorn
+fastapi

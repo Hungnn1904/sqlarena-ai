@@ -1,0 +1,29 @@
+[
+    {
+        "spec": "easy",
+        "valid": true,
+        "raw": {
+            "question": "List all employees with their respective departments.",
+            "sql": "SELECT e.name, d.name AS department_name FROM employees e JOIN departments d ON e.department_id = d.id;",
+            "difficulty": "easy"
+        }
+    },
+    {
+        "spec": "medium",
+        "valid": true,
+        "raw": {
+            "question": "What are all employees in the sales department?",
+            "sql": "SELECT e.name FROM employees e JOIN departments d ON e.department_id = d.id WHERE d.name='Sales';",
+            "difficulty": "medium"
+        }
+    },
+    {
+        "spec": "hard",
+        "valid": true,
+        "raw": {
+            "question": "List all products that have been sold in each department, along with their total sales and average price.",
+            "sql": "SELECT e.name AS department_name, p.product_id, SUM(s.quantity) AS total_sales, AVG(p.price) AS avg_price FROM employees e JOIN departments d ON e.department_id = d.id JOIN products p ON p.category_id = d.id JOIN sales s ON p.product_id = s.product_id GROUP BY e.name, p.product_id ORDER BY department_name, product_id",
+            "difficulty": "hard"
+        }
+    }
+]
