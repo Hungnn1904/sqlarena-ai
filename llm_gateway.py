@@ -16,9 +16,9 @@ def _build_ollama_url() -> str:
     raw_url = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     if "0.0.0.0" in raw_url:
         raw_url = raw_url.replace("0.0.0.0", "localhost")
-    if ":11434" not in raw_url:
+    if ":11434" not in raw_url and "localhost" in raw_url:
         raw_url = raw_url.rstrip("/") + ":11434"
-    return raw_url
+    return raw_url.rstrip("/")
 
 
 class LLMGateway:
@@ -32,6 +32,7 @@ class LLMGateway:
         else:
             self.base_url = _build_ollama_url()
             self.model = os.getenv("MODEL_NAME", "llama3")
+            self.api_key = os.getenv("OLLAMA_API_KEY", "")
 
         logger.info(
             "LLMGateway initialized. provider=%s model=%s",
@@ -68,13 +69,17 @@ class LLMGateway:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {"num_ctx": 2048},
+            "options": {"num_ctx": 4096},
         }
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         for attempt in range(3):
             try:
                 res = httpx.post(
                     f"{self.base_url}/api/generate",
                     json=payload,
+                    headers=headers,
                     timeout=180.0,
                 )
                 if res.status_code != 200:
