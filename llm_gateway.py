@@ -69,11 +69,13 @@ class LLMGateway:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {"num_ctx": 4096},
+            "options": {"num_ctx": 8192},
         }
+
         headers = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+
         for attempt in range(3):
             try:
                 res = httpx.post(
@@ -90,6 +92,7 @@ class LLMGateway:
             except Exception as e:
                 logger.error("Ollama attempt %d failed: %s", attempt + 1, e)
                 time.sleep(2)
+
         return "ERROR: Ollama LLM failed after retries"
 
     def generate(self, task_type: str, prompt: str, expect_json: bool = False) -> str:
@@ -100,7 +103,12 @@ class LLMGateway:
         if expect_json:
             prompt = prompt + JSON_INSTRUCTION
 
-        logger.info("LLM call. provider=%s task=%s expect_json=%s", self.provider, task_type, expect_json)
+        logger.info(
+            "LLM call. provider=%s task=%s expect_json=%s",
+            self.provider,
+            task_type,
+            expect_json,
+        )
 
         if self.provider == "gemini":
             return self._generate_gemini(prompt)

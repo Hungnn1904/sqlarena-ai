@@ -1,0 +1,71 @@
+{
+  "trials": 3,
+  "results": [
+    {
+      "generated": 1,
+      "valid": 1,
+      "failed": 0,
+      "question_ids": [
+        "ade960ee-015a-4ce8-a911-3e3bb0687713"
+      ],
+      "stats": {
+        "total": 35,
+        "by_status": {
+          "pending_review": 35
+        },
+        "by_difficulty": {
+          "easy": 15,
+          "hard": 10,
+          "medium": 10
+        },
+        "valid_rate": 1.0
+      }
+    },
+    {
+      "generated": 1,
+      "valid": 1,
+      "failed": 0,
+      "question_ids": [
+        "5ecf5fa1-d820-4e03-b0d5-e87ebae96dad"
+      ],
+      "stats": {
+        "total": 37,
+        "by_status": {
+          "pending_review": 37
+        },
+        "by_difficulty": {
+          "easy": 17,
+          "hard": 10,
+          "medium": 10
+        },
+        "valid_rate": 1.0
+      }
+    },
+    {
+      "generated": 1,
+      "valid": 1,
+      "failed": 0,
+      "question_ids": [
+        "2a041597-aac4-4871-9e1b-acfb03bc560d"
+      ],
+      "stats": {
+        "total": 42,
+        "by_status": {
+          "pending_review": 42
+        },
+        "by_difficulty": {
+          "easy": 20,
+          "hard": 11,
+          "medium": 11
+        },
+        "valid_rate": 1.0
+      }
+    }
+  ],
+  "summary": {
+    "total_generated": 3,
+    "total_valid": 3,
+    "total_failed": 0,
+    "valid_rate": 1.0
+  }
+}

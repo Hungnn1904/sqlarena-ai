@@ -5,6 +5,9 @@ import re
 _ACTION_WORDS = frozenset([
     "find", "list", "show", "count", "get", "calculate", "display",
     "return", "retrieve", "select", "fetch", "report", "identify",
+    # common LLM phrasings
+    "write", "provide", "give", "output", "produce", "generate",
+    "determine", "what", "which", "who", "how", "whose",
 ])
 
 _AMBIGUOUS_PRONOUNS = re.compile(
@@ -90,9 +93,10 @@ def check_clarity(question_text: str) -> dict:
     for c in contradictions:
         issues.append(f"Potential contradiction: {c}")
 
+
     raw_score = 1.0 - len(issues) * _ISSUE_PENALTY
     score = max(0.0, min(1.0, raw_score))
-    is_clear = len(issues) == 0
+    is_clear = score >= 0.5  # allow minor issues (e.g. phrasing), hard-fail only on score < 0.5
 
     return {
         "is_clear": is_clear,

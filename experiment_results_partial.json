@@ -1,0 +1,45 @@
+{
+  "completed": 2,
+  "results": [
+    {
+      "generated": 1,
+      "valid": 1,
+      "failed": 0,
+      "question_ids": [
+        "6065b928-f672-459e-9169-2a74ef314b63"
+      ],
+      "stats": {
+        "total": 38,
+        "by_status": {
+          "pending_review": 38
+        },
+        "by_difficulty": {
+          "easy": 18,
+          "hard": 10,
+          "medium": 10
+        },
+        "valid_rate": 1.0
+      }
+    },
+    {
+      "generated": 1,
+      "valid": 1,
+      "failed": 0,
+      "question_ids": [
+        "2add8e75-3826-4c68-b734-58a0149bcec5"
+      ],
+      "stats": {
+        "total": 43,
+        "by_status": {
+          "pending_review": 43
+        },
+        "by_difficulty": {
+          "easy": 21,
+          "hard": 11,
+          "medium": 11
+        },
+        "valid_rate": 1.0
+      }
+    }
+  ]
+}
