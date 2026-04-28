@@ -5,8 +5,19 @@ services:
       - "8000:8000"
     volumes:
       - ./Output:/app/Output
+      - ./data:/app/data
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
-      - ENV=local
+      - AI_PROVIDER=ollama
+      - MODEL_NAME=llama3
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=gemini-2.0-flash
+      - ENV=production
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
