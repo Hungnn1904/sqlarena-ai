@@ -69,6 +69,39 @@ Step 7 — Save to Question Bank
 
 ---
 
+## ⚠️ Trước khi chạy — 3 điểm cần fix
+
+### 1. `requirements.txt` dùng package đã deprecated
+
+File hiện tại có `google-generativeai` — package này đã bị Google ngừng hỗ trợ và sẽ báo lỗi khi dùng Gemini. Sửa trước khi `pip install`:
+
+Mở `requirements.txt`, thay dòng:
+```
+google-generativeai
+```
+thành:
+```
+google-genai
+```
+
+### 2. `.env.example` dùng model không tồn tại
+
+`.env.example` đang set `MODEL_NAME=kimi2.6` — đây là model thử nghiệm, không có sẵn trên Ollama public registry. Khi chép `.env`, đổi lại thành model đã được kiểm chứng:
+
+```dotenv
+MODEL_NAME=qwen2.5-coder:3b
+```
+
+### 3. `llm_gateway.py` đọc sai tên biến cho Gemini
+
+Khi dùng Gemini, code đọc `GEMINI_MODEL` nhưng `.env.example` chỉ có `MODEL_NAME`. Nếu dùng Gemini, thêm dòng này vào `.env`:
+
+```dotenv
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+---
+
 ## Cài đặt
 
 ### Yêu cầu
@@ -76,7 +109,7 @@ Step 7 — Save to Question Bank
 - Python 3.11+
 - Ollama đang chạy local **hoặc** Gemini API key
 
-### 1. Cài thư viện
+### 1. Fix `requirements.txt` (xem mục trên), sau đó cài thư viện
 
 ```bash
 pip install -r requirements.txt
@@ -87,6 +120,8 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 ```
+
+Sau đó mở `.env` và đổi `MODEL_NAME=kimi2.6` thành `MODEL_NAME=qwen2.5-coder:3b`.
 
 ---
 
