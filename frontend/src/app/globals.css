@@ -1,0 +1,130 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-cyan: var(--cyan);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-rose: var(--rose);
+  --color-purple: var(--purple);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+
+  --font-sans: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+:root {
+  --background: #080c14;
+  --foreground: #e2eaf6;
+  --card: #0d1320;
+  --card-foreground: #e2eaf6;
+  --popover: #0d1320;
+  --popover-foreground: #e2eaf6;
+  --primary: #00d4ff;
+  --primary-foreground: #080c14;
+  --secondary: #111827;
+  --secondary-foreground: #e2eaf6;
+  --muted: #111827;
+  --muted-foreground: #5a7298;
+  --accent: #1e2d45;
+  --accent-foreground: #e2eaf6;
+  --destructive: #ff4d6d;
+  --destructive-foreground: #ffffff;
+  --border: #1e2d45;
+  --input: #1e2d45;
+  --ring: #00d4ff;
+  --cyan: #00d4ff;
+  --green: #00e5a0;
+  --amber: #ffb830;
+  --rose: #ff4d6d;
+  --purple: #a78bfa;
+  --surface: #0d1320;
+  --surface2: #111827;
+}
+
+.dark {
+  --background: #080c14;
+  --foreground: #e2eaf6;
+  --card: #0d1320;
+  --card-foreground: #e2eaf6;
+  --popover: #0d1320;
+  --popover-foreground: #e2eaf6;
+  --primary: #00d4ff;
+  --primary-foreground: #080c14;
+  --secondary: #111827;
+  --secondary-foreground: #e2eaf6;
+  --muted: #111827;
+  --muted-foreground: #5a7298;
+  --accent: #1e2d45;
+  --accent-foreground: #e2eaf6;
+  --destructive: #ff4d6d;
+  --destructive-foreground: #ffffff;
+  --border: #1e2d45;
+  --input: #1e2d45;
+  --ring: #00d4ff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1320;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #243550;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1e2d45;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(0, 212, 255, 0.2);
+  color: #e2eaf6;
+}

@@ -9,7 +9,7 @@ services:
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - AI_PROVIDER=ollama
-      - MODEL_NAME=llama3
+      - MODEL_NAME=${MODEL_NAME:-kimi-k2.6:cloud}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=gemini-2.0-flash
       - ENV=production
