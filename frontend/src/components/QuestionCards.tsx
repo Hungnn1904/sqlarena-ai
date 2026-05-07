@@ -226,7 +226,7 @@ export default function QuestionCards() {
                     <div className="flex items-center gap-2 text-[0.7rem] text-[#5a7298] font-mono">
                       <span>{q.id}</span>
                       <span className="text-[#1e2d45]">|</span>
-                      <span>{domain || '—'}</span>
+                      <span>{((q as any).metadata_json ? JSON.parse((q as any).metadata_json)?.domain : (q as any).domain) || '—'}</span>
                       <span className="text-[#1e2d45]">|</span>
                       <span>{q.created_at ? new Date(q.created_at).toLocaleDateString('vi-VN') : '—'}</span>
                     </div>
