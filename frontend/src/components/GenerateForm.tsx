@@ -93,10 +93,7 @@ export default function GenerateForm() {
   const isLoading = generateMutation.isPending || (!!taskId && taskData?.status !== 'done' && taskData?.status !== 'failed');
 
   return (
-    <motion.form
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+    <form
       onSubmit={handleSubmit}
       className="bg-[#0d1320] border border-[#1e2d45] rounded-xl p-6 md:p-8 space-y-8"
     >
@@ -290,6 +287,6 @@ export default function GenerateForm() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.form>
+    </form>
   );
 }
