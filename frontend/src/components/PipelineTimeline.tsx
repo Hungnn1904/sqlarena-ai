@@ -55,7 +55,7 @@ export default function PipelineTimeline({ steps, defaultOpen = 1 }: PipelineTim
               className="relative group"
             >
               <div
-                className="absolute -left-[42px] top-5 w-[22px] h-[22px] rounded-full bg-[#080c14] border-2 border-[#243550] flex items-center justify-center font-mono text-[0.65rem] font-bold transition-all duration-300 z-10"
+                className="absolute -left-[42px] top-5 w-[22px] h-[22px] rounded-full bg-[#080c14] border-2 border-[#243550] flex items-center justify-center font-mono text-[0.65rem] font-bold transition-all duration-300 z-10 group-hover:border-[#00d4ff] group-hover:text-[#00d4ff] group-hover:shadow-[0_0_12px_rgba(0,212,255,0.25)]"
                 style={{
                   borderColor: isOpen ? '#00d4ff' : undefined,
                   color: isOpen ? '#00d4ff' : '#5a7298',
@@ -143,6 +143,120 @@ export default function PipelineTimeline({ steps, defaultOpen = 1 }: PipelineTim
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ── Helper sub-components for step body ── */
+
+export function ExplainBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-[rgba(0,212,255,0.04)] border border-dashed border-[rgba(0,212,255,0.25)] rounded-md p-4 text-[0.88rem] text-[#8ba3c7] leading-relaxed">
+      {children}
+    </div>
+  );
+}
+
+export function NewTag({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-[rgba(255,77,109,0.04)] border border-[rgba(255,77,109,0.2)] rounded-md p-4 text-[0.83rem] text-[#fda4af] leading-relaxed">
+      {children}
+    </div>
+  );
+}
+
+export function IOGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 my-4">
+      {children}
+    </div>
+  );
+}
+
+export function IOBox({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-[#111827] border border-[#1e2d45] rounded-md p-3.5">
+      <div className="font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#5a7298] mb-1.5">{label}</div>
+      <div className="text-[0.85rem] text-[#8ba3c7] leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+export function SubTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h4 className="font-mono text-[0.72rem] uppercase tracking-[0.12em] text-[#00d4ff] mt-5 mb-2">
+      {children}
+    </h4>
+  );
+}
+
+export function BodyText({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[0.88rem] text-[#8ba3c7] mb-2.5 leading-relaxed">
+      {children}
+    </p>
+  );
+}
+
+export function BodyList({ children }: { children: React.ReactNode }) {
+  return (
+    <ul className="list-disc pl-[18px] mb-3">
+      {children}
+    </ul>
+  );
+}
+
+export function BodyListItem({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="text-[0.87rem] text-[#8ba3c7] mb-1 leading-relaxed">
+      {children}
+    </li>
+  );
+}
+
+export function CodeBlock({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <pre
+      className={`bg-[#060a10] border border-[#1e2d45] rounded-md p-4 overflow-x-auto font-mono text-[0.78rem] leading-[1.6] text-[#a8c4e8] my-2.5 ${className}`}
+    >
+      <code className="bg-none p-0 text-inherit text-[inherit]">{children}</code>
+    </pre>
+  );
+}
+
+export function TwoLayer({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 my-3.5">
+      {children}
+    </div>
+  );
+}
+
+export function LayerBox({ title, titleColor = 'cyan', children }: { title: string; titleColor?: 'cyan' | 'green'; children: React.ReactNode }) {
+  const colorClass = titleColor === 'green' ? 'text-[#00e5a0]' : 'text-[#00d4ff]';
+  return (
+    <div className="bg-[#111827] border border-[#1e2d45] rounded-md p-4">
+      <div className={`font-mono text-[0.68rem] uppercase tracking-[0.1em] mb-2 flex items-center gap-1.5 ${colorClass}`}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function RetryTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="my-3.5">
+      {children}
+    </div>
+  );
+}
+
+export function RetryRow({ attempt, children }: { attempt: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[90px_1fr] gap-3 py-2.5 border-b border-[#1e2d45] last:border-b-0 items-start">
+      <div className="font-mono text-[0.72rem] text-[#ffb830] font-semibold">{attempt}</div>
+      <div className="text-[0.85rem] text-[#8ba3c7]">{children}</div>
     </div>
   );
 }

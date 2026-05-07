@@ -9,6 +9,9 @@ import PipelineTimeline from '../components/PipelineTimeline';
 import QuestionTable from '../components/QuestionTable';
 import GenerateForm from '../components/GenerateForm';
 import VerifySQLEditor from '../components/VerifySQLEditor';
+import FlowDiagram from '../components/FlowDiagram';
+import ComparisonTable from '../components/ComparisonTable';
+import ScheduleGrid from '../components/ScheduleGrid';
 import {
   useHealth,
   useStats,
@@ -318,9 +321,27 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.4 }}
+                className="space-y-12"
               >
-                <SectionLabel>Pipeline · 7 bước</SectionLabel>
-                <PipelineTimeline steps={pipelineSteps} defaultOpen={1} />
+                <section>
+                  <SectionLabel>Pipeline · 7 bước</SectionLabel>
+                  <PipelineTimeline steps={pipelineSteps} defaultOpen={1} />
+                </section>
+
+                <section>
+                  <SectionLabel>Flow một câu hỏi</SectionLabel>
+                  <FlowDiagram />
+                </section>
+
+                <section>
+                  <SectionLabel>So sánh Pipeline gốc vs Pipeline tối ưu</SectionLabel>
+                  <ComparisonTable />
+                </section>
+
+                <section>
+                  <SectionLabel>Lịch chạy batch thực tế</SectionLabel>
+                  <ScheduleGrid />
+                </section>
               </motion.div>
             )}
 
