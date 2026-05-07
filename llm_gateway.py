@@ -18,6 +18,10 @@ def _build_ollama_url() -> str:
         raw_url = raw_url.replace("0.0.0.0", "localhost")
     if ":11434" not in raw_url and "localhost" in raw_url:
         raw_url = raw_url.rstrip("/") + ":11434"
+    # When inside Docker, try host.docker.internal first, then fallback to original host
+    if os.getenv("ENV") == "production" or os.path.exists("/.dockerenv"):
+        # Try host.docker.internal for local Ollama
+        return "http://host.docker.internal:11434"
     return raw_url.rstrip("/")
 
 
