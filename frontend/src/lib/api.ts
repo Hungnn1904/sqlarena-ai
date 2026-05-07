@@ -32,6 +32,10 @@ export interface QuestionItem {
   created_at?: string;
   question_text?: string;
   validation_status?: string;
+  schema_sql?: string;
+  seed_sql?: string;
+  answer_sql?: string;
+  expected_output?: string;
 }
 
 export const listQuestions = (params?: {

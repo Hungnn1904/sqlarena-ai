@@ -2,15 +2,8 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-interface VerifySQLEditorProps {
-  defaultSchema?: string;
-  defaultQuery?: string;
-  defaultExpected?: string;
-  onVerify?: (data: { schema: string; query: string; expected: string }) => Promise<{ status: 'pass' | 'fail'; message?: string; details?: string }> | void;
-  isLoading?: boolean;
-  result?: { status: 'pass' | 'fail'; message?: string; details?: string } | null;
-}
+import { useVerifySQL } from '@/lib/hooks';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 
 function highlightSQL(sql: string): React.ReactNode[] {
   if (!sql) return [];
@@ -90,32 +83,26 @@ function highlightSQL(sql: string): React.ReactNode[] {
   });
 }
 
-export default function VerifySQLEditor({
-  defaultSchema = '',
-  defaultQuery = '',
-  defaultExpected = '',
-  onVerify,
-  isLoading = false,
-  result: externalResult = null,
-}: VerifySQLEditorProps) {
-  const [schema, setSchema] = React.useState(defaultSchema);
-  const [query, setQuery] = React.useState(defaultQuery);
-  const [expected, setExpected] = React.useState(defaultExpected);
-  const [localResult, setLocalResult] = React.useState<{ status: 'pass' | 'fail'; message?: string; details?: string } | null>(null);
+export default function VerifySQLEditor() {
+  const [schema, setSchema] = React.useState('');
+  const [seed, setSeed] = React.useState('');
+  const [answer, setAnswer] = React.useState('');
 
-  const result = externalResult || localResult;
+  const verifyMutation = useVerifySQL();
+  const result = verifyMutation.data || null;
 
   const handleVerify = async () => {
-    const res = await onVerify?.({ schema, query, expected });
-    if (res && !externalResult) {
-      setLocalResult(res);
-    }
+    await verifyMutation.mutateAsync({
+      ddl_sql: schema,
+      seed_sql: seed,
+      answer_sql: answer,
+    });
   };
 
   const editors = [
-    { label: 'Schema SQL', value: schema, setter: setSchema },
-    { label: 'Answer Query', value: query, setter: setQuery },
-    { label: 'Expected Output', value: expected, setter: setExpected },
+    { label: 'DDL SQL', value: schema, setter: setSchema, placeholder: 'CREATE TABLE employees (...)' },
+    { label: 'Seed SQL', value: seed, setter: setSeed, placeholder: 'INSERT INTO employees VALUES (...)' },
+    { label: 'Answer SQL', value: answer, setter: setAnswer, placeholder: 'SELECT * FROM employees WHERE ...' },
   ];
 
   return (
@@ -137,7 +124,7 @@ export default function VerifySQLEditor({
               <textarea
                 value={editor.value}
                 onChange={(e) => editor.setter(e.target.value)}
-                placeholder={`Enter ${editor.label.toLowerCase()}...`}
+                placeholder={editor.placeholder}
                 spellCheck={false}
                 className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-[#00d4ff] font-mono text-[0.82rem] leading-[1.6] resize-none focus:outline-none z-10"
                 style={{ tabSize: 2 }}
@@ -152,22 +139,20 @@ export default function VerifySQLEditor({
 
       <motion.button
         onClick={handleVerify}
-        disabled={isLoading || !query.trim()}
+        disabled={verifyMutation.isPending || !answer.trim()}
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         className={`w-full md:w-auto px-8 py-3 rounded-lg font-semibold text-sm uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 ${
-          isLoading || !query.trim()
+          verifyMutation.isPending || !answer.trim()
             ? 'bg-[#1e2d45] text-[#5a7298] cursor-not-allowed'
             : 'bg-gradient-to-r from-[#00d4ff] to-[#00e5a0] text-[#080c14] hover:shadow-[0_0_32px_rgba(0,212,255,0.25)]'
         }`}
       >
         <AnimatePresence mode="wait">
-          {isLoading ? (
+          {verifyMutation.isPending ? (
             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-              <span className="relative flex h-4 w-4">
-                <span className="animate-spin absolute inline-flex h-full w-full rounded-full border-2 border-current border-t-transparent opacity-75" />
-              </span>
-              Verifying...
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Verifying…
             </motion.div>
           ) : (
             <motion.span key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -194,23 +179,35 @@ export default function VerifySQLEditor({
               }`}
             >
               <div className="flex items-center gap-3 mb-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${result.status === 'pass' ? 'bg-[#00e5a0]/10' : 'bg-[#ff4d6d]/10'}`}>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    result.status === 'pass' ? 'bg-[#00e5a0]/10' : 'bg-[#ff4d6d]/10'
+                  }`}
+                >
                   {result.status === 'pass' ? (
-                    <svg className="w-5 h-5 text-[#00e5a0]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <CheckCircle2 className="w-5 h-5 text-[#00e5a0]" />
                   ) : (
-                    <svg className="w-5 h-5 text-[#ff4d6d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <XCircle className="w-5 h-5 text-[#ff4d6d]" />
                   )}
-                </div>
-                <span className={`font-semibold text-sm uppercase tracking-wider ${result.status === 'pass' ? 'text-[#00e5a0]' : 'text-[#ff4d6d]'}`}>
-                  {result.message}
+                </motion.div>
+                <span
+                  className={`font-semibold text-sm uppercase tracking-wider ${
+                    result.status === 'pass' ? 'text-[#00e5a0]' : 'text-[#ff4d6d]'
+                  }`}
+                >
+                  {result.status === 'pass' ? 'Verification Passed' : 'Verification Failed'}
                 </span>
               </div>
+              {result.message && (
+                <p className="text-[0.85rem] text-[#8ba3c7] ml-11">{result.message}</p>
+              )}
               {result.details && (
-                <p className="text-[0.85rem] text-[#8ba3c7] ml-11">{result.details}</p>
+                <pre className="mt-3 ml-11 bg-[#080c14] border border-[#1e2d45] rounded-lg p-3 overflow-auto text-[0.75rem] leading-[1.5] font-mono text-[#a8c4e8] max-h-[200px]">
+                  {result.details}
+                </pre>
               )}
             </div>
           </motion.div>

@@ -23,7 +23,7 @@ export default function Navigation({ items, activeId, onChange }: NavigationProp
                   onClick={() => onChange(item.id)}
                   className="relative px-4 py-3.5 text-sm font-medium transition-colors duration-200 whitespace-nowrap"
                 >
-                  <span className={isActive ? 'text-[#00d4ff]' : 'text-[#5a7298] hover:text-[#8ba3c7]'} >
+                  <span className={isActive ? 'text-[#00d4ff]' : 'text-[#5a7298] hover:text-[#8ba3c7]'}>
                     {item.label}
                   </span>
                   {isActive && (

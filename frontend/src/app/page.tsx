@@ -2,25 +2,25 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Header from '../components/Header';
-import Navigation from '../components/Navigation';
-import StatsBar from '../components/StatsBar';
-import PipelineTimeline from '../components/PipelineTimeline';
-import QuestionTable from '../components/QuestionTable';
-import GenerateForm from '../components/GenerateForm';
-import VerifySQLEditor from '../components/VerifySQLEditor';
-import FlowDiagram from '../components/FlowDiagram';
-import ComparisonTable from '../components/ComparisonTable';
-import ScheduleGrid from '../components/ScheduleGrid';
+import Header from '@/components/Header';
+import Navigation from '@/components/Navigation';
+import StatsBar from '@/components/StatsBar';
+import SummaryBox from '@/components/SummaryBox';
+import QuickActions from '@/components/QuickActions';
+import PipelineTimeline from '@/components/PipelineTimeline';
+import QuestionTable from '@/components/QuestionTable';
+import QuestionCards from '@/components/QuestionCards';
+import GenerateForm from '@/components/GenerateForm';
+import VerifySQLEditor from '@/components/VerifySQLEditor';
+import FlowDiagram from '@/components/FlowDiagram';
+import ComparisonTable from '@/components/ComparisonTable';
+import ScheduleGrid from '@/components/ScheduleGrid';
 import {
   useHealth,
   useStats,
   useQuestions,
-  useGenerate,
-  useVerifySQL,
-  useTask,
-} from '../lib/hooks';
-import type { PipelineStep } from '../components/types';
+} from '@/lib/hooks';
+import type { PipelineStep } from '@/components/types';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -172,10 +172,10 @@ export default function Home() {
   const { data: health } = useHealth();
   const { data: statsData } = useStats();
   const { data: questionsData } = useQuestions({ limit: 100 });
-  const generateMutation = useGenerate();
-  const verifyMutation = useVerifySQL();
-  const [taskId, setTaskId] = React.useState<string | null>(null);
-  const { data: taskData } = useTask(taskId || '');
+
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab]);
 
   const stats = React.useMemo(() => {
     const base = [
@@ -199,6 +199,36 @@ export default function Home() {
     return base;
   }, [statsData, health]);
 
+  const summaryStats = React.useMemo(
+    () => [
+      {
+        label: 'Pipeline Status',
+        value: health?.status === 'ok' ? 'Online' : 'Offline',
+        description: health?.status === 'ok' ? 'All services healthy' : 'Backend unreachable',
+        color: health?.status === 'ok' ? ('green' as const) : ('rose' as const),
+      },
+      {
+        label: 'Total Questions',
+        value: statsData?.total ?? 0,
+        description: 'In database',
+        color: 'cyan' as const,
+      },
+      {
+        label: 'Valid Rate',
+        value: `${Math.round((statsData?.valid_rate || 0) * 100)}%`,
+        description: 'Validated questions',
+        color: 'purple' as const,
+      },
+      {
+        label: 'Weekly Target',
+        value: 50,
+        description: 'Questions planned',
+        color: 'amber' as const,
+      },
+    ],
+    [health, statsData]
+  );
+
   const questions = React.useMemo(() => {
     if (!questionsData?.questions) return [];
     return questionsData.questions.map((q) => ({
@@ -213,60 +243,39 @@ export default function Home() {
     }));
   }, [questionsData]);
 
-  const handleGenerate = async (data: { difficulty: string; count: number; topics: string[] }) => {
-    const specs = data.topics.length > 0 ? data.topics.map((t) => `${t}_${data.difficulty}`.toUpperCase()) : [data.difficulty];
-    const result = await generateMutation.mutateAsync({
-      specs,
-      questions_per_spec: data.count,
-    });
-    if (result.task_id) {
-      setTaskId(result.task_id);
+  const handleQuickAction = (action: 'generate' | 'verify' | 'pipeline' | 'export') => {
+    if (action === 'export') {
+      if (!questions.length) return;
+      const headers = ['ID', 'Topic', 'Difficulty', 'Domain', 'Status', 'Created', 'Text'];
+      const rows = questions.map((q) => [
+        q.id,
+        q.topic,
+        q.difficulty,
+        q.domain,
+        q.status,
+        q.createdAt,
+        `"${q.questionText.replace(/"/g, '""')}"`,
+      ]);
+      const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sqlarena_questions.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
     }
-  };
-
-  const handleVerify = async (data: { schema: string; query: string; expected: string }) => {
-    return verifyMutation.mutateAsync({
-      ddl_sql: data.schema,
-      seed_sql: data.expected,
-      answer_sql: data.query,
-    });
+    setActiveTab(action);
   };
 
   return (
     <div className="min-h-screen bg-[#080c14] text-[#e2eaf6]">
-      <div
-        className="fixed inset-0 pointer-events-none z-0"
-        style={{
-          backgroundImage: `linear-gradient(#1e2d45 1px, transparent 1px), linear-gradient(90deg, #1e2d45 1px, transparent 1px)`,
-          backgroundSize: '48px 48px',
-          opacity: 0.3,
-        }}
-      />
-
       <div className="relative z-10">
         <Navigation items={navItems} activeId={activeTab} onChange={setActiveTab} />
 
         <div className="max-w-[1060px] mx-auto px-6 pb-20">
-          <Header
-            title={
-              <>
-                SQL Question Generator
-                <br />
-                Pipeline
-              </>
-            }
-          />
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="mb-12"
-          >
-            <StatsBar stats={stats} />
-          </motion.div>
-
-          <div className="space-y-12">
+          <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div
                 key="dashboard"
@@ -276,6 +285,19 @@ export default function Home() {
                 transition={{ duration: 0.4 }}
                 className="space-y-12"
               >
+                <Header
+                  title={
+                    <>
+                      SQL Question Generator
+                      <br />
+                      Pipeline
+                    </>
+                  }
+                />
+                <StatsBar stats={stats} />
+                <SummaryBox stats={summaryStats} />
+                <QuickActions onAction={handleQuickAction} />
+
                 <section>
                   <SectionLabel>Pipeline · 7 bước</SectionLabel>
                   <PipelineTimeline steps={pipelineSteps} defaultOpen={3} />
@@ -295,9 +317,10 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.4 }}
+                className="space-y-8 pt-8"
               >
                 <SectionLabel>Generate Questions</SectionLabel>
-                <GenerateForm onSubmit={handleGenerate} isLoading={generateMutation.isPending} taskData={taskData} />
+                <GenerateForm />
               </motion.div>
             )}
 
@@ -308,9 +331,10 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.4 }}
+                className="space-y-8 pt-8"
               >
                 <SectionLabel>All Questions</SectionLabel>
-                <QuestionTable questions={questions} />
+                <QuestionCards />
               </motion.div>
             )}
 
@@ -321,16 +345,16 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.4 }}
-                className="space-y-12"
+                className="space-y-12 pt-8"
               >
-                <section>
-                  <SectionLabel>Pipeline · 7 bước</SectionLabel>
-                  <PipelineTimeline steps={pipelineSteps} defaultOpen={1} />
-                </section>
-
                 <section>
                   <SectionLabel>Flow một câu hỏi</SectionLabel>
                   <FlowDiagram />
+                </section>
+
+                <section>
+                  <SectionLabel>Pipeline · 7 bước</SectionLabel>
+                  <PipelineTimeline steps={pipelineSteps} defaultOpen={1} />
                 </section>
 
                 <section>
@@ -352,12 +376,13 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.4 }}
+                className="space-y-8 pt-8"
               >
                 <SectionLabel>Verify SQL</SectionLabel>
-                <VerifySQLEditor onVerify={handleVerify} isLoading={verifyMutation.isPending} result={verifyMutation.data || null} />
+                <VerifySQLEditor />
               </motion.div>
             )}
-          </div>
+          </AnimatePresence>
         </div>
 
         <footer className="border-t border-[#1e2d45] py-8 text-center font-mono text-[0.72rem] text-[#5a7298] tracking-[0.08em]">

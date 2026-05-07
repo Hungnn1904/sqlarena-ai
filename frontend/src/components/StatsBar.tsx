@@ -22,7 +22,7 @@ export default function StatsBar({ stats }: StatsBarProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.3 }}
-      className="flex flex-wrap justify-center border border-[#243550] rounded-lg overflow-hidden max-w-[700px] mx-auto"
+      className="flex flex-col sm:flex-row justify-center border border-[#243550] rounded-lg overflow-hidden max-w-[700px] mx-auto"
     >
       {stats.map((stat, index) => (
         <motion.div
@@ -30,7 +30,7 @@ export default function StatsBar({ stats }: StatsBarProps) {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
-          className="flex-1 min-w-[110px] px-5 py-4 text-center border-r border-[#243550] last:border-r-0 bg-[#0d1320]"
+          className="flex-1 min-w-[110px] px-5 py-4 text-center border-b sm:border-b-0 sm:border-r border-[#243550] last:border-b-0 last:sm:border-r-0 bg-[#0d1320] hover:bg-[#111827] hover:border-[#00d4ff]/30 transition-all duration-300"
         >
           <motion.span
             initial={{ opacity: 0 }}

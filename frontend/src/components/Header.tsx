@@ -10,7 +10,7 @@ interface HeaderProps {
 }
 
 export default function Header({
-  badgeText = 'SQLArena · AI Question Generator Pipeline · v2.0',
+  badgeText = 'SQLARENA · AI QUESTION GENERATOR PIPELINE · v2.0',
   title,
   subtitle = 'Hệ thống tự động hóa sinh câu hỏi SQL có kiểm soát — tối ưu chi phí, đủ coverage, phù hợp production.',
 }: HeaderProps) {
@@ -22,10 +22,7 @@ export default function Header({
         transition={{ duration: 0.5 }}
         className="inline-flex items-center gap-2 bg-[rgba(0,212,255,0.12)] border border-[#00d4ff] rounded px-3.5 py-1.5 font-mono text-[0.72rem] text-[#00d4ff] tracking-[0.12em] uppercase mb-6"
       >
-        <span className="relative flex h-1.5 w-1.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00d4ff] opacity-75" />
-          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#00d4ff]" />
-        </span>
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#00d4ff] animate-pulse-dot" />
         {badgeText}
       </motion.div>
 
@@ -43,7 +40,7 @@ export default function Header({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-base text-[#8ba3c7] max-w-xl mx-auto mb-10"
+          className="text-base text-[#8ba3c7] max-w-[560px] mx-auto mb-10"
         >
           {subtitle}
         </motion.p>
