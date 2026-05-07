@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(lsof -PiTCP -sTCP:LISTEN)",
+      "Bash(netstat -tln)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(lsof -PiTCP:8000 -sTCP:LISTEN)",
+      "Bash(docker compose up *)",
+      "Bash(docker compose *)",
+      "Bash(docker exec *)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/docs)",
+      "Bash(curl -s http://localhost:8000/)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx create-next-app@latest *)",
+      "Bash(yes \"\")",
+      "Skill(update-config)",
+      "Bash(mkdir -p ~/.claude/skills/skip ~/.claude/skills/my-setup)",
+      "Bash(mv ~/.claude/skills/skip.md ~/.claude/skills/skip/skill.md)",
+      "Bash(mv ~/.claude/skills/my-setup.md ~/.claude/skills/my-setup/skill.md)"
+    ]
+  }
+}
