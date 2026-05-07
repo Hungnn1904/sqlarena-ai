@@ -19,7 +19,15 @@
       "Skill(update-config)",
       "Bash(mkdir -p ~/.claude/skills/skip ~/.claude/skills/my-setup)",
       "Bash(mv ~/.claude/skills/skip.md ~/.claude/skills/skip/skill.md)",
-      "Bash(mv ~/.claude/skills/my-setup.md ~/.claude/skills/my-setup/skill.md)"
+      "Bash(mv ~/.claude/skills/my-setup.md ~/.claude/skills/my-setup/skill.md)",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:8000/questions)",
+      "Bash(curl -s http://localhost:8000/stats)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000/_next/static/chunks/turbopack-0a5~drvt8a2wy.js)"
     ]
   }
 }
