@@ -79,8 +79,8 @@ export default function GenerateForm() {
       } else if (res.status === 'done') {
         setResult(res.result);
       }
-    } catch {
-      // error handled by mutation state
+    } catch (err: any) {
+      console.error('Generate error:', err);
     }
   };
 
@@ -216,6 +216,24 @@ export default function GenerateForm() {
           )}
         </AnimatePresence>
       </motion.button>
+
+      {generateMutation.isError && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-lg border bg-[rgba(255,77,109,0.08)] border-[#ff4d6d]/40 p-4"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2 h-2 rounded-full bg-[#ff4d6d] animate-pulse" />
+            <span className="font-mono text-xs uppercase tracking-wider font-semibold text-[#ff4d6d]">
+              Backend Error
+            </span>
+          </div>
+          <p className="text-[0.82rem] text-[#fda4af] leading-relaxed">
+            {(generateMutation.error as any)?.response?.data?.detail || 'LLM service unavailable. Please ensure Ollama is running or configure Gemini API key in .env'}
+          </p>
+        </motion.div>
+      )}
 
       {taskData && taskData.status !== 'done' && (
         <motion.div
