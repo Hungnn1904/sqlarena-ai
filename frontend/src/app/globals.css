@@ -246,3 +246,19 @@ input[type="range"]::-moz-range-thumb:hover {
 .animate-pulse-dot {
   animation: pulse-dot 2s infinite;
 }
+
+/* ── ENSURE VISIBILITY (override Framer Motion initial opacity:0) ── */
+[style*="opacity:0"],
+[style*="opacity: 0"] {
+  opacity: 1 !important;
+}
+[style*="transform:translateY(10px)"],
+[style*="transform: translateY(10px)"],
+[style*="transform:translateY(-10px)"],
+[style*="transform: translateY(-10px)"],
+[style*="transform:translateY(20px)"],
+[style*="transform: translateY(20px)"],
+[style*="transform:scale(0.9)"],
+[style*="transform: scale(0.9)"] {
+  transform: none !important;
+}
