@@ -4,7 +4,6 @@ export { default as StatsBar } from './StatsBar';
 export { default as SummaryBox } from './SummaryBox';
 export { default as QuickActions } from './QuickActions';
 export { default as PipelineTimeline } from './PipelineTimeline';
-export { default as QuestionTable } from './QuestionTable';
 export { default as QuestionCards } from './QuestionCards';
 export { default as GenerateForm } from './GenerateForm';
 export { default as VerifySQLEditor } from './VerifySQLEditor';
