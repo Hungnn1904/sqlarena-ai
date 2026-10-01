@@ -3,14 +3,13 @@ retry_policy.py — Retry strategies for question generation pipeline.
 """
 
 _RELAXED_PREFIX = (
-    "The previous attempt was too complex or failed validation. "
-    "Please generate a SIMPLER version: avoid subqueries, CTEs, window functions, "
-    "and trap strategies. Use straightforward SELECT with basic WHERE/GROUP BY only."
+    "The previous attempt failed validation. Keep the required topic and schema, "
+    "but generate a clearer and materially different question."
 )
 
 _MINIMAL_PREFIX = (
     "Generate the SIMPLEST possible SQL question about this topic. "
-    "Single table, single condition, no joins. "
+    "Keep every SQL construct required by the topic and preserve the provided schema. "
     "The question must be answerable by a beginner-level SQL student."
 )
 

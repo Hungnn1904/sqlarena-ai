@@ -14,7 +14,8 @@ _AMBIGUOUS_PRONOUNS = re.compile(
 
 _PRONOUN_ANTECEDENTS = re.compile(
     r"\b(employees?|departments?|products?|sales?|inventory|records?|"
-    r"rows?|tables?|data|results?|values?|items?)\b",
+    r"rows?|tables?|data|results?|values?|items?|persons?|people|addresses?|"
+    r"players?|users?|customers?|orders?|sessions?|activities|activity|events?)\b",
     re.IGNORECASE,
 )
 
@@ -60,42 +61,59 @@ def _has_contradictory_terms(text: str) -> list[str]:
 
 def check_clarity(question_text: str) -> dict:
     if not isinstance(question_text, str):
+        issue = "Input is not a string"
         return {
             "is_clear": False,
             "score": 0.0,
-            "issues": ["Input is not a string"],
+            "issues": [issue],
+            "blocking_issues": [issue],
+            "warnings": [],
         }
 
     issues: list[str] = []
+    blocking_issues: list[str] = []
+    warnings: list[str] = []
     stripped = question_text.strip()
 
     if not stripped:
-        return {"is_clear": False, "score": 0.0, "issues": ["Question is empty"]}
+        issue = "Question is empty"
+        return {
+            "is_clear": False,
+            "score": 0.0,
+            "issues": [issue],
+            "blocking_issues": [issue],
+            "warnings": [],
+        }
 
     if len(stripped) < _MIN_CHARS:
-        issues.append(f"Question too short (minimum {_MIN_CHARS} characters)")
+        blocking_issues.append(f"Question too short (minimum {_MIN_CHARS} characters)")
 
     if not _has_action_word(stripped):
-        issues.append(
+        blocking_issues.append(
             "Missing action word (expected one of: find, list, show, count, get, "
             "calculate, display, return, retrieve)"
         )
 
     if _has_unresolved_pronouns(stripped):
-        issues.append(
+        warnings.append(
             "Ambiguous pronoun used (e.g. 'it', 'they') without a clear antecedent noun"
         )
 
     contradictions = _has_contradictory_terms(stripped)
     for c in contradictions:
-        issues.append(f"Potential contradiction: {c}")
+        warnings.append(f"Potential contradiction: {c}")
+
+    issues.extend(blocking_issues)
+    issues.extend(warnings)
 
     raw_score = 1.0 - len(issues) * _ISSUE_PENALTY
     score = max(0.0, min(1.0, raw_score))
-    is_clear = len(issues) == 0
+    is_clear = len(blocking_issues) == 0
 
     return {
         "is_clear": is_clear,
         "score": round(score, 2),
         "issues": issues,
+        "blocking_issues": blocking_issues,
+        "warnings": warnings,
     }

@@ -121,6 +121,26 @@ class TestGoodScore:
 
 
 class TestEdgeCases:
+    def test_people_pronoun_has_clear_antecedent(self):
+        result = _check(
+            "Find all people who do not have an address associated with them."
+        )
+        assert result["is_clear"] is True
+
+    def test_players_pronoun_has_clear_antecedent(self):
+        result = _check(
+            "List each player and the total number of games they played."
+        )
+        assert result["is_clear"] is True
+
+    def test_unresolved_pronoun_is_warning_not_blocking(self):
+        result = _check(
+            "List the latest database entry and explain why it was selected."
+        )
+        assert result["is_clear"] is True
+        assert result["warnings"]
+        assert result["blocking_issues"] == []
+
     def test_empty_string(self):
         result = _check("")
         assert result["is_clear"] is False

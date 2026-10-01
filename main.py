@@ -36,6 +36,7 @@ _tasks: dict[str, dict] = {}
 class GenerateRequest(BaseModel):
     specs: List[str] = Field(default=["easy", "medium", "hard"])
     questions_per_spec: int = Field(default=1, ge=1, le=10)
+    excel_id: Optional[str] = None
 
 
 class StatusUpdateRequest(BaseModel):
@@ -53,12 +54,18 @@ class VerifyRequest(BaseModel):
 # Background task runner
 # ---------------------------------------------------------------------------
 
-def _run_generate(task_id: str, specs: List[str], questions_per_spec: int):
+def _run_generate(
+    task_id: str,
+    specs: List[str],
+    questions_per_spec: int,
+    excel_id: Optional[str] = None,
+):
     try:
         _tasks[task_id]["status"] = "running"
         result = generate_pipeline(
             specs=specs,
             questions_per_spec=questions_per_spec,
+            excel_id=excel_id,
         )
         _tasks[task_id].update({"status": "done", "result": result})
     except Exception as exc:
@@ -84,6 +91,7 @@ def generate_questions(req: GenerateRequest, background_tasks: BackgroundTasks):
             result = generate_pipeline(
                 specs=req.specs,
                 questions_per_spec=req.questions_per_spec,
+                excel_id=req.excel_id,
             )
             return JSONResponse(content={"status": "done", "result": result})
         except Exception as exc:
@@ -92,7 +100,9 @@ def generate_questions(req: GenerateRequest, background_tasks: BackgroundTasks):
     # Async — chạy background
     task_id = str(uuid.uuid4())
     _tasks[task_id] = {"status": "queued", "result": None, "error": None}
-    background_tasks.add_task(_run_generate, task_id, req.specs, req.questions_per_spec)
+    background_tasks.add_task(
+        _run_generate, task_id, req.specs, req.questions_per_spec, req.excel_id
+    )
     return JSONResponse(
         status_code=202,
         content={

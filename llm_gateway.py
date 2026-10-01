@@ -29,6 +29,15 @@ class LLMGateway:
             self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
             self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
             self._init_gemini()
+        elif self.provider == "nvidia":
+            self.base_url = os.getenv(
+                "NVIDIA_BASE_URL",
+                "https://integrate.api.nvidia.com/v1/chat/completions",
+            ).rstrip("/")
+            self.model = os.getenv("NVIDIA_MODEL", "google/gemma-4-31b-it")
+            self.api_key = os.getenv("NVIDIA_API_KEY", "")
+            if not self.api_key:
+                raise RuntimeError("NVIDIA_API_KEY is required when AI_PROVIDER=nvidia")
         else:
             self.base_url = _build_ollama_url()
             self.model = os.getenv("MODEL_NAME", "llama3")
@@ -64,13 +73,15 @@ class LLMGateway:
                     time.sleep(2 ** attempt)
         return "ERROR: Gemini LLM failed after retries"
 
-    def _generate_ollama(self, prompt: str) -> str:
+    def _generate_ollama(self, prompt: str, expect_json: bool = False) -> str:
         payload = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
             "options": {"num_ctx": 4096},
         }
+        if expect_json:
+            payload["format"] = "json"
         headers = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -92,6 +103,46 @@ class LLMGateway:
                 time.sleep(2)
         return "ERROR: Ollama LLM failed after retries"
 
+    def _generate_nvidia(self, prompt: str) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Follow the user instructions exactly. Return no markdown unless requested.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "max_tokens": 4096,
+            "stream": False,
+            "temperature": 0.1,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
+            "seed": 0,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        for attempt in range(3):
+            try:
+                response = httpx.post(
+                    self.base_url,
+                    json=payload,
+                    headers=headers,
+                    timeout=180.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"].strip()
+            except Exception as exc:
+                logger.error("NVIDIA attempt %d failed: %s", attempt + 1, exc)
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+        return "ERROR: NVIDIA LLM failed after retries"
+
     def generate(self, task_type: str, prompt: str, expect_json: bool = False) -> str:
         """
         task_type: "planner" | "generator" | "clarity"
@@ -104,5 +155,7 @@ class LLMGateway:
 
         if self.provider == "gemini":
             return self._generate_gemini(prompt)
+        if self.provider == "nvidia":
+            return self._generate_nvidia(prompt)
         else:
-            return self._generate_ollama(prompt)
+            return self._generate_ollama(prompt, expect_json=expect_json)

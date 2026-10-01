@@ -179,12 +179,59 @@ def generate_seed(schema: dict, rows_per_table: int = 5) -> str:
             for pid in product_ids:
                 rows.append(_gen_inventory_row(pid))
 
+        elif table_name == "Department" and set(cols) >= {"id", "name"}:
+            department_names = ["Engineering", "Sales", "Marketing", "Finance", "Operations"]
+            for i, name in enumerate(department_names, start=1):
+                rows.append({"id": i, "name": name})
+
+        elif table_name == "Employee" and set(cols) >= {"id", "name", "salary", "departmentId"}:
+            employee_rows = [
+                (1, "Alice", 9000, 1),
+                (2, "Bob", 8000, 1),
+                (3, "Carol", 8000, 1),
+                (4, "Dan", 7000, 1),
+                (5, "Eve", 6000, 1),
+                (6, "Frank", 7500, 2),
+                (7, "Grace", 6500, 2),
+                (8, "Heidi", 5500, 2),
+                (9, "Ivan", 5000, 2),
+                (10, "Judy", 7200, 3),
+            ]
+            for employee_id, name, salary, department_id in employee_rows:
+                rows.append(
+                    {
+                        "id": employee_id,
+                        "name": name,
+                        "salary": salary,
+                        "departmentId": department_id,
+                    }
+                )
+
         else:
             for i in range(1, rows_per_table + 1):
                 row = {}
-                for col, col_type in table_def["columns"].items():
-                    if _is_pk(col_type):
+                for col_index, (col, col_type) in enumerate(table_def["columns"].items()):
+                    sqlite_type = _sqlite_type(col_type)
+                    col_lower = col.lower()
+                    if _is_pk(col_type) or col_index == 0 and col_lower.endswith("id"):
                         row[col] = i
+                    elif sqlite_type == "INTEGER" and col_lower.endswith("id"):
+                        # Offset likely foreign keys so JOIN seeds include unmatched rows.
+                        row[col] = i + 1
+                    elif sqlite_type == "INTEGER":
+                        row[col] = i * 10
+                    elif sqlite_type == "REAL":
+                        row[col] = round(i * 10.5, 2)
+                    elif "date" in col_lower or "time" in col_lower:
+                        row[col] = f"2026-01-{i:02d}"
+                    elif col_lower in {"name", "firstname", "first_name"}:
+                        row[col] = f"Name {i}"
+                    elif col_lower in {"lastname", "last_name"}:
+                        row[col] = f"Last {i}"
+                    elif col_lower == "city":
+                        row[col] = ["Ha Noi", "Da Nang", "Hue", "Can Tho", "Hai Phong"][(i - 1) % 5]
+                    elif col_lower == "state":
+                        row[col] = ["North", "Central", "Central", "South", "North"][(i - 1) % 5]
                     else:
                         row[col] = f"value_{i}"
                 rows.append(row)

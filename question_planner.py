@@ -45,9 +45,17 @@ def _build_schema_summary(schema: dict) -> str:
     return "\n".join(lines)
 
 
-def _build_prompt(difficulty: str, topic: str, schema: dict) -> str:
+def _build_prompt(
+    difficulty: str,
+    topic: str,
+    schema: dict,
+    source_context: dict | None = None,
+) -> str:
     schema_summary = _build_schema_summary(schema)
     table_names = list(schema.get("tables", {}).keys())
+    reference = "None"
+    if source_context:
+        reference = json.dumps(source_context, ensure_ascii=False)
 
     return f"""You are an SQL question design expert. Generate a question blueprint as JSON.
 
@@ -57,6 +65,9 @@ Schema:
 Available tables: {table_names}
 Target difficulty: {difficulty}
 Target SQL skill: {topic}
+
+Source reference:
+{reference}
 
 Return ONLY valid JSON matching this exact structure:
 {{
@@ -70,6 +81,11 @@ Return ONLY valid JSON matching this exact structure:
 
 Rules:
 - intent must be a clear, specific task (not generic)
+- intent must be supported by the source reference; do not invent filters, locations,
+  aggregations, or output columns that are absent from it
+- intent must require the target SQL skill and remain consistent with its semantics
+- create a materially different task from the source pattern; prefer a new analytical goal
+  such as finding unmatched rows instead of reproducing all source output columns
 - schema_tables must only contain tables from the available list above
 - trap_strategy must be specific to the chosen tables and skill
 - Do not include any text outside the JSON object
@@ -98,17 +114,25 @@ def _extract_json(raw: str) -> str:
     return raw[brace_start: brace_end + 1]
 
 
-def plan_question(difficulty: str, topic: str, schema: dict, llm) -> QuestionBlueprint:
+def plan_question(
+    difficulty: str,
+    topic: str,
+    schema: dict,
+    llm,
+    source_context: dict | None = None,
+) -> QuestionBlueprint:
     difficulty = difficulty.lower()
     if difficulty not in {"easy", "medium", "hard"}:
         raise ValueError(f"Invalid difficulty '{difficulty}'")
 
-    prompt = _build_prompt(difficulty, topic, schema)
+    prompt = _build_prompt(difficulty, topic, schema, source_context=source_context)
 
-    raw_output = llm.generate("question_planning", prompt)
+    raw_output = llm.generate("question_planning", prompt, expect_json=True)
 
     if not raw_output or not raw_output.strip():
         raise ValueError("LLM returned empty output for question planning")
+    if raw_output.startswith("ERROR:"):
+        raise ValueError(f"LLM question planning failed: {raw_output}")
 
     json_str = _extract_json(raw_output)
 
