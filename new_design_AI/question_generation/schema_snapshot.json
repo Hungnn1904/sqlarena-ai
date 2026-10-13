@@ -1,0 +1,1927 @@
+{
+  "columns": [
+    {
+      "data_type": "integer",
+      "table_name": "categories",
+      "column_name": "category_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "categories",
+      "column_name": "category_name",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "integer",
+      "table_name": "categories",
+      "column_name": "parent_category_id",
+      "is_nullable": "YES",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "text",
+      "table_name": "categories",
+      "column_name": "description",
+      "is_nullable": "YES",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "boolean",
+      "table_name": "categories",
+      "column_name": "is_active",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "integer",
+      "table_name": "customer_addresses",
+      "column_name": "address_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "customer_addresses",
+      "column_name": "customer_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customer_addresses",
+      "column_name": "address_line",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customer_addresses",
+      "column_name": "city",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customer_addresses",
+      "column_name": "district",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customer_addresses",
+      "column_name": "postal_code",
+      "is_nullable": "YES",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "boolean",
+      "table_name": "customer_addresses",
+      "column_name": "is_default",
+      "is_nullable": "NO",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "customer_addresses",
+      "column_name": "created_at",
+      "is_nullable": "NO",
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "integer",
+      "table_name": "customers",
+      "column_name": "customer_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customers",
+      "column_name": "full_name",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customers",
+      "column_name": "email",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customers",
+      "column_name": "phone",
+      "is_nullable": "YES",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customers",
+      "column_name": "gender",
+      "is_nullable": "YES",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "date",
+      "table_name": "customers",
+      "column_name": "date_of_birth",
+      "is_nullable": "YES",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "customers",
+      "column_name": "registered_at",
+      "is_nullable": "NO",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "customers",
+      "column_name": "status",
+      "is_nullable": "NO",
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "integer",
+      "table_name": "departments",
+      "column_name": "department_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "departments",
+      "column_name": "department_name",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "integer",
+      "table_name": "departments",
+      "column_name": "manager_employee_id",
+      "is_nullable": "YES",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "date",
+      "table_name": "departments",
+      "column_name": "created_at",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "departments",
+      "column_name": "status",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "integer",
+      "table_name": "employees",
+      "column_name": "employee_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "employees",
+      "column_name": "full_name",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "integer",
+      "table_name": "employees",
+      "column_name": "department_id",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "integer",
+      "table_name": "employees",
+      "column_name": "manager_id",
+      "is_nullable": "YES",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "date",
+      "table_name": "employees",
+      "column_name": "hire_date",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "employees",
+      "column_name": "job_title",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "employees",
+      "column_name": "current_salary",
+      "is_nullable": "NO",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "employees",
+      "column_name": "status",
+      "is_nullable": "NO",
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "integer",
+      "table_name": "inventory_transactions",
+      "column_name": "transaction_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "inventory_transactions",
+      "column_name": "product_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "integer",
+      "table_name": "inventory_transactions",
+      "column_name": "warehouse_id",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "inventory_transactions",
+      "column_name": "transaction_type",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "integer",
+      "table_name": "inventory_transactions",
+      "column_name": "quantity_change",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "inventory_transactions",
+      "column_name": "transaction_date",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "text",
+      "table_name": "inventory_transactions",
+      "column_name": "note",
+      "is_nullable": "YES",
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "integer",
+      "table_name": "inventory_transactions",
+      "column_name": "order_item_id",
+      "is_nullable": "YES",
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "integer",
+      "table_name": "operating_expenses",
+      "column_name": "expense_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "operating_expenses",
+      "column_name": "department_id",
+      "is_nullable": "YES",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "operating_expenses",
+      "column_name": "expense_category",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "operating_expenses",
+      "column_name": "amount",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "date",
+      "table_name": "operating_expenses",
+      "column_name": "expense_date",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "text",
+      "table_name": "operating_expenses",
+      "column_name": "description",
+      "is_nullable": "YES",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "integer",
+      "table_name": "operating_expenses",
+      "column_name": "approved_by_employee_id",
+      "is_nullable": "YES",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "integer",
+      "table_name": "order_items",
+      "column_name": "order_item_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "order_items",
+      "column_name": "order_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "integer",
+      "table_name": "order_items",
+      "column_name": "product_id",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "integer",
+      "table_name": "order_items",
+      "column_name": "quantity",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "order_items",
+      "column_name": "unit_price",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "order_items",
+      "column_name": "discount_amount",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "order_items",
+      "column_name": "line_total",
+      "is_nullable": "NO",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "integer",
+      "table_name": "order_status_history",
+      "column_name": "history_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "order_status_history",
+      "column_name": "order_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "order_status_history",
+      "column_name": "old_status",
+      "is_nullable": "YES",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "order_status_history",
+      "column_name": "new_status",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "order_status_history",
+      "column_name": "changed_at",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "integer",
+      "table_name": "order_status_history",
+      "column_name": "changed_by_employee_id",
+      "is_nullable": "YES",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "integer",
+      "table_name": "orders",
+      "column_name": "order_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "orders",
+      "column_name": "customer_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "integer",
+      "table_name": "orders",
+      "column_name": "employee_id",
+      "is_nullable": "YES",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "integer",
+      "table_name": "orders",
+      "column_name": "shipping_address_id",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "integer",
+      "table_name": "orders",
+      "column_name": "warehouse_id",
+      "is_nullable": "YES",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "orders",
+      "column_name": "order_date",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "orders",
+      "column_name": "status",
+      "is_nullable": "NO",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "orders",
+      "column_name": "total_amount",
+      "is_nullable": "NO",
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "orders",
+      "column_name": "shipping_fee",
+      "is_nullable": "NO",
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "orders",
+      "column_name": "carrier_name",
+      "is_nullable": "YES",
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "orders",
+      "column_name": "shipped_at",
+      "is_nullable": "YES",
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "orders",
+      "column_name": "delivered_at",
+      "is_nullable": "YES",
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "orders",
+      "column_name": "created_at",
+      "is_nullable": "NO",
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "integer",
+      "table_name": "payments",
+      "column_name": "payment_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "payments",
+      "column_name": "order_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "payments",
+      "column_name": "amount",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "payments",
+      "column_name": "payment_method",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "payments",
+      "column_name": "payment_status",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "payments",
+      "column_name": "attempted_at",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "payments",
+      "column_name": "transaction_code",
+      "is_nullable": "YES",
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "integer",
+      "table_name": "products",
+      "column_name": "product_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "products",
+      "column_name": "product_name",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "integer",
+      "table_name": "products",
+      "column_name": "category_id",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "integer",
+      "table_name": "products",
+      "column_name": "supplier_id",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "products",
+      "column_name": "sku",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "products",
+      "column_name": "list_price",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "products",
+      "column_name": "cost_price",
+      "is_nullable": "NO",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "products",
+      "column_name": "created_at",
+      "is_nullable": "NO",
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "boolean",
+      "table_name": "products",
+      "column_name": "is_active",
+      "is_nullable": "NO",
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "integer",
+      "table_name": "refunds",
+      "column_name": "refund_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "refunds",
+      "column_name": "payment_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "refunds",
+      "column_name": "refund_amount",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "refunds",
+      "column_name": "refund_reason",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "refunds",
+      "column_name": "refund_status",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "refunds",
+      "column_name": "requested_at",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "timestamp without time zone",
+      "table_name": "refunds",
+      "column_name": "completed_at",
+      "is_nullable": "YES",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "integer",
+      "table_name": "salary_history",
+      "column_name": "salary_history_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "integer",
+      "table_name": "salary_history",
+      "column_name": "employee_id",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "numeric",
+      "table_name": "salary_history",
+      "column_name": "salary",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "date",
+      "table_name": "salary_history",
+      "column_name": "effective_date",
+      "is_nullable": "NO",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "salary_history",
+      "column_name": "change_reason",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "integer",
+      "table_name": "suppliers",
+      "column_name": "supplier_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "suppliers",
+      "column_name": "supplier_name",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "suppliers",
+      "column_name": "contact_email",
+      "is_nullable": "YES",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "suppliers",
+      "column_name": "phone",
+      "is_nullable": "YES",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "suppliers",
+      "column_name": "country",
+      "is_nullable": "YES",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "date",
+      "table_name": "suppliers",
+      "column_name": "joined_at",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "suppliers",
+      "column_name": "status",
+      "is_nullable": "NO",
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "integer",
+      "table_name": "warehouses",
+      "column_name": "warehouse_id",
+      "is_nullable": "NO",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "warehouses",
+      "column_name": "warehouse_name",
+      "is_nullable": "NO",
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "warehouses",
+      "column_name": "city",
+      "is_nullable": "NO",
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "integer",
+      "table_name": "warehouses",
+      "column_name": "capacity",
+      "is_nullable": "NO",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "integer",
+      "table_name": "warehouses",
+      "column_name": "manager_employee_id",
+      "is_nullable": "YES",
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "character varying",
+      "table_name": "warehouses",
+      "column_name": "status",
+      "is_nullable": "NO",
+      "ordinal_position": 6
+    }
+  ],
+  "constraints": [
+    {
+      "kind": "n",
+      "name": "categories_category_id_not_null",
+      "definition": "NOT NULL category_id",
+      "table_name": "categories"
+    },
+    {
+      "kind": "n",
+      "name": "categories_category_name_not_null",
+      "definition": "NOT NULL category_name",
+      "table_name": "categories"
+    },
+    {
+      "kind": "n",
+      "name": "categories_is_active_not_null",
+      "definition": "NOT NULL is_active",
+      "table_name": "categories"
+    },
+    {
+      "kind": "f",
+      "name": "categories_parent_category_id_fkey",
+      "definition": "FOREIGN KEY (parent_category_id) REFERENCES categories(category_id)",
+      "table_name": "categories"
+    },
+    {
+      "kind": "p",
+      "name": "categories_pkey",
+      "definition": "PRIMARY KEY (category_id)",
+      "table_name": "categories"
+    },
+    {
+      "kind": "c",
+      "name": "chk_category_not_own_parent",
+      "definition": "CHECK (((parent_category_id IS NULL) OR (parent_category_id <> category_id)))",
+      "table_name": "categories"
+    },
+    {
+      "kind": "u",
+      "name": "customer_addresses_address_id_customer_id_key",
+      "definition": "UNIQUE (address_id, customer_id)",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customer_addresses_address_id_not_null",
+      "definition": "NOT NULL address_id",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customer_addresses_address_line_not_null",
+      "definition": "NOT NULL address_line",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customer_addresses_city_not_null",
+      "definition": "NOT NULL city",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customer_addresses_created_at_not_null",
+      "definition": "NOT NULL created_at",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "f",
+      "name": "customer_addresses_customer_id_fkey",
+      "definition": "FOREIGN KEY (customer_id) REFERENCES customers(customer_id)",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customer_addresses_customer_id_not_null",
+      "definition": "NOT NULL customer_id",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customer_addresses_district_not_null",
+      "definition": "NOT NULL district",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customer_addresses_is_default_not_null",
+      "definition": "NOT NULL is_default",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "p",
+      "name": "customer_addresses_pkey",
+      "definition": "PRIMARY KEY (address_id)",
+      "table_name": "customer_addresses"
+    },
+    {
+      "kind": "n",
+      "name": "customers_customer_id_not_null",
+      "definition": "NOT NULL customer_id",
+      "table_name": "customers"
+    },
+    {
+      "kind": "u",
+      "name": "customers_email_key",
+      "definition": "UNIQUE (email)",
+      "table_name": "customers"
+    },
+    {
+      "kind": "n",
+      "name": "customers_email_not_null",
+      "definition": "NOT NULL email",
+      "table_name": "customers"
+    },
+    {
+      "kind": "n",
+      "name": "customers_full_name_not_null",
+      "definition": "NOT NULL full_name",
+      "table_name": "customers"
+    },
+    {
+      "kind": "p",
+      "name": "customers_pkey",
+      "definition": "PRIMARY KEY (customer_id)",
+      "table_name": "customers"
+    },
+    {
+      "kind": "n",
+      "name": "customers_registered_at_not_null",
+      "definition": "NOT NULL registered_at",
+      "table_name": "customers"
+    },
+    {
+      "kind": "n",
+      "name": "customers_status_not_null",
+      "definition": "NOT NULL status",
+      "table_name": "customers"
+    },
+    {
+      "kind": "n",
+      "name": "departments_created_at_not_null",
+      "definition": "NOT NULL created_at",
+      "table_name": "departments"
+    },
+    {
+      "kind": "n",
+      "name": "departments_department_id_not_null",
+      "definition": "NOT NULL department_id",
+      "table_name": "departments"
+    },
+    {
+      "kind": "n",
+      "name": "departments_department_name_not_null",
+      "definition": "NOT NULL department_name",
+      "table_name": "departments"
+    },
+    {
+      "kind": "p",
+      "name": "departments_pkey",
+      "definition": "PRIMARY KEY (department_id)",
+      "table_name": "departments"
+    },
+    {
+      "kind": "n",
+      "name": "departments_status_not_null",
+      "definition": "NOT NULL status",
+      "table_name": "departments"
+    },
+    {
+      "kind": "f",
+      "name": "fk_departments_manager",
+      "definition": "FOREIGN KEY (manager_employee_id) REFERENCES employees(employee_id)",
+      "table_name": "departments"
+    },
+    {
+      "kind": "c",
+      "name": "chk_employee_not_own_manager",
+      "definition": "CHECK (((manager_id IS NULL) OR (manager_id <> employee_id)))",
+      "table_name": "employees"
+    },
+    {
+      "kind": "c",
+      "name": "chk_employee_salary",
+      "definition": "CHECK ((current_salary >= (0)::numeric))",
+      "table_name": "employees"
+    },
+    {
+      "kind": "n",
+      "name": "employees_current_salary_not_null",
+      "definition": "NOT NULL current_salary",
+      "table_name": "employees"
+    },
+    {
+      "kind": "f",
+      "name": "employees_department_id_fkey",
+      "definition": "FOREIGN KEY (department_id) REFERENCES departments(department_id)",
+      "table_name": "employees"
+    },
+    {
+      "kind": "n",
+      "name": "employees_department_id_not_null",
+      "definition": "NOT NULL department_id",
+      "table_name": "employees"
+    },
+    {
+      "kind": "n",
+      "name": "employees_employee_id_not_null",
+      "definition": "NOT NULL employee_id",
+      "table_name": "employees"
+    },
+    {
+      "kind": "n",
+      "name": "employees_full_name_not_null",
+      "definition": "NOT NULL full_name",
+      "table_name": "employees"
+    },
+    {
+      "kind": "n",
+      "name": "employees_hire_date_not_null",
+      "definition": "NOT NULL hire_date",
+      "table_name": "employees"
+    },
+    {
+      "kind": "n",
+      "name": "employees_job_title_not_null",
+      "definition": "NOT NULL job_title",
+      "table_name": "employees"
+    },
+    {
+      "kind": "f",
+      "name": "employees_manager_id_fkey",
+      "definition": "FOREIGN KEY (manager_id) REFERENCES employees(employee_id)",
+      "table_name": "employees"
+    },
+    {
+      "kind": "p",
+      "name": "employees_pkey",
+      "definition": "PRIMARY KEY (employee_id)",
+      "table_name": "employees"
+    },
+    {
+      "kind": "n",
+      "name": "employees_status_not_null",
+      "definition": "NOT NULL status",
+      "table_name": "employees"
+    },
+    {
+      "kind": "c",
+      "name": "chk_inventory_transaction",
+      "definition": "CHECK (((((transaction_type)::text = 'import'::text) AND (quantity_change > 0) AND (order_item_id IS NULL)) OR (((transaction_type)::text = 'sale'::text) AND (quantity_change < 0) AND (order_item_id IS NOT NULL)) OR (((transaction_type)::text = 'return'::text) AND (quantity_change > 0) AND (order_item_id IS NOT NULL)) OR (((transaction_type)::text = 'adjustment'::text) AND (quantity_change <> 0) AND (order_item_id IS NULL))))",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "f",
+      "name": "fk_inventory_order_item",
+      "definition": "FOREIGN KEY (order_item_id) REFERENCES order_items(order_item_id)",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "p",
+      "name": "inventory_transactions_pkey",
+      "definition": "PRIMARY KEY (transaction_id)",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "f",
+      "name": "inventory_transactions_product_id_fkey",
+      "definition": "FOREIGN KEY (product_id) REFERENCES products(product_id)",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "n",
+      "name": "inventory_transactions_product_id_not_null",
+      "definition": "NOT NULL product_id",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "n",
+      "name": "inventory_transactions_quantity_change_not_null",
+      "definition": "NOT NULL quantity_change",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "n",
+      "name": "inventory_transactions_transaction_date_not_null",
+      "definition": "NOT NULL transaction_date",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "n",
+      "name": "inventory_transactions_transaction_id_not_null",
+      "definition": "NOT NULL transaction_id",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "n",
+      "name": "inventory_transactions_transaction_type_not_null",
+      "definition": "NOT NULL transaction_type",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "f",
+      "name": "inventory_transactions_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "n",
+      "name": "inventory_transactions_warehouse_id_not_null",
+      "definition": "NOT NULL warehouse_id",
+      "table_name": "inventory_transactions"
+    },
+    {
+      "kind": "c",
+      "name": "chk_expense_amount",
+      "definition": "CHECK ((amount >= (0)::numeric))",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "n",
+      "name": "operating_expenses_amount_not_null",
+      "definition": "NOT NULL amount",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "f",
+      "name": "operating_expenses_approved_by_employee_id_fkey",
+      "definition": "FOREIGN KEY (approved_by_employee_id) REFERENCES employees(employee_id)",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "f",
+      "name": "operating_expenses_department_id_fkey",
+      "definition": "FOREIGN KEY (department_id) REFERENCES departments(department_id)",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "n",
+      "name": "operating_expenses_expense_category_not_null",
+      "definition": "NOT NULL expense_category",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "n",
+      "name": "operating_expenses_expense_date_not_null",
+      "definition": "NOT NULL expense_date",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "n",
+      "name": "operating_expenses_expense_id_not_null",
+      "definition": "NOT NULL expense_id",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "p",
+      "name": "operating_expenses_pkey",
+      "definition": "PRIMARY KEY (expense_id)",
+      "table_name": "operating_expenses"
+    },
+    {
+      "kind": "c",
+      "name": "chk_order_items_values",
+      "definition": "CHECK (((quantity > 0) AND (unit_price >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (discount_amount <= ((quantity)::numeric * unit_price)) AND (line_total = (((quantity)::numeric * unit_price) - discount_amount))))",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "n",
+      "name": "order_items_discount_amount_not_null",
+      "definition": "NOT NULL discount_amount",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "n",
+      "name": "order_items_line_total_not_null",
+      "definition": "NOT NULL line_total",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "f",
+      "name": "order_items_order_id_fkey",
+      "definition": "FOREIGN KEY (order_id) REFERENCES orders(order_id)",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "n",
+      "name": "order_items_order_id_not_null",
+      "definition": "NOT NULL order_id",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "n",
+      "name": "order_items_order_item_id_not_null",
+      "definition": "NOT NULL order_item_id",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "p",
+      "name": "order_items_pkey",
+      "definition": "PRIMARY KEY (order_item_id)",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "f",
+      "name": "order_items_product_id_fkey",
+      "definition": "FOREIGN KEY (product_id) REFERENCES products(product_id)",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "n",
+      "name": "order_items_product_id_not_null",
+      "definition": "NOT NULL product_id",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "n",
+      "name": "order_items_quantity_not_null",
+      "definition": "NOT NULL quantity",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "n",
+      "name": "order_items_unit_price_not_null",
+      "definition": "NOT NULL unit_price",
+      "table_name": "order_items"
+    },
+    {
+      "kind": "c",
+      "name": "chk_order_history_status",
+      "definition": "CHECK ((((old_status IS NULL) OR ((old_status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'shipped'::character varying, 'delivered'::character varying])::text[]))) AND ((new_status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'shipped'::character varying, 'delivered'::character varying, 'cancelled'::character varying])::text[]))))",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "c",
+      "name": "chk_order_history_transition",
+      "definition": "CHECK ((((old_status IS NULL) AND ((new_status)::text = 'pending'::text)) OR (((old_status)::text = 'pending'::text) AND ((new_status)::text = ANY ((ARRAY['processing'::character varying, 'cancelled'::character varying])::text[]))) OR (((old_status)::text = 'processing'::text) AND ((new_status)::text = ANY ((ARRAY['shipped'::character varying, 'cancelled'::character varying])::text[]))) OR (((old_status)::text = 'shipped'::text) AND ((new_status)::text = 'delivered'::text))))",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "n",
+      "name": "order_status_history_changed_at_not_null",
+      "definition": "NOT NULL changed_at",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "f",
+      "name": "order_status_history_changed_by_employee_id_fkey",
+      "definition": "FOREIGN KEY (changed_by_employee_id) REFERENCES employees(employee_id)",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "n",
+      "name": "order_status_history_history_id_not_null",
+      "definition": "NOT NULL history_id",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "n",
+      "name": "order_status_history_new_status_not_null",
+      "definition": "NOT NULL new_status",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "f",
+      "name": "order_status_history_order_id_fkey",
+      "definition": "FOREIGN KEY (order_id) REFERENCES orders(order_id)",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "n",
+      "name": "order_status_history_order_id_not_null",
+      "definition": "NOT NULL order_id",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "p",
+      "name": "order_status_history_pkey",
+      "definition": "PRIMARY KEY (history_id)",
+      "table_name": "order_status_history"
+    },
+    {
+      "kind": "c",
+      "name": "chk_orders_amounts",
+      "definition": "CHECK (((total_amount >= (0)::numeric) AND (shipping_fee >= (0)::numeric)))",
+      "table_name": "orders"
+    },
+    {
+      "kind": "c",
+      "name": "chk_orders_status",
+      "definition": "CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'shipped'::character varying, 'delivered'::character varying, 'cancelled'::character varying])::text[])))",
+      "table_name": "orders"
+    },
+    {
+      "kind": "c",
+      "name": "chk_orders_timeline",
+      "definition": "CHECK (((created_at <= order_date) AND ((shipped_at IS NULL) OR (shipped_at >= order_date)) AND ((delivered_at IS NULL) OR ((shipped_at IS NOT NULL) AND (delivered_at >= shipped_at)))))",
+      "table_name": "orders"
+    },
+    {
+      "kind": "f",
+      "name": "fk_orders_shipping_address_customer",
+      "definition": "FOREIGN KEY (shipping_address_id, customer_id) REFERENCES customer_addresses(address_id, customer_id)",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_created_at_not_null",
+      "definition": "NOT NULL created_at",
+      "table_name": "orders"
+    },
+    {
+      "kind": "f",
+      "name": "orders_customer_id_fkey",
+      "definition": "FOREIGN KEY (customer_id) REFERENCES customers(customer_id)",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_customer_id_not_null",
+      "definition": "NOT NULL customer_id",
+      "table_name": "orders"
+    },
+    {
+      "kind": "f",
+      "name": "orders_employee_id_fkey",
+      "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id)",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_order_date_not_null",
+      "definition": "NOT NULL order_date",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_order_id_not_null",
+      "definition": "NOT NULL order_id",
+      "table_name": "orders"
+    },
+    {
+      "kind": "p",
+      "name": "orders_pkey",
+      "definition": "PRIMARY KEY (order_id)",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_shipping_address_id_not_null",
+      "definition": "NOT NULL shipping_address_id",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_shipping_fee_not_null",
+      "definition": "NOT NULL shipping_fee",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_status_not_null",
+      "definition": "NOT NULL status",
+      "table_name": "orders"
+    },
+    {
+      "kind": "n",
+      "name": "orders_total_amount_not_null",
+      "definition": "NOT NULL total_amount",
+      "table_name": "orders"
+    },
+    {
+      "kind": "f",
+      "name": "orders_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)",
+      "table_name": "orders"
+    },
+    {
+      "kind": "c",
+      "name": "chk_payment_amount",
+      "definition": "CHECK ((amount > (0)::numeric))",
+      "table_name": "payments"
+    },
+    {
+      "kind": "c",
+      "name": "chk_payment_status",
+      "definition": "CHECK (((payment_status)::text = ANY ((ARRAY['success'::character varying, 'failed'::character varying])::text[])))",
+      "table_name": "payments"
+    },
+    {
+      "kind": "n",
+      "name": "payments_amount_not_null",
+      "definition": "NOT NULL amount",
+      "table_name": "payments"
+    },
+    {
+      "kind": "n",
+      "name": "payments_attempted_at_not_null",
+      "definition": "NOT NULL attempted_at",
+      "table_name": "payments"
+    },
+    {
+      "kind": "f",
+      "name": "payments_order_id_fkey",
+      "definition": "FOREIGN KEY (order_id) REFERENCES orders(order_id)",
+      "table_name": "payments"
+    },
+    {
+      "kind": "n",
+      "name": "payments_order_id_not_null",
+      "definition": "NOT NULL order_id",
+      "table_name": "payments"
+    },
+    {
+      "kind": "n",
+      "name": "payments_payment_id_not_null",
+      "definition": "NOT NULL payment_id",
+      "table_name": "payments"
+    },
+    {
+      "kind": "n",
+      "name": "payments_payment_method_not_null",
+      "definition": "NOT NULL payment_method",
+      "table_name": "payments"
+    },
+    {
+      "kind": "n",
+      "name": "payments_payment_status_not_null",
+      "definition": "NOT NULL payment_status",
+      "table_name": "payments"
+    },
+    {
+      "kind": "p",
+      "name": "payments_pkey",
+      "definition": "PRIMARY KEY (payment_id)",
+      "table_name": "payments"
+    },
+    {
+      "kind": "c",
+      "name": "chk_product_prices",
+      "definition": "CHECK (((list_price >= (0)::numeric) AND (cost_price >= (0)::numeric)))",
+      "table_name": "products"
+    },
+    {
+      "kind": "f",
+      "name": "products_category_id_fkey",
+      "definition": "FOREIGN KEY (category_id) REFERENCES categories(category_id)",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_category_id_not_null",
+      "definition": "NOT NULL category_id",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_cost_price_not_null",
+      "definition": "NOT NULL cost_price",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_created_at_not_null",
+      "definition": "NOT NULL created_at",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_is_active_not_null",
+      "definition": "NOT NULL is_active",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_list_price_not_null",
+      "definition": "NOT NULL list_price",
+      "table_name": "products"
+    },
+    {
+      "kind": "p",
+      "name": "products_pkey",
+      "definition": "PRIMARY KEY (product_id)",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_product_id_not_null",
+      "definition": "NOT NULL product_id",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_product_name_not_null",
+      "definition": "NOT NULL product_name",
+      "table_name": "products"
+    },
+    {
+      "kind": "u",
+      "name": "products_sku_key",
+      "definition": "UNIQUE (sku)",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_sku_not_null",
+      "definition": "NOT NULL sku",
+      "table_name": "products"
+    },
+    {
+      "kind": "f",
+      "name": "products_supplier_id_fkey",
+      "definition": "FOREIGN KEY (supplier_id) REFERENCES suppliers(supplier_id)",
+      "table_name": "products"
+    },
+    {
+      "kind": "n",
+      "name": "products_supplier_id_not_null",
+      "definition": "NOT NULL supplier_id",
+      "table_name": "products"
+    },
+    {
+      "kind": "c",
+      "name": "chk_refund_amount",
+      "definition": "CHECK ((refund_amount > (0)::numeric))",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "c",
+      "name": "chk_refund_timeline",
+      "definition": "CHECK (((completed_at IS NULL) OR (completed_at >= requested_at)))",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "f",
+      "name": "refunds_payment_id_fkey",
+      "definition": "FOREIGN KEY (payment_id) REFERENCES payments(payment_id)",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "n",
+      "name": "refunds_payment_id_not_null",
+      "definition": "NOT NULL payment_id",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "p",
+      "name": "refunds_pkey",
+      "definition": "PRIMARY KEY (refund_id)",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "n",
+      "name": "refunds_refund_amount_not_null",
+      "definition": "NOT NULL refund_amount",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "n",
+      "name": "refunds_refund_id_not_null",
+      "definition": "NOT NULL refund_id",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "n",
+      "name": "refunds_refund_reason_not_null",
+      "definition": "NOT NULL refund_reason",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "n",
+      "name": "refunds_refund_status_not_null",
+      "definition": "NOT NULL refund_status",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "n",
+      "name": "refunds_requested_at_not_null",
+      "definition": "NOT NULL requested_at",
+      "table_name": "refunds"
+    },
+    {
+      "kind": "c",
+      "name": "chk_salary_history_positive",
+      "definition": "CHECK ((salary > (0)::numeric))",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "n",
+      "name": "salary_history_change_reason_not_null",
+      "definition": "NOT NULL change_reason",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "n",
+      "name": "salary_history_effective_date_not_null",
+      "definition": "NOT NULL effective_date",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "f",
+      "name": "salary_history_employee_id_fkey",
+      "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id)",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "n",
+      "name": "salary_history_employee_id_not_null",
+      "definition": "NOT NULL employee_id",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "n",
+      "name": "salary_history_new_salary_not_null",
+      "definition": "NOT NULL salary",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "p",
+      "name": "salary_history_pkey",
+      "definition": "PRIMARY KEY (salary_history_id)",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "n",
+      "name": "salary_history_salary_history_id_not_null",
+      "definition": "NOT NULL salary_history_id",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "u",
+      "name": "uq_salary_history_employee_date",
+      "definition": "UNIQUE (employee_id, effective_date)",
+      "table_name": "salary_history"
+    },
+    {
+      "kind": "n",
+      "name": "suppliers_joined_at_not_null",
+      "definition": "NOT NULL joined_at",
+      "table_name": "suppliers"
+    },
+    {
+      "kind": "p",
+      "name": "suppliers_pkey",
+      "definition": "PRIMARY KEY (supplier_id)",
+      "table_name": "suppliers"
+    },
+    {
+      "kind": "n",
+      "name": "suppliers_status_not_null",
+      "definition": "NOT NULL status",
+      "table_name": "suppliers"
+    },
+    {
+      "kind": "n",
+      "name": "suppliers_supplier_id_not_null",
+      "definition": "NOT NULL supplier_id",
+      "table_name": "suppliers"
+    },
+    {
+      "kind": "n",
+      "name": "suppliers_supplier_name_not_null",
+      "definition": "NOT NULL supplier_name",
+      "table_name": "suppliers"
+    },
+    {
+      "kind": "c",
+      "name": "chk_warehouse_capacity",
+      "definition": "CHECK ((capacity >= 0))",
+      "table_name": "warehouses"
+    },
+    {
+      "kind": "n",
+      "name": "warehouses_capacity_not_null",
+      "definition": "NOT NULL capacity",
+      "table_name": "warehouses"
+    },
+    {
+      "kind": "n",
+      "name": "warehouses_city_not_null",
+      "definition": "NOT NULL city",
+      "table_name": "warehouses"
+    },
+    {
+      "kind": "f",
+      "name": "warehouses_manager_employee_id_fkey",
+      "definition": "FOREIGN KEY (manager_employee_id) REFERENCES employees(employee_id)",
+      "table_name": "warehouses"
+    },
+    {
+      "kind": "p",
+      "name": "warehouses_pkey",
+      "definition": "PRIMARY KEY (warehouse_id)",
+      "table_name": "warehouses"
+    },
+    {
+      "kind": "n",
+      "name": "warehouses_status_not_null",
+      "definition": "NOT NULL status",
+      "table_name": "warehouses"
+    },
+    {
+      "kind": "n",
+      "name": "warehouses_warehouse_id_not_null",
+      "definition": "NOT NULL warehouse_id",
+      "table_name": "warehouses"
+    },
+    {
+      "kind": "n",
+      "name": "warehouses_warehouse_name_not_null",
+      "definition": "NOT NULL warehouse_name",
+      "table_name": "warehouses"
+    }
+  ],
+  "indexes": [
+    {
+      "indexdef": "CREATE UNIQUE INDEX categories_pkey ON public.categories USING btree (category_id)",
+      "indexname": "categories_pkey",
+      "tablename": "categories"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX customer_addresses_address_id_customer_id_key ON public.customer_addresses USING btree (address_id, customer_id)",
+      "indexname": "customer_addresses_address_id_customer_id_key",
+      "tablename": "customer_addresses"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX customer_addresses_pkey ON public.customer_addresses USING btree (address_id)",
+      "indexname": "customer_addresses_pkey",
+      "tablename": "customer_addresses"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_customer_addresses_customer ON public.customer_addresses USING btree (customer_id)",
+      "indexname": "idx_customer_addresses_customer",
+      "tablename": "customer_addresses"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX customers_email_key ON public.customers USING btree (email)",
+      "indexname": "customers_email_key",
+      "tablename": "customers"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (customer_id)",
+      "indexname": "customers_pkey",
+      "tablename": "customers"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX departments_pkey ON public.departments USING btree (department_id)",
+      "indexname": "departments_pkey",
+      "tablename": "departments"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX employees_pkey ON public.employees USING btree (employee_id)",
+      "indexname": "employees_pkey",
+      "tablename": "employees"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_employees_department ON public.employees USING btree (department_id)",
+      "indexname": "idx_employees_department",
+      "tablename": "employees"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_employees_manager ON public.employees USING btree (manager_id)",
+      "indexname": "idx_employees_manager",
+      "tablename": "employees"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_inventory_transactions_product_warehouse ON public.inventory_transactions USING btree (product_id, warehouse_id)",
+      "indexname": "idx_inventory_transactions_product_warehouse",
+      "tablename": "inventory_transactions"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX inventory_transactions_pkey ON public.inventory_transactions USING btree (transaction_id)",
+      "indexname": "inventory_transactions_pkey",
+      "tablename": "inventory_transactions"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX uq_inventory_return_order_item ON public.inventory_transactions USING btree (order_item_id) WHERE ((transaction_type)::text = 'return'::text)",
+      "indexname": "uq_inventory_return_order_item",
+      "tablename": "inventory_transactions"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX uq_inventory_sale_order_item ON public.inventory_transactions USING btree (order_item_id) WHERE ((transaction_type)::text = 'sale'::text)",
+      "indexname": "uq_inventory_sale_order_item",
+      "tablename": "inventory_transactions"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_operating_expenses_department ON public.operating_expenses USING btree (department_id)",
+      "indexname": "idx_operating_expenses_department",
+      "tablename": "operating_expenses"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX operating_expenses_pkey ON public.operating_expenses USING btree (expense_id)",
+      "indexname": "operating_expenses_pkey",
+      "tablename": "operating_expenses"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_order_items_order ON public.order_items USING btree (order_id)",
+      "indexname": "idx_order_items_order",
+      "tablename": "order_items"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_order_items_product ON public.order_items USING btree (product_id)",
+      "indexname": "idx_order_items_product",
+      "tablename": "order_items"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX order_items_pkey ON public.order_items USING btree (order_item_id)",
+      "indexname": "order_items_pkey",
+      "tablename": "order_items"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_order_status_history_order ON public.order_status_history USING btree (order_id)",
+      "indexname": "idx_order_status_history_order",
+      "tablename": "order_status_history"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX order_status_history_pkey ON public.order_status_history USING btree (history_id)",
+      "indexname": "order_status_history_pkey",
+      "tablename": "order_status_history"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_customer ON public.orders USING btree (customer_id)",
+      "indexname": "idx_orders_customer",
+      "tablename": "orders"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_employee ON public.orders USING btree (employee_id)",
+      "indexname": "idx_orders_employee",
+      "tablename": "orders"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_warehouse ON public.orders USING btree (warehouse_id)",
+      "indexname": "idx_orders_warehouse",
+      "tablename": "orders"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (order_id)",
+      "indexname": "orders_pkey",
+      "tablename": "orders"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_payments_order ON public.payments USING btree (order_id)",
+      "indexname": "idx_payments_order",
+      "tablename": "payments"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX payments_pkey ON public.payments USING btree (payment_id)",
+      "indexname": "payments_pkey",
+      "tablename": "payments"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX uq_payment_success_per_order ON public.payments USING btree (order_id) WHERE ((payment_status)::text = 'success'::text)",
+      "indexname": "uq_payment_success_per_order",
+      "tablename": "payments"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_category ON public.products USING btree (category_id)",
+      "indexname": "idx_products_category",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_supplier ON public.products USING btree (supplier_id)",
+      "indexname": "idx_products_supplier",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX products_pkey ON public.products USING btree (product_id)",
+      "indexname": "products_pkey",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX products_sku_key ON public.products USING btree (sku)",
+      "indexname": "products_sku_key",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_refunds_payment ON public.refunds USING btree (payment_id)",
+      "indexname": "idx_refunds_payment",
+      "tablename": "refunds"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX refunds_pkey ON public.refunds USING btree (refund_id)",
+      "indexname": "refunds_pkey",
+      "tablename": "refunds"
+    },
+    {
+      "indexdef": "CREATE INDEX idx_salary_history_employee ON public.salary_history USING btree (employee_id)",
+      "indexname": "idx_salary_history_employee",
+      "tablename": "salary_history"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX salary_history_pkey ON public.salary_history USING btree (salary_history_id)",
+      "indexname": "salary_history_pkey",
+      "tablename": "salary_history"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX uq_salary_history_employee_date ON public.salary_history USING btree (employee_id, effective_date)",
+      "indexname": "uq_salary_history_employee_date",
+      "tablename": "salary_history"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX suppliers_pkey ON public.suppliers USING btree (supplier_id)",
+      "indexname": "suppliers_pkey",
+      "tablename": "suppliers"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX warehouses_pkey ON public.warehouses USING btree (warehouse_id)",
+      "indexname": "warehouses_pkey",
+      "tablename": "warehouses"
+    }
+  ]
+}

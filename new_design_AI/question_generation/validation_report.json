@@ -1,0 +1,3851 @@
+{
+  "run_started_at": "2026-10-10T10:29:51.128850+00:00",
+  "world_id": "enterprise_v1",
+  "taxonomy_version": "v1",
+  "status": "PASS",
+  "validated_count": 50,
+  "rejected_count": 0,
+  "statement_timeout_ms": 15000,
+  "questions": [
+    {
+      "question_id": "ENT-001",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 153,
+      "runtime_ms": 4.417,
+      "column_types": [
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "full_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "email",
+          "postgres_type": "character varying(255)"
+        },
+        {
+          "name": "registered_at",
+          "postgres_type": "timestamp without time zone"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "email": "customer213@example.com",
+            "full_name": "Tran Nam Customer 213",
+            "customer_id": 213,
+            "registered_at": "2024-01-12T11:45:00"
+          },
+          {
+            "email": "customer277@example.com",
+            "full_name": "Do Hung Customer 277",
+            "customer_id": 277,
+            "registered_at": "2024-01-15T18:15:00"
+          },
+          {
+            "email": "customer172@example.com",
+            "full_name": "Do Giang Customer 172",
+            "customer_id": 172,
+            "registered_at": "2024-01-16T18:15:00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "customers"
+      ],
+      "process_wall_ms": 73.291,
+      "oracle_row_count": 153,
+      "result_sha256": "358185d8921c83a1ecea2554acf05b5554acbd701843495bff0f3920c20adb69",
+      "oracle_sha256": "358185d8921c83a1ecea2554acf05b5554acbd701843495bff0f3920c20adb69",
+      "repeat_runtime_ms": 4.606,
+      "repeat_result_sha256": "358185d8921c83a1ecea2554acf05b5554acbd701843495bff0f3920c20adb69",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Chỉ lọc và sắp xếp trên một bảng.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-002",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 4.632,
+      "column_types": [
+        {
+          "name": "city",
+          "postgres_type": "character varying(100)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "city": "Can Tho"
+          },
+          {
+            "city": "Da Nang"
+          },
+          {
+            "city": "Ha Noi"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "customer_addresses"
+      ],
+      "process_wall_ms": 74.784,
+      "oracle_row_count": 8,
+      "result_sha256": "c65b95dfba88d6b1e4512749ac256648720dd78f749f4b0ea6e6a0b18cf9e0e7",
+      "oracle_sha256": "c65b95dfba88d6b1e4512749ac256648720dd78f749f4b0ea6e6a0b18cf9e0e7",
+      "repeat_runtime_ms": 3.032,
+      "repeat_result_sha256": "c65b95dfba88d6b1e4512749ac256648720dd78f749f4b0ea6e6a0b18cf9e0e7",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Loại trùng trực tiếp một cột, không cần tổng hợp.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-003",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 110,
+      "runtime_ms": 4.936,
+      "column_types": [
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "warehouse_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "order_date",
+          "postgres_type": "timestamp without time zone"
+        },
+        {
+          "name": "total_amount",
+          "postgres_type": "numeric(15,2)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "order_id": 295,
+            "order_date": "2025-03-04T13:50:00",
+            "customer_id": 254,
+            "total_amount": "8681840.47",
+            "warehouse_id": null
+          },
+          {
+            "order_id": 82,
+            "order_date": "2025-03-05T13:20:00",
+            "customer_id": 190,
+            "total_amount": "2061085.42",
+            "warehouse_id": null
+          },
+          {
+            "order_id": 427,
+            "order_date": "2025-03-07T19:30:00",
+            "customer_id": 264,
+            "total_amount": "2604966.66",
+            "warehouse_id": null
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 74.654,
+      "oracle_row_count": 110,
+      "result_sha256": "df63de86ff363fbb1b843e56ea620628bc3f9e3cf191656192be58828d606802",
+      "oracle_sha256": "df63de86ff363fbb1b843e56ea620628bc3f9e3cf191656192be58828d606802",
+      "repeat_runtime_ms": 6.16,
+      "repeat_result_sha256": "df63de86ff363fbb1b843e56ea620628bc3f9e3cf191656192be58828d606802",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Lọc trực tiếp trạng thái trên một bảng.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-004",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 170,
+      "runtime_ms": 5.634,
+      "column_types": [
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "order_date",
+          "postgres_type": "timestamp without time zone"
+        },
+        {
+          "name": "shipped_at",
+          "postgres_type": "timestamp without time zone"
+        },
+        {
+          "name": "delivered_at",
+          "postgres_type": "timestamp without time zone"
+        },
+        {
+          "name": "carrier_name",
+          "postgres_type": "character varying(100)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "order_id": 63,
+            "order_date": "2026-01-01T14:50:00",
+            "shipped_at": "2026-01-02T16:50:00",
+            "carrier_name": "AhaMove",
+            "delivered_at": "2026-01-04T19:50:00"
+          },
+          {
+            "order_id": 785,
+            "order_date": "2026-01-05T12:50:00",
+            "shipped_at": "2026-01-07T14:50:00",
+            "carrier_name": "GHN",
+            "delivered_at": "2026-01-08T17:50:00"
+          },
+          {
+            "order_id": 576,
+            "order_date": "2026-01-07T12:10:00",
+            "shipped_at": "2026-01-08T14:10:00",
+            "carrier_name": "GHN",
+            "delivered_at": "2026-01-11T17:10:00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 74.099,
+      "oracle_row_count": 170,
+      "result_sha256": "ab61d40930b7c1899989100e682424200ae528d568a1828edb0b468a41187b1a",
+      "oracle_sha256": "ab61d40930b7c1899989100e682424200ae528d568a1828edb0b468a41187b1a",
+      "repeat_runtime_ms": 7.561,
+      "repeat_result_sha256": "ab61d40930b7c1899989100e682424200ae528d568a1828edb0b468a41187b1a",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Lọc trạng thái và khoảng thời gian trực tiếp.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-005",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 4.863,
+      "column_types": [
+        {
+          "name": "product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "product_name",
+          "postgres_type": "character varying(200)"
+        },
+        {
+          "name": "sku",
+          "postgres_type": "character varying(50)"
+        },
+        {
+          "name": "list_price",
+          "postgres_type": "numeric(15,2)"
+        },
+        {
+          "name": "cost_price",
+          "postgres_type": "numeric(15,2)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "sku": "SKU-00093",
+            "cost_price": "616000.00",
+            "list_price": "1139227.89",
+            "product_id": 93,
+            "product_name": "Product 093"
+          },
+          {
+            "sku": "SKU-00182",
+            "cost_price": "645000.00",
+            "list_price": "1129240.04",
+            "product_id": 182,
+            "product_name": "Product 182"
+          },
+          {
+            "sku": "SKU-00148",
+            "cost_price": "584000.00",
+            "list_price": "1077528.18",
+            "product_id": 148,
+            "product_name": "Product 148"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "products"
+      ],
+      "process_wall_ms": 76.515,
+      "oracle_row_count": 8,
+      "result_sha256": "e2322a89bd8dd165cde11827c4bcb964831a5d67f9e9b5a4b7b47e093463eaf7",
+      "oracle_sha256": "e2322a89bd8dd165cde11827c4bcb964831a5d67f9e9b5a4b7b47e093463eaf7",
+      "repeat_runtime_ms": 4.979,
+      "repeat_result_sha256": "e2322a89bd8dd165cde11827c4bcb964831a5d67f9e9b5a4b7b47e093463eaf7",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Lọc giá và trạng thái trên một bảng.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-006",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 3.566,
+      "column_types": [
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "full_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "job_title",
+          "postgres_type": "character varying(100)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "full_name": "Nguyen Hung Employee 001",
+            "job_title": "Department Manager",
+            "employee_id": 1,
+            "department_id": 1
+          },
+          {
+            "full_name": "Tran Lan Employee 002",
+            "job_title": "Department Manager",
+            "employee_id": 2,
+            "department_id": 2
+          },
+          {
+            "full_name": "Do Lan Employee 003",
+            "job_title": "Department Manager",
+            "employee_id": 3,
+            "department_id": 3
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "employees"
+      ],
+      "process_wall_ms": 74.008,
+      "oracle_row_count": 8,
+      "result_sha256": "c64708b9ad8810966db3cfec3b375ff625b75ea46b79f29d052cac2f6087c043",
+      "oracle_sha256": "c64708b9ad8810966db3cfec3b375ff625b75ea46b79f29d052cac2f6087c043",
+      "repeat_runtime_ms": 3.846,
+      "repeat_result_sha256": "c64708b9ad8810966db3cfec3b375ff625b75ea46b79f29d052cac2f6087c043",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Kiểm tra NULL trực tiếp, không duyệt cây quản lý.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-007",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 5,
+      "runtime_ms": 3.778,
+      "column_types": [
+        {
+          "name": "refund_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "payment_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "refund_amount",
+          "postgres_type": "numeric(15,2)"
+        },
+        {
+          "name": "requested_at",
+          "postgres_type": "timestamp without time zone"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "refund_id": 32,
+            "payment_id": 94,
+            "requested_at": "2025-07-19T01:50:00",
+            "refund_amount": "634797.73"
+          },
+          {
+            "refund_id": 27,
+            "payment_id": 36,
+            "requested_at": "2026-03-09T19:00:00",
+            "refund_amount": "750171.09"
+          },
+          {
+            "refund_id": 31,
+            "payment_id": 87,
+            "requested_at": "2026-08-12T00:20:00",
+            "refund_amount": "267217.83"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "refunds"
+      ],
+      "process_wall_ms": 74.532,
+      "oracle_row_count": 5,
+      "result_sha256": "dfa8a81ece755f2757c96209c2ad362aa304be534b67ad2005008059b46e4dcd",
+      "oracle_sha256": "dfa8a81ece755f2757c96209c2ad362aa304be534b67ad2005008059b46e4dcd",
+      "repeat_runtime_ms": 4.863,
+      "repeat_result_sha256": "dfa8a81ece755f2757c96209c2ad362aa304be534b67ad2005008059b46e4dcd",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Lọc hai điều kiện trực tiếp, không tính tiền ròng.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-008",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 6,
+      "runtime_ms": 2.341,
+      "column_types": [
+        {
+          "name": "country",
+          "postgres_type": "character varying(100)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "country": "Germany"
+          },
+          {
+            "country": "Japan"
+          },
+          {
+            "country": "Korea"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "suppliers"
+      ],
+      "process_wall_ms": 70.505,
+      "oracle_row_count": 6,
+      "result_sha256": "126a3762620fb50e2090c8d4be11a73a22792b29a1bbdb253da83f63c87040c8",
+      "oracle_sha256": "126a3762620fb50e2090c8d4be11a73a22792b29a1bbdb253da83f63c87040c8",
+      "repeat_runtime_ms": 2.452,
+      "repeat_result_sha256": "126a3762620fb50e2090c8d4be11a73a22792b29a1bbdb253da83f63c87040c8",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "DISTINCT và loại NULL trực tiếp.",
+        "primary_skill_group": "S1"
+      }
+    },
+    {
+      "question_id": "ENT-009",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 300,
+      "runtime_ms": 8.15,
+      "column_types": [
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "full_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "address_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "city",
+          "postgres_type": "character varying(100)"
+        },
+        {
+          "name": "address_line",
+          "postgres_type": "character varying(255)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "city": "Hue",
+            "full_name": "Pham Nam Customer 001",
+            "address_id": 1,
+            "customer_id": 1,
+            "address_line": "11 Street 1"
+          },
+          {
+            "city": "Hue",
+            "full_name": "Le Chi Customer 002",
+            "address_id": 2,
+            "customer_id": 2,
+            "address_line": "12 Street 1"
+          },
+          {
+            "city": "Ho Chi Minh",
+            "full_name": "Le Dung Customer 003",
+            "address_id": 3,
+            "customer_id": 3,
+            "address_line": "13 Street 1"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "customer_addresses",
+        "customers"
+      ],
+      "process_wall_ms": 186.645,
+      "oracle_row_count": 300,
+      "result_sha256": "7e6345078fbcf9e8a101d8e4c2a90419c19a48020d238263e6251e1c846055bf",
+      "oracle_sha256": "7e6345078fbcf9e8a101d8e4c2a90419c19a48020d238263e6251e1c846055bf",
+      "repeat_runtime_ms": 8.588,
+      "repeat_result_sha256": "7e6345078fbcf9e8a101d8e4c2a90419c19a48020d238263e6251e1c846055bf",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Một LEFT JOIN trực tiếp với điều kiện địa chỉ mặc định.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-010",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 2892,
+      "runtime_ms": 25.113,
+      "column_types": [
+        {
+          "name": "order_item_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "product_name",
+          "postgres_type": "character varying(200)"
+        },
+        {
+          "name": "quantity",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "line_total",
+          "postgres_type": "numeric(15,2)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "order_id": 1,
+            "quantity": 1,
+            "line_total": "664085.79",
+            "product_name": "Product 015",
+            "order_item_id": 1
+          },
+          {
+            "order_id": 1,
+            "quantity": 2,
+            "line_total": "702391.98",
+            "product_name": "Product 201",
+            "order_item_id": 2
+          },
+          {
+            "order_id": 1,
+            "quantity": 3,
+            "line_total": "1328599.72",
+            "product_name": "Product 137",
+            "order_item_id": 3
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "order_items",
+        "products"
+      ],
+      "process_wall_ms": 99.861,
+      "oracle_row_count": 2892,
+      "result_sha256": "f8c990e36372caca2d00924a13777c5da9d6cf90e19e929ef4c2d0ec4980c279",
+      "oracle_sha256": "f8c990e36372caca2d00924a13777c5da9d6cf90e19e929ef4c2d0ec4980c279",
+      "repeat_runtime_ms": 26.007,
+      "repeat_result_sha256": "f8c990e36372caca2d00924a13777c5da9d6cf90e19e929ef4c2d0ec4980c279",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Một JOIN qua khóa ngoại để bổ sung tên sản phẩm.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-011",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 250,
+      "runtime_ms": 5.902,
+      "column_types": [
+        {
+          "name": "product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "product_name",
+          "postgres_type": "character varying(200)"
+        },
+        {
+          "name": "category_name",
+          "postgres_type": "character varying(100)"
+        },
+        {
+          "name": "category_active",
+          "postgres_type": "boolean"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "product_id": 1,
+            "product_name": "Product 001",
+            "category_name": "Sports 3",
+            "category_active": true
+          },
+          {
+            "product_id": 2,
+            "product_name": "Product 002",
+            "category_name": "Fashion",
+            "category_active": true
+          },
+          {
+            "product_id": 3,
+            "product_name": "Product 003",
+            "category_name": "Fashion 3",
+            "category_active": true
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "categories",
+        "products"
+      ],
+      "process_wall_ms": 75.377,
+      "oracle_row_count": 250,
+      "result_sha256": "b08c1c6678860e37169f38695bf2ad7e1a0e1f4f85f2f89d7ba1869a0c4e305f",
+      "oracle_sha256": "b08c1c6678860e37169f38695bf2ad7e1a0e1f4f85f2f89d7ba1869a0c4e305f",
+      "repeat_runtime_ms": 6.613,
+      "repeat_result_sha256": "b08c1c6678860e37169f38695bf2ad7e1a0e1f4f85f2f89d7ba1869a0c4e305f",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Nối trực tiếp sản phẩm với danh mục.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-012",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 250,
+      "runtime_ms": 7.59,
+      "column_types": [
+        {
+          "name": "product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "sku",
+          "postgres_type": "character varying(50)"
+        },
+        {
+          "name": "supplier_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "country",
+          "postgres_type": "character varying(100)"
+        },
+        {
+          "name": "contact_email",
+          "postgres_type": "character varying(255)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "sku": "SKU-00001",
+            "country": "Germany",
+            "product_id": 1,
+            "contact_email": "supplier04@supply.example",
+            "supplier_name": "Supplier 04"
+          },
+          {
+            "sku": "SKU-00002",
+            "country": "Japan",
+            "product_id": 2,
+            "contact_email": "supplier13@supply.example",
+            "supplier_name": "Supplier 13"
+          },
+          {
+            "sku": "SKU-00003",
+            "country": "Germany",
+            "product_id": 3,
+            "contact_email": "supplier23@supply.example",
+            "supplier_name": "Supplier 23"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "products",
+        "suppliers"
+      ],
+      "process_wall_ms": 74.076,
+      "oracle_row_count": 250,
+      "result_sha256": "72549f24938208b578b54b835e79344707bc9f5600b222e3446c6c7580f5e2a0",
+      "oracle_sha256": "72549f24938208b578b54b835e79344707bc9f5600b222e3446c6c7580f5e2a0",
+      "repeat_runtime_ms": 7.078,
+      "repeat_result_sha256": "72549f24938208b578b54b835e79344707bc9f5600b222e3446c6c7580f5e2a0",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Một JOIN để tra cứu quan hệ nguồn cung.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-013",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 100,
+      "runtime_ms": 5.701,
+      "column_types": [
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "employee_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "manager_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "manager_name",
+          "postgres_type": "character varying(150)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "manager_id": null,
+            "employee_id": 1,
+            "manager_name": null,
+            "employee_name": "Nguyen Hung Employee 001"
+          },
+          {
+            "manager_id": null,
+            "employee_id": 2,
+            "manager_name": null,
+            "employee_name": "Tran Lan Employee 002"
+          },
+          {
+            "manager_id": null,
+            "employee_id": 3,
+            "manager_name": null,
+            "employee_name": "Do Lan Employee 003"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "employees"
+      ],
+      "process_wall_ms": 77.585,
+      "oracle_row_count": 100,
+      "result_sha256": "e415c76f0633f9f50ab6b4e2e7ccff64834927fd01662d534ec6f691a64cf9b4",
+      "oracle_sha256": "e415c76f0633f9f50ab6b4e2e7ccff64834927fd01662d534ec6f691a64cf9b4",
+      "repeat_runtime_ms": 3.929,
+      "repeat_result_sha256": "e415c76f0633f9f50ab6b4e2e7ccff64834927fd01662d534ec6f691a64cf9b4",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "SELF LEFT JOIN một cấp, không đệ quy.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-014",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 5.624,
+      "column_types": [
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "department_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "manager_employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "manager_name",
+          "postgres_type": "character varying(150)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "manager_name": "Nguyen Hung Employee 001",
+            "department_id": 1,
+            "department_name": "Sales",
+            "manager_employee_id": 1
+          },
+          {
+            "manager_name": "Tran Lan Employee 002",
+            "department_id": 2,
+            "department_name": "Marketing",
+            "manager_employee_id": 2
+          },
+          {
+            "manager_name": "Do Lan Employee 003",
+            "department_id": 3,
+            "department_name": "Operations",
+            "manager_employee_id": 3
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "departments",
+        "employees"
+      ],
+      "process_wall_ms": 79.215,
+      "oracle_row_count": 8,
+      "result_sha256": "9f8ad0181f5149f0cb9d8f91c57079eca70d82a28cb3ab16cae900e53b7b7ffd",
+      "oracle_sha256": "9f8ad0181f5149f0cb9d8f91c57079eca70d82a28cb3ab16cae900e53b7b7ffd",
+      "repeat_runtime_ms": 5.256,
+      "repeat_result_sha256": "9f8ad0181f5149f0cb9d8f91c57079eca70d82a28cb3ab16cae900e53b7b7ffd",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Một LEFT JOIN trực tiếp theo khóa trưởng phòng.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-015",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 240,
+      "runtime_ms": 6.51,
+      "column_types": [
+        {
+          "name": "expense_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "expense_category",
+          "postgres_type": "character varying(100)"
+        },
+        {
+          "name": "amount",
+          "postgres_type": "numeric(15,2)"
+        },
+        {
+          "name": "expense_date",
+          "postgres_type": "date"
+        },
+        {
+          "name": "approver_name",
+          "postgres_type": "character varying(150)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "amount": "1926000.00",
+            "expense_id": 1,
+            "expense_date": "2021-12-23",
+            "approver_name": "Le Lan Employee 086",
+            "expense_category": "Training"
+          },
+          {
+            "amount": "1899000.00",
+            "expense_id": 2,
+            "expense_date": "2024-10-17",
+            "approver_name": "Tran Nam Employee 063",
+            "expense_category": "Rent"
+          },
+          {
+            "amount": "4432000.00",
+            "expense_id": 3,
+            "expense_date": "2023-03-21",
+            "approver_name": "Vu An Employee 085",
+            "expense_category": "Office supplies"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "employees",
+        "operating_expenses"
+      ],
+      "process_wall_ms": 76.902,
+      "oracle_row_count": 240,
+      "result_sha256": "153a9e460bfba2925b4293b0eab61e05d45ad7ea5028316979bfdb7d4897acaa",
+      "oracle_sha256": "153a9e460bfba2925b4293b0eab61e05d45ad7ea5028316979bfdb7d4897acaa",
+      "repeat_runtime_ms": 7.029,
+      "repeat_result_sha256": "153a9e460bfba2925b4293b0eab61e05d45ad7ea5028316979bfdb7d4897acaa",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Một LEFT JOIN để đọc quan hệ phê duyệt.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-016",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 2,
+      "runtime_ms": 4.013,
+      "column_types": [
+        {
+          "name": "status",
+          "postgres_type": "character varying(20)"
+        },
+        {
+          "name": "customer_count",
+          "postgres_type": "bigint"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "status": "active",
+            "customer_count": 273
+          },
+          {
+            "status": "inactive",
+            "customer_count": 27
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "customers"
+      ],
+      "process_wall_ms": 82.375,
+      "oracle_row_count": 2,
+      "result_sha256": "d4bdb9609f3ea5f043348fc440907e88a9cade9c41801d2482550228ac34dced",
+      "oracle_sha256": "d4bdb9609f3ea5f043348fc440907e88a9cade9c41801d2482550228ac34dced",
+      "repeat_runtime_ms": 5.138,
+      "repeat_result_sha256": "d4bdb9609f3ea5f043348fc440907e88a9cade9c41801d2482550228ac34dced",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "GROUP BY và COUNT đơn giản trên một bảng.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-017",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 5,
+      "runtime_ms": 3.996,
+      "column_types": [
+        {
+          "name": "status",
+          "postgres_type": "character varying(30)"
+        },
+        {
+          "name": "order_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "order_value",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "status": "cancelled",
+            "order_count": 100,
+            "order_value": "344322483.72"
+          },
+          {
+            "status": "delivered",
+            "order_count": 390,
+            "order_value": "1451103857.42"
+          },
+          {
+            "status": "pending",
+            "order_count": 110,
+            "order_value": "395777560.05"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 73.811,
+      "oracle_row_count": 5,
+      "result_sha256": "b318f218d86a2f1af6e3456776096424d48f6ab98682472cd63529432591ba54",
+      "oracle_sha256": "b318f218d86a2f1af6e3456776096424d48f6ab98682472cd63529432591ba54",
+      "repeat_runtime_ms": 5.183,
+      "repeat_result_sha256": "b318f218d86a2f1af6e3456776096424d48f6ab98682472cd63529432591ba54",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Một bước nhóm và tổng hợp trên orders.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-018",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 3,
+      "runtime_ms": 8.12,
+      "column_types": [
+        {
+          "name": "transaction_type",
+          "postgres_type": "character varying(30)"
+        },
+        {
+          "name": "transaction_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "net_units",
+          "postgres_type": "bigint"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "net_units": 94119,
+            "transaction_type": "import",
+            "transaction_count": 1198
+          },
+          {
+            "net_units": 285,
+            "transaction_type": "return",
+            "transaction_count": 103
+          },
+          {
+            "net_units": -4827,
+            "transaction_type": "sale",
+            "transaction_count": 1859
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "inventory_transactions"
+      ],
+      "process_wall_ms": 85.355,
+      "oracle_row_count": 3,
+      "result_sha256": "6b947949a00bfedaf7e831ede57a4bfe14c1e50c665478eabbf70ce8aa0af448",
+      "oracle_sha256": "6b947949a00bfedaf7e831ede57a4bfe14c1e50c665478eabbf70ce8aa0af448",
+      "repeat_runtime_ms": 4.875,
+      "repeat_result_sha256": "6b947949a00bfedaf7e831ede57a4bfe14c1e50c665478eabbf70ce8aa0af448",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Tổng hợp một bảng; không tính tồn tích lũy.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-019",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 3.385,
+      "column_types": [
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "employee_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "current_payroll",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "department_id": 1,
+            "employee_count": 13,
+            "current_payroll": "390000000.00"
+          },
+          {
+            "department_id": 2,
+            "employee_count": 13,
+            "current_payroll": "378000000.00"
+          },
+          {
+            "department_id": 3,
+            "employee_count": 13,
+            "current_payroll": "373000000.00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "employees"
+      ],
+      "process_wall_ms": 80.366,
+      "oracle_row_count": 8,
+      "result_sha256": "3783c141c4999e95d28e893f9a5d74f800b0364a4063e24ef2ba99b316e2acf3",
+      "oracle_sha256": "3783c141c4999e95d28e893f9a5d74f800b0364a4063e24ef2ba99b316e2acf3",
+      "repeat_runtime_ms": 3.969,
+      "repeat_result_sha256": "3783c141c4999e95d28e893f9a5d74f800b0364a4063e24ef2ba99b316e2acf3",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Một bước tổng hợp lương hiện tại, không suy lương lịch sử.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-020",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 1,
+      "runtime_ms": 3.833,
+      "column_types": [
+        {
+          "name": "completed_refunds",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "min_hours",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "max_hours",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "avg_hours",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "avg_hours": "48.00",
+            "max_hours": "48.00",
+            "min_hours": "48.00",
+            "completed_refunds": 25
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "refunds"
+      ],
+      "process_wall_ms": 73.179,
+      "oracle_row_count": 1,
+      "result_sha256": "ac62c6e9430a099fbbf261d380db724a2fee8f23d09b2fddce4206da3894ef84",
+      "oracle_sha256": "ac62c6e9430a099fbbf261d380db724a2fee8f23d09b2fddce4206da3894ef84",
+      "repeat_runtime_ms": 3.798,
+      "repeat_result_sha256": "ac62c6e9430a099fbbf261d380db724a2fee8f23d09b2fddce4206da3894ef84",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Tổng hợp trực tiếp độ dài thời gian trên một bảng, không ghép lịch sử sự kiện.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-021",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 99,
+      "runtime_ms": 9.948,
+      "column_types": [
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "shipping_city",
+          "postgres_type": "character varying(100)"
+        },
+        {
+          "name": "default_address_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "default_city",
+          "postgres_type": "character varying(100)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "order_id": 31,
+            "customer_id": 175,
+            "default_city": "Hai Phong",
+            "shipping_city": "Quy Nhon",
+            "default_address_id": 211
+          },
+          {
+            "order_id": 36,
+            "customer_id": 205,
+            "default_city": "Da Nang",
+            "shipping_city": "Can Tho",
+            "default_address_id": 247
+          },
+          {
+            "order_id": 57,
+            "customer_id": 165,
+            "default_city": "Ha Noi",
+            "shipping_city": "Can Tho",
+            "default_address_id": 198
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "customer_addresses",
+        "orders"
+      ],
+      "process_wall_ms": 81.289,
+      "oracle_row_count": 99,
+      "result_sha256": "4f7c74f7e56fce1486a026ad54f4a3364ec62717a8af27ac08ed3dba6a05fcf6",
+      "oracle_sha256": "4f7c74f7e56fce1486a026ad54f4a3364ec62717a8af27ac08ed3dba6a05fcf6",
+      "repeat_runtime_ms": 9.805,
+      "repeat_result_sha256": "4f7c74f7e56fce1486a026ad54f4a3364ec62717a8af27ac08ed3dba6a05fcf6",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Phân biệt hai vai trò địa chỉ, nối đúng chủ sở hữu rồi so sánh city; không chỉ tra tên.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-022",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 467,
+      "runtime_ms": 16.424,
+      "column_types": [
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "order_item_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "quantity",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "warehouse_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "warehouse_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "has_sale",
+          "postgres_type": "boolean"
+        },
+        {
+          "name": "sale_at",
+          "postgres_type": "timestamp without time zone"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "sale_at": null,
+            "has_sale": false,
+            "order_id": 12,
+            "quantity": 2,
+            "product_id": 85,
+            "warehouse_id": 2,
+            "order_item_id": 27,
+            "warehouse_name": "Warehouse Ho Chi Minh"
+          },
+          {
+            "sale_at": null,
+            "has_sale": false,
+            "order_id": 12,
+            "quantity": 1,
+            "product_id": 30,
+            "warehouse_id": 2,
+            "order_item_id": 28,
+            "warehouse_name": "Warehouse Ho Chi Minh"
+          },
+          {
+            "sale_at": null,
+            "has_sale": false,
+            "order_id": 12,
+            "quantity": 4,
+            "product_id": 172,
+            "warehouse_id": 2,
+            "order_item_id": 29,
+            "warehouse_name": "Warehouse Ho Chi Minh"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "inventory_transactions",
+        "order_items",
+        "orders",
+        "warehouses"
+      ],
+      "process_wall_ms": 88.302,
+      "oracle_row_count": 467,
+      "result_sha256": "c81ffd68b796490f9fa596ccdd618d5a3f434ac96c72e040ea1d89fb95182a2f",
+      "oracle_sha256": "c81ffd68b796490f9fa596ccdd618d5a3f434ac96c72e040ea1d89fb95182a2f",
+      "repeat_runtime_ms": 17.691,
+      "repeat_result_sha256": "c81ffd68b796490f9fa596ccdd618d5a3f434ac96c72e040ea1d89fb95182a2f",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Phối hợp dòng hàng, kho tùy chọn và liên kết sale có điều kiện, vẫn giữ dòng chưa xuất.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-023",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 6.369,
+      "column_types": [
+        {
+          "name": "warehouse_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "warehouse_manager_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "warehouse_manager_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "department_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "department_manager_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "same_person",
+          "postgres_type": "boolean"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "same_person": true,
+            "warehouse_id": 1,
+            "department_name": "Logistics",
+            "warehouse_manager_id": 8,
+            "department_manager_id": 8,
+            "warehouse_manager_name": "Hoang Chi Employee 008"
+          },
+          {
+            "same_person": true,
+            "warehouse_id": 2,
+            "department_name": "Logistics",
+            "warehouse_manager_id": 8,
+            "department_manager_id": 8,
+            "warehouse_manager_name": "Hoang Chi Employee 008"
+          },
+          {
+            "same_person": true,
+            "warehouse_id": 3,
+            "department_name": "Logistics",
+            "warehouse_manager_id": 8,
+            "department_manager_id": 8,
+            "warehouse_manager_name": "Hoang Chi Employee 008"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "departments",
+        "employees",
+        "warehouses"
+      ],
+      "process_wall_ms": 77.801,
+      "oracle_row_count": 8,
+      "result_sha256": "447cbfd775ea012c50e9f5b15fdce6cba6cbb82038f511add1187f7627fde0f9",
+      "oracle_sha256": "447cbfd775ea012c50e9f5b15fdce6cba6cbb82038f511add1187f7627fde0f9",
+      "repeat_runtime_ms": 6.067,
+      "repeat_result_sha256": "447cbfd775ea012c50e9f5b15fdce6cba6cbb82038f511add1187f7627fde0f9",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Nối chuỗi vai trò quản lý và so sánh hai khóa có thể NULL; cần phân biệt quản lý kho với trưởng phòng.",
+        "primary_skill_group": "S2"
+      }
+    },
+    {
+      "question_id": "ENT-024",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 22,
+      "runtime_ms": 5.769,
+      "column_types": [
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "assigned_orders",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "delivered_orders",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "delivered_order_value",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "employee_id": 1,
+            "assigned_orders": 14,
+            "delivered_orders": 6,
+            "delivered_order_value": "26239397.61"
+          },
+          {
+            "employee_id": 3,
+            "assigned_orders": 12,
+            "delivered_orders": 6,
+            "delivered_order_value": "19093041.57"
+          },
+          {
+            "employee_id": 8,
+            "assigned_orders": 11,
+            "delivered_orders": 5,
+            "delivered_order_value": "27592540.41"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 80.508,
+      "oracle_row_count": 22,
+      "result_sha256": "0679b8b3f2bf6c98f3e643298830872780a97cd2b6edb089c39ec87dce3dcefa",
+      "oracle_sha256": "0679b8b3f2bf6c98f3e643298830872780a97cd2b6edb089c39ec87dce3dcefa",
+      "repeat_runtime_ms": 4.783,
+      "repeat_result_sha256": "0679b8b3f2bf6c98f3e643298830872780a97cd2b6edb089c39ec87dce3dcefa",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Tổng hợp có điều kiện và lọc nhóm; tránh tính đơn chưa giao vào giá trị đã giao.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-025",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 25,
+      "runtime_ms": 4.278,
+      "column_types": [
+        {
+          "name": "supplier_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "active_products",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "category_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "avg_unit_margin",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "supplier_id": 1,
+            "category_count": 5,
+            "active_products": 7,
+            "avg_unit_margin": "128223.86"
+          },
+          {
+            "supplier_id": 2,
+            "category_count": 5,
+            "active_products": 7,
+            "avg_unit_margin": "184315.52"
+          },
+          {
+            "supplier_id": 3,
+            "category_count": 7,
+            "active_products": 9,
+            "avg_unit_margin": "139840.18"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "products"
+      ],
+      "process_wall_ms": 75.342,
+      "oracle_row_count": 25,
+      "result_sha256": "b0beff83d7224005e4d736d63b80583fceb51acd9b4fdc2828255a5b8d2904ea",
+      "oracle_sha256": "b0beff83d7224005e4d736d63b80583fceb51acd9b4fdc2828255a5b8d2904ea",
+      "repeat_runtime_ms": 5.547,
+      "repeat_result_sha256": "b0beff83d7224005e4d736d63b80583fceb51acd9b4fdc2828255a5b8d2904ea",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Kết hợp lọc dòng, nhiều phép tổng hợp và hai điều kiện HAVING.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-026",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 53,
+      "runtime_ms": 4.502,
+      "column_types": [
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "address_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "city_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "default_count",
+          "postgres_type": "bigint"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "city_count": 2,
+            "customer_id": 5,
+            "address_count": 2,
+            "default_count": 1
+          },
+          {
+            "city_count": 2,
+            "customer_id": 10,
+            "address_count": 2,
+            "default_count": 1
+          },
+          {
+            "city_count": 2,
+            "customer_id": 15,
+            "address_count": 2,
+            "default_count": 1
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "customer_addresses"
+      ],
+      "process_wall_ms": 174.743,
+      "oracle_row_count": 53,
+      "result_sha256": "9a0b1ecdad18e6e5d95a3bf338bf6a713c4e2f01cc9333977978ebd90d00ae07",
+      "oracle_sha256": "9a0b1ecdad18e6e5d95a3bf338bf6a713c4e2f01cc9333977978ebd90d00ae07",
+      "repeat_runtime_ms": 5.209,
+      "repeat_result_sha256": "9a0b1ecdad18e6e5d95a3bf338bf6a713c4e2f01cc9333977978ebd90d00ae07",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần COUNT DISTINCT, tổng hợp có điều kiện và lọc nhóm.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-027",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 45,
+      "runtime_ms": 4.248,
+      "column_types": [
+        {
+          "name": "month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "expense_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "total_expense",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "approved_expense",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "month": "2022-06-01",
+            "department_id": 1,
+            "expense_count": 3,
+            "total_expense": "12479000.00",
+            "approved_expense": "12479000.00"
+          },
+          {
+            "month": "2022-06-01",
+            "department_id": 5,
+            "expense_count": 2,
+            "total_expense": "2199000.00",
+            "approved_expense": "2199000.00"
+          },
+          {
+            "month": "2022-07-01",
+            "department_id": 3,
+            "expense_count": 2,
+            "total_expense": "4613000.00",
+            "approved_expense": "4613000.00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "operating_expenses"
+      ],
+      "process_wall_ms": 75.281,
+      "oracle_row_count": 45,
+      "result_sha256": "41646c33f06b29b1f6abd7adadfd59a81bcaa04a8e3614ee75f99e54a84e744d",
+      "oracle_sha256": "41646c33f06b29b1f6abd7adadfd59a81bcaa04a8e3614ee75f99e54a84e744d",
+      "repeat_runtime_ms": 5.089,
+      "repeat_result_sha256": "41646c33f06b29b1f6abd7adadfd59a81bcaa04a8e3614ee75f99e54a84e744d",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Nhóm theo thời gian và phòng, tách chi có người phê duyệt rồi lọc nhóm.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-028",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 7.074,
+      "column_types": [
+        {
+          "name": "warehouse_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "capacity",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "current_units",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "free_capacity",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "utilization_pct",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "capacity": 250000,
+            "warehouse_id": 1,
+            "current_units": 11143,
+            "free_capacity": 238857,
+            "utilization_pct": "4.46"
+          },
+          {
+            "capacity": 250000,
+            "warehouse_id": 2,
+            "current_units": 11666,
+            "free_capacity": 238334,
+            "utilization_pct": "4.67"
+          },
+          {
+            "capacity": 250000,
+            "warehouse_id": 3,
+            "current_units": 9803,
+            "free_capacity": 240197,
+            "utilization_pct": "3.92"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "inventory_transactions",
+        "warehouses"
+      ],
+      "process_wall_ms": 77.79,
+      "oracle_row_count": 8,
+      "result_sha256": "53bf480012a21f2151ac4e0e8bbbc12899bd998f8b0522f3503c1d9de1868573",
+      "oracle_sha256": "53bf480012a21f2151ac4e0e8bbbc12899bd998f8b0522f3503c1d9de1868573",
+      "repeat_runtime_ms": 7.125,
+      "repeat_result_sha256": "53bf480012a21f2151ac4e0e8bbbc12899bd998f8b0522f3503c1d9de1868573",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Tổng hợp quan hệ một-nhiều và xử lý kho không có giao dịch hoặc capacity=0.",
+        "primary_skill_group": "S3"
+      }
+    },
+    {
+      "question_id": "ENT-029",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 37,
+      "runtime_ms": 6.827,
+      "column_types": [
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "full_name",
+          "postgres_type": "character varying(150)"
+        },
+        {
+          "name": "registered_at",
+          "postgres_type": "timestamp without time zone"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "full_name": "Pham Hung Customer 038",
+            "customer_id": 38,
+            "registered_at": "2024-11-26T12:00:00"
+          },
+          {
+            "full_name": "Bui Nam Customer 063",
+            "customer_id": 63,
+            "registered_at": "2025-08-17T11:00:00"
+          },
+          {
+            "full_name": "Le Binh Customer 085",
+            "customer_id": 85,
+            "registered_at": "2025-05-08T16:15:00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "customers",
+        "orders"
+      ],
+      "process_wall_ms": 78.774,
+      "oracle_row_count": 37,
+      "result_sha256": "66d1a383d20aea59b281e05f96a0f7d99b1b4fc57d012644b5a973d1dffa9455",
+      "oracle_sha256": "66d1a383d20aea59b281e05f96a0f7d99b1b4fc57d012644b5a973d1dffa9455",
+      "repeat_runtime_ms": 7.257,
+      "repeat_result_sha256": "66d1a383d20aea59b281e05f96a0f7d99b1b4fc57d012644b5a973d1dffa9455",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần xét sự không tồn tại của quan hệ đơn hàng, không chỉ lọc trạng thái khách.",
+        "primary_skill_group": "S4"
+      }
+    },
+    {
+      "question_id": "ENT-030",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 11,
+      "runtime_ms": 10.728,
+      "column_types": [
+        {
+          "name": "product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "product_name",
+          "postgres_type": "character varying(200)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "product_id": 231,
+            "product_name": "Product 231"
+          },
+          {
+            "product_id": 232,
+            "product_name": "Product 232"
+          },
+          {
+            "product_id": 233,
+            "product_name": "Product 233"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "inventory_transactions",
+        "order_items",
+        "products"
+      ],
+      "process_wall_ms": 190.615,
+      "oracle_row_count": 11,
+      "result_sha256": "e21f49994d72b0e134ace935023239bc18103de1642e5583ce2ec67c21b46015",
+      "oracle_sha256": "e21f49994d72b0e134ace935023239bc18103de1642e5583ce2ec67c21b46015",
+      "repeat_runtime_ms": 12.048,
+      "repeat_result_sha256": "e21f49994d72b0e134ace935023239bc18103de1642e5583ce2ec67c21b46015",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Kết hợp không tồn tại dòng hàng và tồn tại một nhóm tồn dương.",
+        "primary_skill_group": "S4"
+      }
+    },
+    {
+      "question_id": "ENT-031",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 34,
+      "runtime_ms": 5.368,
+      "column_types": [
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "current_salary",
+          "postgres_type": "numeric(15,2)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "employee_id": 1,
+            "department_id": 1,
+            "current_salary": "71000000.00"
+          },
+          {
+            "employee_id": 2,
+            "department_id": 2,
+            "current_salary": "77000000.00"
+          },
+          {
+            "employee_id": 3,
+            "department_id": 3,
+            "current_salary": "65000000.00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "employees"
+      ],
+      "process_wall_ms": 76.648,
+      "oracle_row_count": 34,
+      "result_sha256": "ed526ebbe31bff81963cf33030a8fcde028b6a3023408852058477e5a8f00530",
+      "oracle_sha256": "ed526ebbe31bff81963cf33030a8fcde028b6a3023408852058477e5a8f00530",
+      "repeat_runtime_ms": 4.839,
+      "repeat_result_sha256": "ed526ebbe31bff81963cf33030a8fcde028b6a3023408852058477e5a8f00530",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "So sánh từng nhân viên với tổng hợp tương quan theo phòng.",
+        "primary_skill_group": "S4"
+      }
+    },
+    {
+      "question_id": "ENT-032",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 446,
+      "runtime_ms": 7.178,
+      "column_types": [
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "success_payment_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "success_at",
+          "postgres_type": "timestamp without time zone"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "order_id": 1,
+            "success_at": "2026-07-30T10:25:00",
+            "success_payment_id": 3
+          },
+          {
+            "order_id": 2,
+            "success_at": "2025-10-23T18:45:00",
+            "success_payment_id": 5
+          },
+          {
+            "order_id": 3,
+            "success_at": "2026-02-12T16:05:00",
+            "success_payment_id": 7
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "payments"
+      ],
+      "process_wall_ms": 79.181,
+      "oracle_row_count": 446,
+      "result_sha256": "f0082e379fad9dfb20ae2fb0151a52db11ad6692b9cb3451c433fcf1c3c67f1f",
+      "oracle_sha256": "f0082e379fad9dfb20ae2fb0151a52db11ad6692b9cb3451c433fcf1c3c67f1f",
+      "repeat_runtime_ms": 6.131,
+      "repeat_result_sha256": "f0082e379fad9dfb20ae2fb0151a52db11ad6692b9cb3451c433fcf1c3c67f1f",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần kiểm tra tồn tại sự kiện trước success với khóa thời gian ổn định.",
+        "primary_skill_group": "S4"
+      }
+    },
+    {
+      "question_id": "ENT-033",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 17,
+      "runtime_ms": 5.434,
+      "column_types": [
+        {
+          "name": "supplier_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "supplier_name",
+          "postgres_type": "character varying(150)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "supplier_id": 1,
+            "supplier_name": "Supplier 01"
+          },
+          {
+            "supplier_id": 2,
+            "supplier_name": "Supplier 02"
+          },
+          {
+            "supplier_id": 6,
+            "supplier_name": "Supplier 06"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "products",
+        "suppliers"
+      ],
+      "process_wall_ms": 77.382,
+      "oracle_row_count": 17,
+      "result_sha256": "f47b66e79bf318a02499046903eed31bf098f7e1e7c0093d30783fd29be5fb99",
+      "oracle_sha256": "f47b66e79bf318a02499046903eed31bf098f7e1e7c0093d30783fd29be5fb99",
+      "repeat_runtime_ms": 7.01,
+      "repeat_result_sha256": "f47b66e79bf318a02499046903eed31bf098f7e1e7c0093d30783fd29be5fb99",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Kết hợp EXISTS và NOT EXISTS để diễn đạt điều kiện mọi sản phẩm mà không nhận nhóm rỗng.",
+        "primary_skill_group": "S4"
+      }
+    },
+    {
+      "question_id": "ENT-034",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 14,
+      "runtime_ms": 16.519,
+      "column_types": [
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "total_amount",
+          "postgres_type": "numeric(15,2)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "order_id": 625,
+            "customer_id": 171,
+            "total_amount": "5587607.90"
+          },
+          {
+            "order_id": 641,
+            "customer_id": 76,
+            "total_amount": "2619395.42"
+          },
+          {
+            "order_id": 662,
+            "customer_id": 45,
+            "total_amount": "3935974.90"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "inventory_transactions",
+        "order_items",
+        "orders",
+        "payments",
+        "refunds"
+      ],
+      "process_wall_ms": 90.329,
+      "oracle_row_count": 14,
+      "result_sha256": "123bee3f96b56f26e0dc16b97a60bedfcc117219797e08ac5975ce7926ba6c2c",
+      "oracle_sha256": "123bee3f96b56f26e0dc16b97a60bedfcc117219797e08ac5975ce7926ba6c2c",
+      "repeat_runtime_ms": 15.565,
+      "repeat_result_sha256": "123bee3f96b56f26e0dc16b97a60bedfcc117219797e08ac5975ce7926ba6c2c",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Đối chiếu tồn tại trả hàng vật lý với không tồn tại hoàn tiền qua hai quan hệ khác.",
+        "primary_skill_group": "S4"
+      }
+    },
+    {
+      "question_id": "ENT-035",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 16,
+      "runtime_ms": 5.906,
+      "column_types": [
+        {
+          "name": "warehouse_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "position",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "total_amount",
+          "postgres_type": "numeric(15,2)"
+        },
+        {
+          "name": "order_date",
+          "postgres_type": "timestamp without time zone"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "order_id": 30,
+            "position": 1,
+            "order_date": "2026-05-06T18:10:00",
+            "total_amount": "10129694.90",
+            "warehouse_id": 1
+          },
+          {
+            "order_id": 684,
+            "position": 2,
+            "order_date": "2026-03-26T12:40:00",
+            "total_amount": "9393470.88",
+            "warehouse_id": 1
+          },
+          {
+            "order_id": 852,
+            "position": 1,
+            "order_date": "2026-01-28T13:00:00",
+            "total_amount": "11368673.92",
+            "warehouse_id": 2
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 81.128,
+      "oracle_row_count": 16,
+      "result_sha256": "1655c5d93dc299f34d34bdaae1ea09bae958d6ed3a4822ae6d516dfb862186ca",
+      "oracle_sha256": "1655c5d93dc299f34d34bdaae1ea09bae958d6ed3a4822ae6d516dfb862186ca",
+      "repeat_runtime_ms": 5.919,
+      "repeat_result_sha256": "1655c5d93dc299f34d34bdaae1ea09bae958d6ed3a4822ae6d516dfb862186ca",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Xếp hạng trong từng kho rồi lọc top 2; tie được phá bằng ngày và ID.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-036",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 60,
+      "runtime_ms": 4.67,
+      "column_types": [
+        {
+          "name": "category_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "price_rank",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "list_price",
+          "postgres_type": "numeric(15,2)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "list_price": "1139227.89",
+            "price_rank": 1,
+            "product_id": 93,
+            "category_id": 1
+          },
+          {
+            "list_price": "1129240.04",
+            "price_rank": 2,
+            "product_id": 182,
+            "category_id": 1
+          },
+          {
+            "list_price": "888398.19",
+            "price_rank": 3,
+            "product_id": 102,
+            "category_id": 1
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "products"
+      ],
+      "process_wall_ms": 71.359,
+      "oracle_row_count": 60,
+      "result_sha256": "73f840c06a14aa628ba338b97fbe0d64c2de049447b297bfb0181b84f156e637",
+      "oracle_sha256": "73f840c06a14aa628ba338b97fbe0d64c2de049447b297bfb0181b84f156e637",
+      "repeat_runtime_ms": 4.877,
+      "repeat_result_sha256": "73f840c06a14aa628ba338b97fbe0d64c2de049447b297bfb0181b84f156e637",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần DENSE_RANK theo danh mục để giữ đầy đủ đồng giá.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-037",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 100,
+      "runtime_ms": 3.715,
+      "column_types": [
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "effective_date",
+          "postgres_type": "date"
+        },
+        {
+          "name": "previous_salary",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "salary",
+          "postgres_type": "numeric(15,2)"
+        },
+        {
+          "name": "change_pct",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "salary": "71000000.00",
+            "change_pct": "8.70",
+            "employee_id": 1,
+            "effective_date": "2023-11-11",
+            "previous_salary": "65320000.00"
+          },
+          {
+            "salary": "70840000.00",
+            "change_pct": "9.52",
+            "employee_id": 2,
+            "effective_date": "2021-10-03",
+            "previous_salary": "64680000.00"
+          },
+          {
+            "salary": "77000000.00",
+            "change_pct": "8.70",
+            "employee_id": 2,
+            "effective_date": "2022-05-31",
+            "previous_salary": "70840000.00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "salary_history"
+      ],
+      "process_wall_ms": 77.508,
+      "oracle_row_count": 100,
+      "result_sha256": "690ea297aae924c122bdc2a1c812de57f8bebeb72815cd9f86189d26d059b748",
+      "oracle_sha256": "690ea297aae924c122bdc2a1c812de57f8bebeb72815cd9f86189d26d059b748",
+      "repeat_runtime_ms": 4.766,
+      "repeat_result_sha256": "690ea297aae924c122bdc2a1c812de57f8bebeb72815cd9f86189d26d059b748",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Dùng LAG để so sánh hai mốc kề nhau; chưa tìm chuỗi tăng nhiều lần.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-038",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 19,
+      "runtime_ms": 5.223,
+      "column_types": [
+        {
+          "name": "month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "order_value",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "previous_value",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "change_pct",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "month": "2025-03-01",
+            "change_pct": null,
+            "order_value": "83625165.97",
+            "previous_value": null
+          },
+          {
+            "month": "2025-04-01",
+            "change_pct": "3.36",
+            "order_value": "86439014.58",
+            "previous_value": "83625165.97"
+          },
+          {
+            "month": "2025-05-01",
+            "change_pct": "-0.86",
+            "order_value": "85693641.01",
+            "previous_value": "86439014.58"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 75.496,
+      "oracle_row_count": 19,
+      "result_sha256": "a2b52b987964458136aa13b3be5ab8ce855c27ed8a46b19a6ea2e4fc7c6055c7",
+      "oracle_sha256": "a2b52b987964458136aa13b3be5ab8ce855c27ed8a46b19a6ea2e4fc7c6055c7",
+      "repeat_runtime_ms": 4.945,
+      "repeat_result_sha256": "a2b52b987964458136aa13b3be5ab8ce855c27ed8a46b19a6ea2e4fc7c6055c7",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Tổng hợp tháng rồi so sánh nhóm liền trước bằng LAG.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-039",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 19,
+      "runtime_ms": 5.073,
+      "column_types": [
+        {
+          "name": "month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "collected_amount",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "cumulative_collected",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "month": "2025-03-01",
+            "collected_amount": "196393080.55",
+            "cumulative_collected": "196393080.55"
+          },
+          {
+            "month": "2025-04-01",
+            "collected_amount": "190150658.57",
+            "cumulative_collected": "386543739.12"
+          },
+          {
+            "month": "2025-05-01",
+            "collected_amount": "186231576.53",
+            "cumulative_collected": "572775315.65"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "payments"
+      ],
+      "process_wall_ms": 73.952,
+      "oracle_row_count": 19,
+      "result_sha256": "c3df6f552d1ccc06651048723c0bd96b0b0aedd2bb9a84e9aa140efd52a5419e",
+      "oracle_sha256": "c3df6f552d1ccc06651048723c0bd96b0b0aedd2bb9a84e9aa140efd52a5419e",
+      "repeat_runtime_ms": 5.033,
+      "repeat_result_sha256": "c3df6f552d1ccc06651048723c0bd96b0b0aedd2bb9a84e9aa140efd52a5419e",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Tổng hợp tiền thu thực tế rồi tính lũy kế trên các nhóm tháng.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-040",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 737,
+      "runtime_ms": 9.605,
+      "column_types": [
+        {
+          "name": "customer_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "previous_order_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "gap_days",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "gap_days": "40.04",
+            "order_id": 669,
+            "customer_id": 1,
+            "previous_order_id": 100
+          },
+          {
+            "gap_days": "11.80",
+            "order_id": 566,
+            "customer_id": 1,
+            "previous_order_id": 669
+          },
+          {
+            "gap_days": "71.38",
+            "order_id": 918,
+            "customer_id": 1,
+            "previous_order_id": 566
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 78.451,
+      "oracle_row_count": 737,
+      "result_sha256": "e5168f81344f0e30fec9a2e5dede5519335ac24458b01e1820fcaf72b8e9e665",
+      "oracle_sha256": "e5168f81344f0e30fec9a2e5dede5519335ac24458b01e1820fcaf72b8e9e665",
+      "repeat_runtime_ms": 8.996,
+      "repeat_result_sha256": "e5168f81344f0e30fec9a2e5dede5519335ac24458b01e1820fcaf72b8e9e665",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần LAG theo khách để xác định đơn kề trước và tính khoảng cách.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-041",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 16,
+      "runtime_ms": 27.321,
+      "column_types": [
+        {
+          "name": "supplier_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "supplier_name",
+          "postgres_type": "character varying(150)"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "supplier_id": 1,
+            "supplier_name": "Supplier 01"
+          },
+          {
+            "supplier_id": 5,
+            "supplier_name": "Supplier 05"
+          },
+          {
+            "supplier_id": 7,
+            "supplier_name": "Supplier 07"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "inventory_transactions",
+        "order_items",
+        "orders",
+        "products",
+        "suppliers"
+      ],
+      "process_wall_ms": 96.046,
+      "oracle_row_count": 16,
+      "result_sha256": "4314436334dc764f8d5869bce5a9ec1884dd2412b46721ed5821739059ce160e",
+      "oracle_sha256": "4314436334dc764f8d5869bce5a9ec1884dd2412b46721ed5821739059ce160e",
+      "repeat_runtime_ms": 29.618,
+      "repeat_result_sha256": "4314436334dc764f8d5869bce5a9ec1884dd2412b46721ed5821739059ce160e",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Phép lượng hóa mọi sản phẩm lồng mọi kho đã giao, kết hợp tồn tại bán và tổng tồn tương quan. Cần chống điều kiện đúng trên tập rỗng ở cả hai tầng.",
+        "primary_skill_group": "S4"
+      }
+    },
+    {
+      "question_id": "ENT-042",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 19,
+      "runtime_ms": 6.421,
+      "column_types": [
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "start_month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "end_month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "streak_months",
+          "postgres_type": "bigint"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "end_month": "2026-03-01",
+            "employee_id": 3,
+            "start_month": "2026-03-01",
+            "streak_months": 1
+          },
+          {
+            "end_month": "2026-09-01",
+            "employee_id": 11,
+            "start_month": "2026-09-01",
+            "streak_months": 1
+          },
+          {
+            "end_month": "2025-08-01",
+            "employee_id": 14,
+            "start_month": "2025-08-01",
+            "streak_months": 1
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "orders"
+      ],
+      "process_wall_ms": 74.424,
+      "oracle_row_count": 19,
+      "result_sha256": "9bd8ddffde2c1d2e25e09bf3462420aef207917b10835e008430f924e18d4adb",
+      "oracle_sha256": "9bd8ddffde2c1d2e25e09bf3462420aef207917b10835e008430f924e18d4adb",
+      "repeat_runtime_ms": 6.797,
+      "repeat_result_sha256": "9bd8ddffde2c1d2e25e09bf3462420aef207917b10835e008430f924e18d4adb",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Phải tổng hợp, chọn người thắng từng tháng, phát hiện khoảng đứt theo lịch rồi chọn chuỗi dài nhất từng người. Một ranking đơn lẻ không đủ.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-043",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 3,
+      "runtime_ms": 8.393,
+      "column_types": [
+        {
+          "name": "start_month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "end_month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "net_three_months",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "end_month": "2025-05-01",
+            "start_month": "2025-03-01",
+            "net_three_months": "563974974.43"
+          },
+          {
+            "end_month": "2025-06-01",
+            "start_month": "2025-04-01",
+            "net_three_months": "558633523.93"
+          },
+          {
+            "end_month": "2025-07-01",
+            "start_month": "2025-05-01",
+            "net_three_months": "520838828.84"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "payments",
+        "refunds"
+      ],
+      "process_wall_ms": 80.019,
+      "oracle_row_count": 3,
+      "result_sha256": "b73444e148d0a37949de93e9c820ff820ea317e5300b64d70f634d733e457edb",
+      "oracle_sha256": "b73444e148d0a37949de93e9c820ff820ea317e5300b64d70f634d733e457edb",
+      "repeat_runtime_ms": 7.333,
+      "repeat_result_sha256": "b73444e148d0a37949de93e9c820ff820ea317e5300b64d70f634d733e457edb",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần hợp nhất hai dòng tiền khác ngày ghi nhận, lấp tháng trống, kiểm tra độ dài cửa sổ và xếp hạng tổng trượt. Đây không phải một SUM lũy kế đơn giản.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-044",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 26,
+      "runtime_ms": 4.405,
+      "column_types": [
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "position",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "expense_category",
+          "postgres_type": "character varying(100)"
+        },
+        {
+          "name": "category_amount",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "cumulative_pct",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "position": 1,
+            "department_id": 1,
+            "cumulative_pct": "54.50",
+            "category_amount": "5191000.00",
+            "expense_category": "Utilities"
+          },
+          {
+            "position": 2,
+            "department_id": 1,
+            "cumulative_pct": "98.15",
+            "category_amount": "4158000.00",
+            "expense_category": "Training"
+          },
+          {
+            "position": 1,
+            "department_id": 2,
+            "cumulative_pct": "54.49",
+            "category_amount": "13037000.00",
+            "expense_category": "Training"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "operating_expenses"
+      ],
+      "process_wall_ms": 74.539,
+      "oracle_row_count": 26,
+      "result_sha256": "e41c3325f0b6c131b62e75a37e2a3e170c3f92c43ab34a4cc46fa0396f8e1118",
+      "oracle_sha256": "e41c3325f0b6c131b62e75a37e2a3e170c3f92c43ab34a4cc46fa0396f8e1118",
+      "repeat_runtime_ms": 4.035,
+      "repeat_result_sha256": "e41c3325f0b6c131b62e75a37e2a3e170c3f92c43ab34a4cc46fa0396f8e1118",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần tổng hợp hai cấp, sắp xếp theo đóng góp, tính tích lũy và giữ đúng loại vượt ngưỡng lần đầu. Phải xử lý nhóm phòng NULL và tie để tiền tố tối thiểu xác định.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-045",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 21,
+      "runtime_ms": 10.361,
+      "column_types": [
+        {
+          "name": "quarter",
+          "postgres_type": "date"
+        },
+        {
+          "name": "employee_rank",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "merchandise_value",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "top_product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "top_product_value",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "top_share_pct",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "quarter": "2025-01-01",
+            "employee_id": 99,
+            "employee_rank": 1,
+            "top_share_pct": "32.07",
+            "top_product_id": 196,
+            "merchandise_value": "10800877.68",
+            "top_product_value": "3463794.22"
+          },
+          {
+            "quarter": "2025-01-01",
+            "employee_id": 89,
+            "employee_rank": 2,
+            "top_share_pct": "65.21",
+            "top_product_id": 182,
+            "merchandise_value": "6580890.05",
+            "top_product_value": "4291112.15"
+          },
+          {
+            "quarter": "2025-01-01",
+            "employee_id": 5,
+            "employee_rank": 3,
+            "top_share_pct": "33.84",
+            "top_product_id": 70,
+            "merchandise_value": "6135430.64",
+            "top_product_value": "2076305.43"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "order_items",
+        "orders"
+      ],
+      "process_wall_ms": 186.181,
+      "oracle_row_count": 21,
+      "result_sha256": "e65a1cc0c6ba153883141f45447826d6126cd316c920380b050da002952d49cf",
+      "oracle_sha256": "e65a1cc0c6ba153883141f45447826d6126cd316c920380b050da002952d49cf",
+      "repeat_runtime_ms": 11.993,
+      "repeat_result_sha256": "e65a1cc0c6ba153883141f45447826d6126cd316c920380b050da002952d49cf",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Xếp hạng ở hai grain khác nhau: sản phẩm trong nhân viên-quý và nhân viên trong quý; tổng nhân viên phải bao gồm cả sản phẩm không thắng. Tie và mẫu số cần xác định riêng.",
+        "primary_skill_group": "S5"
+      }
+    },
+    {
+      "question_id": "ENT-046",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 267,
+      "runtime_ms": 38.904,
+      "column_types": [
+        {
+          "name": "product_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "warehouse_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "start_month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "end_month",
+          "postgres_type": "date"
+        },
+        {
+          "name": "streak_months",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "depleted_units",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "end_month": "2026-03-01",
+            "product_id": 1,
+            "start_month": "2026-03-01",
+            "warehouse_id": 6,
+            "streak_months": 1,
+            "depleted_units": 1
+          },
+          {
+            "end_month": "2025-04-01",
+            "product_id": 2,
+            "start_month": "2025-04-01",
+            "warehouse_id": 2,
+            "streak_months": 1,
+            "depleted_units": 2
+          },
+          {
+            "end_month": "2025-09-01",
+            "product_id": 3,
+            "start_month": "2025-09-01",
+            "warehouse_id": 3,
+            "streak_months": 1,
+            "depleted_units": 1
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "inventory_transactions"
+      ],
+      "process_wall_ms": 106.573,
+      "oracle_row_count": 267,
+      "result_sha256": "cb1c92718364dbe70bd42c7d2038916183c70a4469c574e6d4e8997e8746882e",
+      "oracle_sha256": "cb1c92718364dbe70bd42c7d2038916183c70a4469c574e6d4e8997e8746882e",
+      "repeat_runtime_ms": 39.738,
+      "repeat_result_sha256": "cb1c92718364dbe70bd42c7d2038916183c70a4469c574e6d4e8997e8746882e",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần dựng lịch đầy đủ, đưa tồn trước kỳ vào tích lũy, so sánh hai đầu tháng và gom đảo giảm liên tiếp. Tháng trống phải cắt chuỗi giảm.",
+        "primary_skill_group": "S6"
+      }
+    },
+    {
+      "question_id": "ENT-047",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 5.356,
+      "column_types": [
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "root_manager_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "descendant_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "max_depth",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "descendant_payroll",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "max_depth": 2,
+            "department_id": 1,
+            "root_manager_id": 1,
+            "descendant_count": 12,
+            "descendant_payroll": "319000000.00"
+          },
+          {
+            "max_depth": 2,
+            "department_id": 2,
+            "root_manager_id": 2,
+            "descendant_count": 12,
+            "descendant_payroll": "301000000.00"
+          },
+          {
+            "max_depth": 2,
+            "department_id": 3,
+            "root_manager_id": 3,
+            "descendant_count": 12,
+            "descendant_payroll": "308000000.00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "departments",
+        "employees"
+      ],
+      "process_wall_ms": 80.377,
+      "oracle_row_count": 8,
+      "result_sha256": "09a2841f270ae060de39722a7717a5b9435256d740e0754e96ad7c925c232a97",
+      "oracle_sha256": "09a2841f270ae060de39722a7717a5b9435256d740e0754e96ad7c925c232a97",
+      "repeat_runtime_ms": 5.329,
+      "repeat_result_sha256": "09a2841f270ae060de39722a7717a5b9435256d740e0754e96ad7c925c232a97",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần đệ quy nhiều cấp, chống lặp đường đi, loại gốc khỏi thống kê và giữ phòng chưa có cây. SELF JOIN một cấp không giải được.",
+        "primary_skill_group": "S6"
+      }
+    },
+    {
+      "question_id": "ENT-048",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 8,
+      "runtime_ms": 7.714,
+      "column_types": [
+        {
+          "name": "department_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "eligible_employee_days",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "known_salary_days",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "unknown_salary_days",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "evidenced_monthly_payroll",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "department_id": 1,
+            "known_salary_days": 4745,
+            "unknown_salary_days": 0,
+            "eligible_employee_days": 4745,
+            "evidenced_monthly_payroll": "389062356.16"
+          },
+          {
+            "department_id": 2,
+            "known_salary_days": 3276,
+            "unknown_salary_days": 1469,
+            "eligible_employee_days": 4745,
+            "evidenced_monthly_payroll": "271094575.34"
+          },
+          {
+            "department_id": 3,
+            "known_salary_days": 4745,
+            "unknown_salary_days": 0,
+            "eligible_employee_days": 4745,
+            "evidenced_monthly_payroll": "370860602.74"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "employees",
+        "salary_history"
+      ],
+      "process_wall_ms": 80.52,
+      "oracle_row_count": 8,
+      "result_sha256": "7fc3abc4cbbd55d2ff4df63acdfc939494560d48501825338396b2464d7881d2",
+      "oracle_sha256": "7fc3abc4cbbd55d2ff4df63acdfc939494560d48501825338396b2464d7881d2",
+      "repeat_runtime_ms": 6.784,
+      "repeat_result_sha256": "7fc3abc4cbbd55d2ff4df63acdfc939494560d48501825338396b2464d7881d2",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần dựng khoảng hiệu lực, cắt theo ngày tuyển và năm, cộng mức lương nhân số ngày rồi đối chiếu độ phủ. Lương hiện tại không xác định được quá khứ bị thiếu.",
+        "primary_skill_group": "S6"
+      }
+    },
+    {
+      "question_id": "ENT-049",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 55,
+      "runtime_ms": 10.92,
+      "column_types": [
+        {
+          "name": "warehouse_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "quarter",
+          "postgres_type": "date"
+        },
+        {
+          "name": "bottleneck_status",
+          "postgres_type": "character varying(30)"
+        },
+        {
+          "name": "selected_orders",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "avg_stage_hours",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "quarter": "2025-01-01",
+            "warehouse_id": 1,
+            "avg_stage_hours": "49.00",
+            "selected_orders": 1,
+            "bottleneck_status": "processing"
+          },
+          {
+            "quarter": "2025-04-01",
+            "warehouse_id": 1,
+            "avg_stage_hours": "87.00",
+            "selected_orders": 12,
+            "bottleneck_status": "shipped"
+          },
+          {
+            "quarter": "2025-07-01",
+            "warehouse_id": 1,
+            "avg_stage_hours": "85.00",
+            "selected_orders": 2,
+            "bottleneck_status": "processing"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "order_status_history",
+        "orders"
+      ],
+      "process_wall_ms": 77.949,
+      "oracle_row_count": 55,
+      "result_sha256": "2bf38978aaa6c9802610d7d2e4c868dc40ceebad92a9377a69113a8b2a5bca20",
+      "oracle_sha256": "2bf38978aaa6c9802610d7d2e4c868dc40ceebad92a9377a69113a8b2a5bca20",
+      "repeat_runtime_ms": 12.603,
+      "repeat_result_sha256": "2bf38978aaa6c9802610d7d2e4c868dc40ceebad92a9377a69113a8b2a5bca20",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Phải tái dựng đoạn lịch sử, chọn cực đại từng đơn rồi chọn mode ở grain kho-quý. Hai tầng lựa chọn có tie riêng và không được trộn thời gian của trạng thái khác.",
+        "primary_skill_group": "S6"
+      }
+    },
+    {
+      "question_id": "ENT-050",
+      "status": "PASS",
+      "sql_executed": true,
+      "semantic_valid": true,
+      "row_count": 33,
+      "runtime_ms": 5.641,
+      "column_types": [
+        {
+          "name": "employee_id",
+          "postgres_type": "integer"
+        },
+        {
+          "name": "start_date",
+          "postgres_type": "date"
+        },
+        {
+          "name": "end_date",
+          "postgres_type": "date"
+        },
+        {
+          "name": "raise_count",
+          "postgres_type": "bigint"
+        },
+        {
+          "name": "start_salary",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "end_salary",
+          "postgres_type": "numeric"
+        },
+        {
+          "name": "growth_pct",
+          "postgres_type": "numeric"
+        }
+      ],
+      "result_summary": {
+        "sample_rows": [
+          {
+            "end_date": "2022-05-31",
+            "end_salary": "77000000.00",
+            "growth_pct": "19.05",
+            "start_date": "2021-02-05",
+            "employee_id": 2,
+            "raise_count": 2,
+            "start_salary": "64680000.00"
+          },
+          {
+            "end_date": "2023-03-15",
+            "end_salary": "82000000.00",
+            "growth_pct": "19.05",
+            "start_date": "2021-11-20",
+            "employee_id": 5,
+            "raise_count": 2,
+            "start_salary": "68880000.00"
+          },
+          {
+            "end_date": "2024-05-30",
+            "end_salary": "77000000.00",
+            "growth_pct": "19.05",
+            "start_date": "2023-02-05",
+            "employee_id": 8,
+            "raise_count": 2,
+            "start_salary": "64680000.00"
+          }
+        ],
+        "sample_limit": 3
+      },
+      "error": null,
+      "plan_relations": [
+        "salary_history"
+      ],
+      "process_wall_ms": 76.748,
+      "oracle_row_count": 33,
+      "result_sha256": "ed7a29fc0289e8317dec0f986a6a2d5ad0e79a5b586fce8942a27a560063dde6",
+      "oracle_sha256": "ed7a29fc0289e8317dec0f986a6a2d5ad0e79a5b586fce8942a27a560063dde6",
+      "repeat_runtime_ms": 6.513,
+      "repeat_result_sha256": "ed7a29fc0289e8317dec0f986a6a2d5ad0e79a5b586fce8942a27a560063dde6",
+      "stable_on_repeat": true,
+      "semantic_evidence": "Complete ordered result equals independent Python evaluator on actual base rows.",
+      "taxonomy_review": {
+        "decision": "MATCHES_BASELINE_V1",
+        "reason": "Cần phát hiện các cạnh tăng, giữ mốc tiền nhiệm ở đầu chuỗi, gom đoạn tối đa rồi so sánh tỷ lệ hai đầu. Tính từng LAG riêng lẻ không xác định được chuỗi tốt nhất.",
+        "primary_skill_group": "S6"
+      }
+    }
+  ],
+  "runtime_definition": "PostgreSQL statement duration from psql timing; includes JSON result envelope. process_wall_ms also includes process startup and transport.",
+  "numeric_samples": "Exact NUMERIC values serialized as decimal strings; counts are JSON integers.",
+  "semantic_method": "All result rows, values, NULLs and order compared with independent Python base-table evaluators; not merely a successful SQL execution.",
+  "design_review": "Agent review against v1 taxonomy and actual business goals, with independent result evidence. Baseline difficulty is not an empirical learner rating.",
+  "design_revisions": [
+    {
+      "question_id": "ENT-046",
+      "stage": "blueprint refinement before SQL execution",
+      "reason": "Thêm điều kiện tồn cuối <=50 để phải xét tồn tích lũy và tồn trước kỳ; chỉ net movement theo tháng không giải được. Giữ Hard/S6 và Product & Inventory."
+    },
+    {
+      "question_id": "ENT-020",
+      "stage": "diversity review after first validation pass",
+      "reason": "Thay thống kê số tiền theo refund_status bằng thời gian xử lý completed để giảm lặp hình dạng tổng hợp trạng thái. Giữ Easy/S3 và Finance; chạy kiểm chứng lại."
+    }
+  ],
+  "quotas_candidates": {
+    "difficulty": {
+      "easy": 20,
+      "medium": 20,
+      "hard": 10
+    },
+    "skills_by_difficulty": {
+      "easy": {
+        "S1": 8,
+        "S2": 7,
+        "S3": 5
+      },
+      "medium": {
+        "S2": 3,
+        "S3": 5,
+        "S4": 6,
+        "S5": 6
+      },
+      "hard": {
+        "S4": 1,
+        "S5": 4,
+        "S6": 5
+      }
+    },
+    "business_domains": {
+      "Customer Management": 8,
+      "Sales & Orders": 13,
+      "Product & Inventory": 12,
+      "Human Resources": 9,
+      "Finance": 8
+    }
+  },
+  "protected_file_hashes_before": {
+    "generate_seed.py": "f648cb619ffa508ddce3488e73ad48e936aaf9aec282c362a37f28bbec412a88",
+    "postgre/schema_code.sql": "4f7566c255daa358aeff3e72b6572c316ba15b9da3c69779a33023b4ed204715",
+    "postgre/constraint.sql": "895ebd68926a0141ae6cee993167453158a249365b724fe946b9426e8d6516ff",
+    "postgre/validate_enterprisedb_br01_br16.sql": "f253afd3cef9176ee149905c597bd87ee0b0d2a07bb35e1abf1ca4ed520d9aa3",
+    "build/enterprise_seed_data.sql": "7de870543f225986ba390773c843bd27adf439f156636695493956cc3fade163",
+    "validate_scenario_coverage.sql": "eb5640562112999d866e729d85891c82333887be0fc49eb3210b02561d7e1e2d"
+  },
+  "rules_sha256": "cbfc2da38e9c94410a6ae1f53f63a37939e9a2ca1b268c946ce51f367e90a331",
+  "candidates_sha256": "e6ed8989b88557be24f73e651504fedc07f979e1630acf536db7f5c3bb57d0fb",
+  "logic_duplicate_review": {
+    "pair_count": 1225,
+    "exact_duplicates": [],
+    "similarity_screen": "Shared table and transformation-token Jaccard >=0.30 flags a pair for agent review; not a proof of duplication.",
+    "suspected_pairs": [
+      [
+        "ENT-010",
+        "ENT-011"
+      ],
+      [
+        "ENT-010",
+        "ENT-012"
+      ],
+      [
+        "ENT-011",
+        "ENT-012"
+      ],
+      [
+        "ENT-014",
+        "ENT-023"
+      ],
+      [
+        "ENT-033",
+        "ENT-041"
+      ]
+    ],
+    "unresolved_suspected_pairs": [],
+    "reviewed_similar_families": [
+      {
+        "pair": [
+          "ENT-007",
+          "ENT-020"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Danh sách pending để xử lý khác thống kê thời gian xử lý của completed; trạng thái, grain và phép tính đều khác."
+      },
+      {
+        "pair": [
+          "ENT-009",
+          "ENT-021"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Danh bạ LEFT JOIN giữ khách thiếu địa chỉ khác đối chiếu hai vai trò địa chỉ trên đơn và lọc khác city."
+      },
+      {
+        "pair": [
+          "ENT-010",
+          "ENT-045"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tra tên ở grain dòng hàng khác tổng hợp quý rồi ranking sản phẩm và nhân viên ở hai grain."
+      },
+      {
+        "pair": [
+          "ENT-010",
+          "ENT-011"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Một dòng order_items và lượng hàng đã đặt khác một sản phẩm trong catalog với danh mục trực tiếp; quan hệ và grain khác."
+      },
+      {
+        "pair": [
+          "ENT-010",
+          "ENT-012"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Dòng đơn cần nhãn sản phẩm và thành tiền khác catalog sản phẩm cần liên hệ nguồn cung; không cùng quan hệ hay grain."
+      },
+      {
+        "pair": [
+          "ENT-011",
+          "ENT-012"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Phân loại sản phẩm và trạng thái danh mục phục vụ catalog khác nguồn cung, quốc gia và email phục vụ liên hệ mua hàng; quan hệ category và supplier có mục tiêu khác nhau dù cùng grain sản phẩm."
+      },
+      {
+        "pair": [
+          "ENT-011",
+          "ENT-036"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tra danh mục trực tiếp khác chọn các mức giá với DENSE_RANK giữ đồng giá."
+      },
+      {
+        "pair": [
+          "ENT-012",
+          "ENT-025"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tra nguồn cung của từng sản phẩm khác đánh giá độ đa dạng và margin ở nhóm nhà cung cấp."
+      },
+      {
+        "pair": [
+          "ENT-013",
+          "ENT-047"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Quản lý trực tiếp một cấp khác toàn bộ hậu duệ của gốc chỉ định, độ sâu và tổng quỹ lương."
+      },
+      {
+        "pair": [
+          "ENT-014",
+          "ENT-023"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Trưởng phòng ở grain phòng khác đối chiếu quản lý kho với trưởng phòng qua phòng của nhân viên ở grain kho, có so sánh ID và xử lý NULL."
+      },
+      {
+        "pair": [
+          "ENT-017",
+          "ENT-038"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tổng theo trạng thái khác chuỗi tháng đặt của đơn delivered và thay đổi so với tháng trước."
+      },
+      {
+        "pair": [
+          "ENT-018",
+          "ENT-028"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tổng biến động theo loại giao dịch khác số tồn cuối theo kho và tỷ lệ sức chứa."
+      },
+      {
+        "pair": [
+          "ENT-019",
+          "ENT-048"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Quỹ lương hiện tại khác bình quân phần lịch sử có bằng chứng theo ngày và đo độ phủ thiếu."
+      },
+      {
+        "pair": [
+          "ENT-022",
+          "ENT-034"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tiến độ sale từng dòng processing khác đối soát return vật lý với thiếu refund completed ở grain đơn."
+      },
+      {
+        "pair": [
+          "ENT-025",
+          "ENT-033"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Độ đa dạng sản phẩm active theo nhóm khác phép mọi sản phẩm của nhà cung cấp đều active."
+      },
+      {
+        "pair": [
+          "ENT-028",
+          "ENT-046"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tồn cuối toàn bộ kho khác chuỗi tháng giảm tồn dưới ngưỡng của từng sản phẩm-kho có xét tồn trước kỳ."
+      },
+      {
+        "pair": [
+          "ENT-033",
+          "ENT-041"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Không có sản phẩm inactive khác lượng hóa hai tầng mọi hàng active đã giao và mọi kho đã giao có tồn dương."
+      },
+      {
+        "pair": [
+          "ENT-035",
+          "ENT-036"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Top số đơn cố định, phá hòa theo ngày/ID khác top mức giá khác nhau giữ mọi đồng giá."
+      },
+      {
+        "pair": [
+          "ENT-035",
+          "ENT-042"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Top đơn trong kho khác chọn người thắng tháng rồi phát hiện chuỗi tháng lịch liên tiếp."
+      },
+      {
+        "pair": [
+          "ENT-037",
+          "ENT-050"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Từng mốc LAG khác tìm đoạn tăng tối đa, giữ tiền nhiệm, so tỷ lệ hai đầu và chọn đoạn tốt nhất."
+      },
+      {
+        "pair": [
+          "ENT-039",
+          "ENT-043"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tổng tiền success lũy kế khác dòng tiền ròng hai nguồn, lịch đầy đủ và top cửa sổ đủ ba tháng."
+      },
+      {
+        "pair": [
+          "ENT-042",
+          "ENT-046"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Chuỗi chiến thắng theo người khác tồn kho tích lũy có ngưỡng và tổng drawdown theo sản phẩm-kho."
+      },
+      {
+        "pair": [
+          "ENT-042",
+          "ENT-050"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Chuỗi tháng lịch thắng xếp hạng khác các cạnh tăng lương liên tiếp và tỷ lệ tăng hai đầu."
+      },
+      {
+        "pair": [
+          "ENT-037",
+          "ENT-048"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Tỷ lệ thay đổi từng mốc khác mức lương áp dụng từng ngày và các khoảng không biết lương."
+      },
+      {
+        "pair": [
+          "ENT-038",
+          "ENT-039"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Biến động giá trị đơn theo order_date khác thực thu thành công lũy kế theo attempted_at."
+      },
+      {
+        "pair": [
+          "ENT-046",
+          "ENT-050"
+        ],
+        "decision": "DISTINCT",
+        "reason": "Đảo tháng giảm tồn lịch đầy đủ khác đoạn mốc lương tăng, tỷ lệ tăng và tiền nhiệm đầu chuỗi."
+      }
+    ],
+    "review_scope": "Agent design review of all 50 purposes and grains; quantitative scan of all 1225 pairs. No external human review claimed."
+  },
+  "connection": {
+    "database": "enterprise_db",
+    "login_role": "postgres",
+    "effective_role": "pg_read_all_data",
+    "server_version": "PostgreSQL 18.3 on x86_64-windows, compiled by msvc-19.44.35225, 64-bit",
+    "can_write_orders": false,
+    "statement_timeout": "15s",
+    "effective_superuser": false,
+    "can_create_in_public": false,
+    "transaction_read_only": "on",
+    "table_privileges": [
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "categories"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "customer_addresses"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "customers"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "departments"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "employees"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "inventory_transactions"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "operating_expenses"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "order_items"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "order_status_history"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "orders"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "payments"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "products"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "refunds"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "salary_history"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "suppliers"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "warehouses"
+      }
+    ]
+  },
+  "dataset_fingerprint_before": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b",
+  "catalog_fingerprint_before": "57e199fd63d3af2a1a7cd0684c6c12eec52606b5f0982ac0074d6569cc9d48c1",
+  "table_counts": {
+    "orders": 1000,
+    "refunds": 35,
+    "payments": 1729,
+    "products": 250,
+    "customers": 300,
+    "employees": 100,
+    "suppliers": 30,
+    "categories": 20,
+    "warehouses": 8,
+    "departments": 8,
+    "order_items": 2892,
+    "salary_history": 184,
+    "customer_addresses": 363,
+    "operating_expenses": 240,
+    "order_status_history": 2958,
+    "inventory_transactions": 3160
+  },
+  "counts_match_previous_seed_summary": true,
+  "dataset_fingerprint_after": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b",
+  "catalog_fingerprint_after": "57e199fd63d3af2a1a7cd0684c6c12eec52606b5f0982ac0074d6569cc9d48c1",
+  "protected_file_hashes_after": {
+    "generate_seed.py": "f648cb619ffa508ddce3488e73ad48e936aaf9aec282c362a37f28bbec412a88",
+    "postgre/schema_code.sql": "4f7566c255daa358aeff3e72b6572c316ba15b9da3c69779a33023b4ed204715",
+    "postgre/constraint.sql": "895ebd68926a0141ae6cee993167453158a249365b724fe946b9426e8d6516ff",
+    "postgre/validate_enterprisedb_br01_br16.sql": "f253afd3cef9176ee149905c597bd87ee0b0d2a07bb35e1abf1ca4ed520d9aa3",
+    "build/enterprise_seed_data.sql": "7de870543f225986ba390773c843bd27adf439f156636695493956cc3fade163",
+    "validate_scenario_coverage.sql": "eb5640562112999d866e729d85891c82333887be0fc49eb3210b02561d7e1e2d"
+  },
+  "database_rows_unchanged": true,
+  "database_catalog_unchanged": true,
+  "protected_files_unchanged": true,
+  "tables_covered": [
+    "categories",
+    "customer_addresses",
+    "customers",
+    "departments",
+    "employees",
+    "inventory_transactions",
+    "operating_expenses",
+    "order_items",
+    "order_status_history",
+    "orders",
+    "payments",
+    "products",
+    "refunds",
+    "salary_history",
+    "suppliers",
+    "warehouses"
+  ],
+  "unused_tables": [],
+  "zero_row_questions": [],
+  "quotas_validated": {
+    "difficulty": {
+      "easy": 20,
+      "medium": 20,
+      "hard": 10
+    },
+    "skills_by_difficulty": {
+      "easy": {
+        "S1": 8,
+        "S2": 7,
+        "S3": 5
+      },
+      "medium": {
+        "S2": 3,
+        "S3": 5,
+        "S4": 6,
+        "S5": 6
+      },
+      "hard": {
+        "S4": 1,
+        "S5": 4,
+        "S6": 5
+      }
+    },
+    "business_domains": {
+      "Customer Management": 8,
+      "Sales & Orders": 13,
+      "Product & Inventory": 12,
+      "Human Resources": 9,
+      "Finance": 8
+    }
+  },
+  "run_finished_at": "2026-10-10T10:30:11.445407+00:00"
+}

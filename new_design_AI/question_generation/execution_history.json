@@ -1,0 +1,32 @@
+[
+  {
+    "run_started_at": "2026-10-10T10:22:12.165484+00:00",
+    "run_finished_at": "2026-10-10T10:22:32.275832+00:00",
+    "status": "PASS",
+    "validated_count": 50,
+    "rejected_count": 0,
+    "candidates_sha256": "f7c908add97a4d6c038d8eb9b491d44c4208ae4d71150a94798b49e520ed4f88",
+    "dataset_fingerprint_before": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b",
+    "dataset_fingerprint_after": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b"
+  },
+  {
+    "run_started_at": "2026-10-10T10:27:26.728811+00:00",
+    "run_finished_at": "2026-10-10T10:27:47.137567+00:00",
+    "status": "PASS",
+    "validated_count": 50,
+    "rejected_count": 0,
+    "candidates_sha256": "e6e17629f4e2c4102ba929dcf235e4eeee0bd178ab28c3b2b772a637750ce9a5",
+    "dataset_fingerprint_before": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b",
+    "dataset_fingerprint_after": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b"
+  },
+  {
+    "run_started_at": "2026-10-10T10:29:51.128850+00:00",
+    "run_finished_at": "2026-10-10T10:30:11.445407+00:00",
+    "status": "PASS",
+    "validated_count": 50,
+    "rejected_count": 0,
+    "candidates_sha256": "e6ed8989b88557be24f73e651504fedc07f979e1630acf536db7f5c3bb57d0fb",
+    "dataset_fingerprint_before": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b",
+    "dataset_fingerprint_after": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b"
+  }
+]

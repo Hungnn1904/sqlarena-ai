@@ -1,0 +1,32 @@
+{
+  "difficulty": {
+    "easy": 20,
+    "medium": 20,
+    "hard": 10
+  },
+  "skills_by_difficulty": {
+    "easy": {
+      "S1": 8,
+      "S2": 7,
+      "S3": 5
+    },
+    "medium": {
+      "S2": 3,
+      "S3": 5,
+      "S4": 6,
+      "S5": 6
+    },
+    "hard": {
+      "S4": 1,
+      "S5": 4,
+      "S6": 5
+    }
+  },
+  "business_domains": {
+    "Customer Management": 8,
+    "Sales & Orders": 13,
+    "Product & Inventory": 12,
+    "Human Resources": 9,
+    "Finance": 8
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "seed": 20261010,
+  "scenarios": {
+    "employees_without_salary_history": 16,
+    "physical_return_orders": 39,
+    "products_never_ordered": 20,
+    "customers_without_orders": 37
+  },
+  "table_counts": {
+    "customers": 300,
+    "customer_addresses": 363,
+    "categories": 20,
+    "suppliers": 30,
+    "products": 250,
+    "departments": 8,
+    "employees": 100,
+    "warehouses": 8,
+    "salary_history": 184,
+    "orders": 1000,
+    "order_items": 2892,
+    "order_status_history": 2958,
+    "inventory_transactions": 3160,
+    "payments": 1729,
+    "refunds": 35,
+    "operating_expenses": 240
+  },
+  "order_status_counts": {
+    "shipped": 240,
+    "delivered": 390,
+    "cancelled": 100,
+    "pending": 110,
+    "processing": 160
+  },
+  "payment_status_counts": {
+    "failed": 939,
+    "success": 790
+  },
+  "refund_status_counts": {
+    "completed": 25,
+    "failed": 5,
+    "pending": 5
+  },
+  "date_range": {
+    "orders_min": "2025-03-01",
+    "orders_max": "2026-09-12"
+  }
+}

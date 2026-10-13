@@ -1,0 +1,41 @@
+{
+  "seed": 20261010,
+  "database": "enterprise_db",
+  "scale_targets": {
+    "customers": 300,
+    "products": 250,
+    "employees": 100,
+    "warehouses": 8,
+    "orders": 1000,
+    "order_items_min": 2400,
+    "operating_expenses": 240
+  },
+  "status_targets": {
+    "orders": ["pending", "processing", "shipped", "delivered", "cancelled"],
+    "payments": ["success", "failed"],
+    "refunds": ["completed", "pending", "failed"],
+    "inventory_transactions": ["import", "sale", "return"]
+  },
+  "coverage_thresholds": {
+    "customers_without_orders_min": 20,
+    "products_without_orders_min": 10,
+    "full_physical_return_orders_min": 20,
+    "partial_processing_sales_min": 10,
+    "employees_without_salary_history_min": 10,
+    "employees_with_multiple_salary_records_min": 20,
+    "manager_tree_depth_3_min": 20,
+    "order_month_span_min": 12
+  },
+  "policy_choices": {
+    "cancelled_after_successful_payment": "not generated; policy was unclear in source documents",
+    "processing_inventory_sales": "allowed for a subset of processing orders to create partial export scenarios",
+    "physical_returns": "all lines of a delivered order are returned together",
+    "monetary_refunds": "independent from physical returns, but generated only for successful payments",
+    "warehouse_capacity": "large fixed capacity to support BR06 at every transaction event"
+  },
+  "post_migration_columns": {
+    "inventory_transactions": "order_item_id, not reference_type/reference_id",
+    "salary_history": "salary, not old_salary/new_salary",
+    "payments": "attempted_at, no completed_at"
+  }
+}

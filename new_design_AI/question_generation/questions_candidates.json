@@ -1,0 +1,3113 @@
+[
+  {
+    "question_id": "ENT-001",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Customer Management",
+    "title": "Khách hàng hoạt động đăng ký trước năm 2025",
+    "business_goal": "Liệt kê khách hàng status='active' và registered_at < 2025-01-01.",
+    "output_grain": "Một khách hàng",
+    "tables_used": [
+      "customers"
+    ],
+    "difficulty_reason": "Chỉ lọc và sắp xếp trên một bảng.",
+    "order_by": "registered_at tăng, customer_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "registered_at; mốc đầu năm 2025 loại trừ.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Khách hàng hoạt động đăng ký trước năm 2025",
+      "central_table": "customers",
+      "grain": "Một khách hàng",
+      "transformation": "filter active and registration cutoff",
+      "predicate": "Liệt kê khách hàng status='active' và registered_at < 2025-01-01.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "full_name",
+        "meaning": "Họ tên được lưu"
+      },
+      {
+        "name": "email",
+        "meaning": "Email khách hàng"
+      },
+      {
+        "name": "registered_at",
+        "meaning": "Thời điểm đăng ký"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê khách hàng status='active' và registered_at < 2025-01-01.\nCột kết quả theo thứ tự: customer_id, full_name, email, registered_at.\nSắp xếp: registered_at tăng, customer_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: registered_at; mốc đầu năm 2025 loại trừ.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT customer_id, full_name, email, registered_at\nFROM customers WHERE status='active' AND registered_at < TIMESTAMP '2025-01-01'\nORDER BY registered_at, customer_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-002",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Customer Management",
+    "title": "Các thành phố có địa chỉ khách hàng",
+    "business_goal": "Liệt kê các city khác nhau xuất hiện trong địa chỉ khách hàng.",
+    "output_grain": "Một thành phố",
+    "tables_used": [
+      "customer_addresses"
+    ],
+    "difficulty_reason": "Loại trùng trực tiếp một cột, không cần tổng hợp.",
+    "order_by": "city tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Các thành phố có địa chỉ khách hàng",
+      "central_table": "customer_addresses",
+      "grain": "Một thành phố",
+      "transformation": "distinct address cities",
+      "predicate": "Liệt kê các city khác nhau xuất hiện trong địa chỉ khách hàng.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "city",
+        "meaning": "Thành phố của địa chỉ"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê các city khác nhau xuất hiện trong địa chỉ khách hàng.\nCột kết quả theo thứ tự: city.\nSắp xếp: city tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT DISTINCT city FROM customer_addresses ORDER BY city;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-003",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Hàng đợi đơn chờ xử lý",
+    "business_goal": "Liệt kê tất cả đơn status='pending', gồm người mua, kho được gán và giá trị đơn.",
+    "output_grain": "Một đơn hàng",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Lọc trực tiếp trạng thái trên một bảng.",
+    "order_by": "order_date tăng, order_id tăng",
+    "edge_cases": "warehouse_id có thể NULL và phải được giữ.",
+    "time_basis": "order_date; không lọc theo ngày hiện tại.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Hàng đợi đơn chờ xử lý",
+      "central_table": "orders",
+      "grain": "Một đơn hàng",
+      "transformation": "filter pending queue",
+      "predicate": "Liệt kê tất cả đơn status='pending', gồm người mua, kho được gán và giá trị đơn.",
+      "edge_cases": "warehouse_id có thể NULL và phải được giữ."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "warehouse_id",
+        "meaning": "Mã kho"
+      },
+      {
+        "name": "order_date",
+        "meaning": "Thời điểm đặt đơn"
+      },
+      {
+        "name": "total_amount",
+        "meaning": "Giá trị đơn gồm phí giao hàng, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê tất cả đơn status='pending', gồm người mua, kho được gán và giá trị đơn.\nCột kết quả theo thứ tự: order_id, customer_id, warehouse_id, order_date, total_amount.\nSắp xếp: order_date tăng, order_id tăng.\nQuy tắc biên: warehouse_id có thể NULL và phải được giữ.\nThời gian: order_date; không lọc theo ngày hiện tại.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT order_id, customer_id, warehouse_id, order_date, total_amount\nFROM orders WHERE status='pending' ORDER BY order_date, order_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-004",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Đơn đã giao đặt trong năm 2026",
+    "business_goal": "Liệt kê đơn status='delivered' có order_date từ 2026-01-01 đến trước 2027-01-01, kèm mốc gửi và giao.",
+    "output_grain": "Một đơn hàng",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Lọc trạng thái và khoảng thời gian trực tiếp.",
+    "order_by": "order_date tăng, order_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Lọc order_date, không lọc delivered_at; khoảng nửa mở năm 2026.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Đơn đã giao đặt trong năm 2026",
+      "central_table": "orders",
+      "grain": "Một đơn hàng",
+      "transformation": "filter delivered order date interval",
+      "predicate": "Liệt kê đơn status='delivered' có order_date từ 2026-01-01 đến trước 2027-01-01, kèm mốc gửi và giao.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "order_date",
+        "meaning": "Thời điểm đặt đơn"
+      },
+      {
+        "name": "shipped_at",
+        "meaning": "Thời điểm gửi hàng"
+      },
+      {
+        "name": "delivered_at",
+        "meaning": "Thời điểm giao hàng"
+      },
+      {
+        "name": "carrier_name",
+        "meaning": "Tên đơn vị vận chuyển được lưu"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê đơn status='delivered' có order_date từ 2026-01-01 đến trước 2027-01-01, kèm mốc gửi và giao.\nCột kết quả theo thứ tự: order_id, order_date, shipped_at, delivered_at, carrier_name.\nSắp xếp: order_date tăng, order_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Lọc order_date, không lọc delivered_at; khoảng nửa mở năm 2026.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT order_id, order_date, shipped_at, delivered_at, carrier_name FROM orders\nWHERE status='delivered' AND order_date >= TIMESTAMP '2026-01-01'\n  AND order_date < TIMESTAMP '2027-01-01' ORDER BY order_date, order_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-005",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Sản phẩm đang bán có giá niêm yết cao",
+    "business_goal": "Liệt kê sản phẩm is_active=true có list_price >= 1000000.",
+    "output_grain": "Một sản phẩm",
+    "tables_used": [
+      "products"
+    ],
+    "difficulty_reason": "Lọc giá và trạng thái trên một bảng.",
+    "order_by": "list_price giảm, product_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Sản phẩm đang bán có giá niêm yết cao",
+      "central_table": "products",
+      "grain": "Một sản phẩm",
+      "transformation": "active product price threshold",
+      "predicate": "Liệt kê sản phẩm is_active=true có list_price >= 1000000.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "product_id",
+        "meaning": "Mã sản phẩm"
+      },
+      {
+        "name": "product_name",
+        "meaning": "Tên sản phẩm"
+      },
+      {
+        "name": "sku",
+        "meaning": "Mã SKU của sản phẩm"
+      },
+      {
+        "name": "list_price",
+        "meaning": "Giá niêm yết một đơn vị, VND"
+      },
+      {
+        "name": "cost_price",
+        "meaning": "Giá vốn được lưu hiện tại, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê sản phẩm is_active=true có list_price >= 1000000.\nCột kết quả theo thứ tự: product_id, product_name, sku, list_price, cost_price.\nSắp xếp: list_price giảm, product_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT product_id, product_name, sku, list_price, cost_price FROM products\nWHERE is_active AND list_price >= 1000000 ORDER BY list_price DESC, product_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-006",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Human Resources",
+    "title": "Nhân viên không có quản lý trực tiếp",
+    "business_goal": "Liệt kê nhân viên có manager_id IS NULL, không giới hạn status.",
+    "output_grain": "Một nhân viên",
+    "tables_used": [
+      "employees"
+    ],
+    "difficulty_reason": "Kiểm tra NULL trực tiếp, không duyệt cây quản lý.",
+    "order_by": "employee_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Nhân viên không có quản lý trực tiếp",
+      "central_table": "employees",
+      "grain": "Một nhân viên",
+      "transformation": "root employee null manager",
+      "predicate": "Liệt kê nhân viên có manager_id IS NULL, không giới hạn status.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "full_name",
+        "meaning": "Họ tên được lưu"
+      },
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "job_title",
+        "meaning": "Chức danh công việc"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê nhân viên có manager_id IS NULL, không giới hạn status.\nCột kết quả theo thứ tự: employee_id, full_name, department_id, job_title.\nSắp xếp: employee_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT employee_id, full_name, department_id, job_title FROM employees\nWHERE manager_id IS NULL ORDER BY employee_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-007",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Finance",
+    "title": "Yêu cầu hoàn tiền còn chờ",
+    "business_goal": "Liệt kê yêu cầu refund_status='pending' và completed_at IS NULL, theo thứ tự tiếp nhận.",
+    "output_grain": "Một yêu cầu hoàn tiền",
+    "tables_used": [
+      "refunds"
+    ],
+    "difficulty_reason": "Lọc hai điều kiện trực tiếp, không tính tiền ròng.",
+    "order_by": "requested_at tăng, refund_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "requested_at.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Yêu cầu hoàn tiền còn chờ",
+      "central_table": "refunds",
+      "grain": "Một yêu cầu hoàn tiền",
+      "transformation": "pending refund queue",
+      "predicate": "Liệt kê yêu cầu refund_status='pending' và completed_at IS NULL, theo thứ tự tiếp nhận.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "refund_id",
+        "meaning": "Mã yêu cầu hoàn tiền"
+      },
+      {
+        "name": "payment_id",
+        "meaning": "Mã lần thử thanh toán"
+      },
+      {
+        "name": "refund_amount",
+        "meaning": "Giá trị yêu cầu hoàn tiền, VND"
+      },
+      {
+        "name": "requested_at",
+        "meaning": "Thời điểm yêu cầu hoàn tiền"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê yêu cầu refund_status='pending' và completed_at IS NULL, theo thứ tự tiếp nhận.\nCột kết quả theo thứ tự: refund_id, payment_id, refund_amount, requested_at.\nSắp xếp: requested_at tăng, refund_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: requested_at.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT refund_id, payment_id, refund_amount, requested_at FROM refunds\nWHERE refund_status='pending' AND completed_at IS NULL ORDER BY requested_at, refund_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-008",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S1",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Quốc gia trong mạng lưới nhà cung cấp",
+    "business_goal": "Liệt kê country khác nhau, loại NULL, của toàn bộ nhà cung cấp không giới hạn status.",
+    "output_grain": "Một quốc gia",
+    "tables_used": [
+      "suppliers"
+    ],
+    "difficulty_reason": "DISTINCT và loại NULL trực tiếp.",
+    "order_by": "country tăng",
+    "edge_cases": "Loại country IS NULL.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Quốc gia trong mạng lưới nhà cung cấp",
+      "central_table": "suppliers",
+      "grain": "Một quốc gia",
+      "transformation": "distinct supplier countries nonnull",
+      "predicate": "Liệt kê country khác nhau, loại NULL, của toàn bộ nhà cung cấp không giới hạn status.",
+      "edge_cases": "Loại country IS NULL."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "country",
+        "meaning": "Quốc gia nhà cung cấp"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê country khác nhau, loại NULL, của toàn bộ nhà cung cấp không giới hạn status.\nCột kết quả theo thứ tự: country.\nSắp xếp: country tăng.\nQuy tắc biên: Loại country IS NULL.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT DISTINCT country FROM suppliers WHERE country IS NOT NULL ORDER BY country;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-009",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Customer Management",
+    "title": "Danh bạ địa chỉ mặc định",
+    "business_goal": "Với mọi khách hàng, nối các địa chỉ is_default=true. Nếu không có thì vẫn giữ khách với các cột địa chỉ NULL.",
+    "output_grain": "Một khách hàng và địa chỉ mặc định; một dòng NULL nếu không có",
+    "tables_used": [
+      "customers",
+      "customer_addresses"
+    ],
+    "difficulty_reason": "Một LEFT JOIN trực tiếp với điều kiện địa chỉ mặc định.",
+    "order_by": "customer_id tăng, address_id tăng NULLS LAST",
+    "edge_cases": "Nếu có nhiều địa chỉ mặc định thì giữ từng địa chỉ; không tự giả định unique.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Danh bạ địa chỉ mặc định",
+      "central_table": "customers",
+      "grain": "Một khách hàng và địa chỉ mặc định; một dòng NULL nếu không có",
+      "transformation": "left join default addresses preserving customers",
+      "predicate": "Với mọi khách hàng, nối các địa chỉ is_default=true. Nếu không có thì vẫn giữ khách với các cột địa chỉ NULL.",
+      "edge_cases": "Nếu có nhiều địa chỉ mặc định thì giữ từng địa chỉ; không tự giả định unique."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "full_name",
+        "meaning": "Họ tên được lưu"
+      },
+      {
+        "name": "address_id",
+        "meaning": "Mã địa chỉ"
+      },
+      {
+        "name": "city",
+        "meaning": "Thành phố của địa chỉ"
+      },
+      {
+        "name": "address_line",
+        "meaning": "Địa chỉ chi tiết"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Với mọi khách hàng, nối các địa chỉ is_default=true. Nếu không có thì vẫn giữ khách với các cột địa chỉ NULL.\nCột kết quả theo thứ tự: customer_id, full_name, address_id, city, address_line.\nSắp xếp: customer_id tăng, address_id tăng NULLS LAST.\nQuy tắc biên: Nếu có nhiều địa chỉ mặc định thì giữ từng địa chỉ; không tự giả định unique.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT c.customer_id, c.full_name, a.address_id, a.city, a.address_line\nFROM customers c LEFT JOIN customer_addresses a ON a.customer_id=c.customer_id AND a.is_default\nORDER BY c.customer_id, a.address_id NULLS LAST;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-010",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Tên sản phẩm trên từng dòng hàng",
+    "business_goal": "Liệt kê mọi dòng order_items cùng tên sản phẩm, số lượng và line_total; không lọc trạng thái đơn.",
+    "output_grain": "Một dòng hàng",
+    "tables_used": [
+      "order_items",
+      "products"
+    ],
+    "difficulty_reason": "Một JOIN qua khóa ngoại để bổ sung tên sản phẩm.",
+    "order_by": "order_item_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Tên sản phẩm trên từng dòng hàng",
+      "central_table": "order_items",
+      "grain": "Một dòng hàng",
+      "transformation": "line product lookup",
+      "predicate": "Liệt kê mọi dòng order_items cùng tên sản phẩm, số lượng và line_total; không lọc trạng thái đơn.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "order_item_id",
+        "meaning": "Mã dòng hàng"
+      },
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "product_name",
+        "meaning": "Tên sản phẩm"
+      },
+      {
+        "name": "quantity",
+        "meaning": "Số đơn vị trên dòng hàng"
+      },
+      {
+        "name": "line_total",
+        "meaning": "Giá trị dòng sau chiết khấu, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê mọi dòng order_items cùng tên sản phẩm, số lượng và line_total; không lọc trạng thái đơn.\nCột kết quả theo thứ tự: order_item_id, order_id, product_name, quantity, line_total.\nSắp xếp: order_item_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT i.order_item_id, i.order_id, p.product_name, i.quantity, i.line_total\nFROM order_items i JOIN products p ON p.product_id=i.product_id ORDER BY i.order_item_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-011",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Danh mục trực tiếp của sản phẩm",
+    "business_goal": "Liệt kê sản phẩm với tên danh mục trực tiếp và trạng thái is_active của danh mục, không duyệt cha.",
+    "output_grain": "Một sản phẩm",
+    "tables_used": [
+      "products",
+      "categories"
+    ],
+    "difficulty_reason": "Nối trực tiếp sản phẩm với danh mục.",
+    "order_by": "product_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Danh mục trực tiếp của sản phẩm",
+      "central_table": "products",
+      "grain": "Một sản phẩm",
+      "transformation": "product direct category lookup",
+      "predicate": "Liệt kê sản phẩm với tên danh mục trực tiếp và trạng thái is_active của danh mục, không duyệt cha.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "product_id",
+        "meaning": "Mã sản phẩm"
+      },
+      {
+        "name": "product_name",
+        "meaning": "Tên sản phẩm"
+      },
+      {
+        "name": "category_name",
+        "meaning": "Tên danh mục trực tiếp"
+      },
+      {
+        "name": "category_active",
+        "meaning": "Danh mục trực tiếp còn hoạt động"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê sản phẩm với tên danh mục trực tiếp và trạng thái is_active của danh mục, không duyệt cha.\nCột kết quả theo thứ tự: product_id, product_name, category_name, category_active.\nSắp xếp: product_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT p.product_id, p.product_name, c.category_name, c.is_active AS category_active\nFROM products p JOIN categories c ON c.category_id=p.category_id ORDER BY p.product_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-012",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Liên hệ nguồn cung cho sản phẩm",
+    "business_goal": "Liệt kê sản phẩm, nhà cung cấp, quốc gia và email liên hệ; giữ email hoặc quốc gia NULL.",
+    "output_grain": "Một sản phẩm",
+    "tables_used": [
+      "products",
+      "suppliers"
+    ],
+    "difficulty_reason": "Một JOIN để tra cứu quan hệ nguồn cung.",
+    "order_by": "product_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Liên hệ nguồn cung cho sản phẩm",
+      "central_table": "products",
+      "grain": "Một sản phẩm",
+      "transformation": "product supplier contact lookup",
+      "predicate": "Liệt kê sản phẩm, nhà cung cấp, quốc gia và email liên hệ; giữ email hoặc quốc gia NULL.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "product_id",
+        "meaning": "Mã sản phẩm"
+      },
+      {
+        "name": "sku",
+        "meaning": "Mã SKU của sản phẩm"
+      },
+      {
+        "name": "supplier_name",
+        "meaning": "Tên nhà cung cấp"
+      },
+      {
+        "name": "country",
+        "meaning": "Quốc gia nhà cung cấp"
+      },
+      {
+        "name": "contact_email",
+        "meaning": "Email liên hệ nhà cung cấp, có thể NULL"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê sản phẩm, nhà cung cấp, quốc gia và email liên hệ; giữ email hoặc quốc gia NULL.\nCột kết quả theo thứ tự: product_id, sku, supplier_name, country, contact_email.\nSắp xếp: product_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT p.product_id, p.sku, s.supplier_name, s.country, s.contact_email\nFROM products p JOIN suppliers s ON s.supplier_id=p.supplier_id ORDER BY p.product_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-013",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Human Resources",
+    "title": "Danh bạ nhân viên và quản lý trực tiếp",
+    "business_goal": "Liệt kê mọi nhân viên cùng ID và tên quản lý trực tiếp; nhân viên gốc vẫn xuất hiện.",
+    "output_grain": "Một nhân viên",
+    "tables_used": [
+      "employees"
+    ],
+    "difficulty_reason": "SELF LEFT JOIN một cấp, không đệ quy.",
+    "order_by": "employee_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Danh bạ nhân viên và quản lý trực tiếp",
+      "central_table": "employees",
+      "grain": "Một nhân viên",
+      "transformation": "self left join immediate manager",
+      "predicate": "Liệt kê mọi nhân viên cùng ID và tên quản lý trực tiếp; nhân viên gốc vẫn xuất hiện.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "employee_name",
+        "meaning": "Tên nhân viên"
+      },
+      {
+        "name": "manager_id",
+        "meaning": "Mã quản lý trực tiếp, có thể NULL"
+      },
+      {
+        "name": "manager_name",
+        "meaning": "Tên quản lý ở vai trò được hỏi"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê mọi nhân viên cùng ID và tên quản lý trực tiếp; nhân viên gốc vẫn xuất hiện.\nCột kết quả theo thứ tự: employee_id, employee_name, manager_id, manager_name.\nSắp xếp: employee_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT e.employee_id, e.full_name AS employee_name, e.manager_id, m.full_name AS manager_name\nFROM employees e LEFT JOIN employees m ON m.employee_id=e.manager_id ORDER BY e.employee_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-014",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Human Resources",
+    "title": "Trưởng phòng được chỉ định",
+    "business_goal": "Liệt kê tất cả phòng ban và nhân viên được manager_employee_id chỉ định, không suy từ manager_id.",
+    "output_grain": "Một phòng ban",
+    "tables_used": [
+      "departments",
+      "employees"
+    ],
+    "difficulty_reason": "Một LEFT JOIN trực tiếp theo khóa trưởng phòng.",
+    "order_by": "department_id tăng",
+    "edge_cases": "Phòng chưa chỉ định trưởng phòng vẫn xuất hiện với manager_name NULL.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Trưởng phòng được chỉ định",
+      "central_table": "departments",
+      "grain": "Một phòng ban",
+      "transformation": "department designated manager left lookup",
+      "predicate": "Liệt kê tất cả phòng ban và nhân viên được manager_employee_id chỉ định, không suy từ manager_id.",
+      "edge_cases": "Phòng chưa chỉ định trưởng phòng vẫn xuất hiện với manager_name NULL."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "department_name",
+        "meaning": "Tên phòng ban"
+      },
+      {
+        "name": "manager_employee_id",
+        "meaning": "Mã trưởng phòng được chỉ định"
+      },
+      {
+        "name": "manager_name",
+        "meaning": "Tên quản lý ở vai trò được hỏi"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê tất cả phòng ban và nhân viên được manager_employee_id chỉ định, không suy từ manager_id.\nCột kết quả theo thứ tự: department_id, department_name, manager_employee_id, manager_name.\nSắp xếp: department_id tăng.\nQuy tắc biên: Phòng chưa chỉ định trưởng phòng vẫn xuất hiện với manager_name NULL.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT d.department_id, d.department_name, d.manager_employee_id, e.full_name AS manager_name\nFROM departments d LEFT JOIN employees e ON e.employee_id=d.manager_employee_id ORDER BY d.department_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-015",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Finance",
+    "title": "Người phê duyệt từng khoản chi",
+    "business_goal": "Liệt kê mọi khoản operating_expenses và tên người phê duyệt; khoản chưa có người phê duyệt vẫn xuất hiện.",
+    "output_grain": "Một khoản chi",
+    "tables_used": [
+      "operating_expenses",
+      "employees"
+    ],
+    "difficulty_reason": "Một LEFT JOIN để đọc quan hệ phê duyệt.",
+    "order_by": "expense_id tăng",
+    "edge_cases": "Không có approved_at; expense_date không được gọi là ngày phê duyệt.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Người phê duyệt từng khoản chi",
+      "central_table": "operating_expenses",
+      "grain": "Một khoản chi",
+      "transformation": "expense optional approver lookup",
+      "predicate": "Liệt kê mọi khoản operating_expenses và tên người phê duyệt; khoản chưa có người phê duyệt vẫn xuất hiện.",
+      "edge_cases": "Không có approved_at; expense_date không được gọi là ngày phê duyệt."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "expense_id",
+        "meaning": "Mã khoản chi"
+      },
+      {
+        "name": "expense_category",
+        "meaning": "Loại chi phí"
+      },
+      {
+        "name": "amount",
+        "meaning": "Giá trị khoản chi, VND"
+      },
+      {
+        "name": "expense_date",
+        "meaning": "Ngày phát sinh chi phí"
+      },
+      {
+        "name": "approver_name",
+        "meaning": "Tên người phê duyệt, có thể NULL"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê mọi khoản operating_expenses và tên người phê duyệt; khoản chưa có người phê duyệt vẫn xuất hiện.\nCột kết quả theo thứ tự: expense_id, expense_category, amount, expense_date, approver_name.\nSắp xếp: expense_id tăng.\nQuy tắc biên: Không có approved_at; expense_date không được gọi là ngày phê duyệt.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT x.expense_id, x.expense_category, x.amount, x.expense_date, e.full_name AS approver_name\nFROM operating_expenses x LEFT JOIN employees e ON e.employee_id=x.approved_by_employee_id ORDER BY x.expense_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-016",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Customer Management",
+    "title": "Quy mô khách hàng theo trạng thái",
+    "business_goal": "Đếm khách hàng theo status; mỗi khách chỉ đếm một lần.",
+    "output_grain": "Một trạng thái khách hàng",
+    "tables_used": [
+      "customers"
+    ],
+    "difficulty_reason": "GROUP BY và COUNT đơn giản trên một bảng.",
+    "order_by": "status tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Quy mô khách hàng theo trạng thái",
+      "central_table": "customers",
+      "grain": "Một trạng thái khách hàng",
+      "transformation": "group customer status count",
+      "predicate": "Đếm khách hàng theo status; mỗi khách chỉ đếm một lần.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "status",
+        "meaning": "Trạng thái của đối tượng được nhóm hoặc lọc trong đề"
+      },
+      {
+        "name": "customer_count",
+        "meaning": "Số khách hàng"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Đếm khách hàng theo status; mỗi khách chỉ đếm một lần.\nCột kết quả theo thứ tự: status, customer_count.\nSắp xếp: status tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT status, COUNT(*) AS customer_count FROM customers GROUP BY status ORDER BY status;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-017",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Giá trị đơn hàng theo trạng thái",
+    "business_goal": "Theo status của đơn, tính số đơn và tổng total_amount. Đây là giá trị đơn gồm phí giao hàng, không phải tiền đã thu.",
+    "output_grain": "Một trạng thái đơn hàng",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Một bước nhóm và tổng hợp trên orders.",
+    "order_by": "status tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Giá trị đơn hàng theo trạng thái",
+      "central_table": "orders",
+      "grain": "Một trạng thái đơn hàng",
+      "transformation": "group status count sum order value",
+      "predicate": "Theo status của đơn, tính số đơn và tổng total_amount. Đây là giá trị đơn gồm phí giao hàng, không phải tiền đã thu.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "status",
+        "meaning": "Trạng thái của đối tượng được nhóm hoặc lọc trong đề"
+      },
+      {
+        "name": "order_count",
+        "meaning": "Số đơn hàng"
+      },
+      {
+        "name": "order_value",
+        "meaning": "Tổng giá trị đơn, không phải tiền thực thu, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo status của đơn, tính số đơn và tổng total_amount. Đây là giá trị đơn gồm phí giao hàng, không phải tiền đã thu.\nCột kết quả theo thứ tự: status, order_count, order_value.\nSắp xếp: status tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT status, COUNT(*) AS order_count, SUM(total_amount) AS order_value\nFROM orders GROUP BY status ORDER BY status;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-018",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Tổng biến động theo loại giao dịch kho",
+    "business_goal": "Theo transaction_type, tính số giao dịch và tổng quantity_change có dấu, trên toàn bộ kho và thời gian.",
+    "output_grain": "Một loại giao dịch",
+    "tables_used": [
+      "inventory_transactions"
+    ],
+    "difficulty_reason": "Tổng hợp một bảng; không tính tồn tích lũy.",
+    "order_by": "transaction_type tăng",
+    "edge_cases": "sale có tổng âm; không lấy trị tuyệt đối.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Tổng biến động theo loại giao dịch kho",
+      "central_table": "inventory_transactions",
+      "grain": "Một loại giao dịch",
+      "transformation": "group inventory type signed movement sum",
+      "predicate": "Theo transaction_type, tính số giao dịch và tổng quantity_change có dấu, trên toàn bộ kho và thời gian.",
+      "edge_cases": "sale có tổng âm; không lấy trị tuyệt đối."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "transaction_type",
+        "meaning": "Loại biến động kho"
+      },
+      {
+        "name": "transaction_count",
+        "meaning": "Số giao dịch kho"
+      },
+      {
+        "name": "net_units",
+        "meaning": "Tổng biến động số lượng có dấu"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo transaction_type, tính số giao dịch và tổng quantity_change có dấu, trên toàn bộ kho và thời gian.\nCột kết quả theo thứ tự: transaction_type, transaction_count, net_units.\nSắp xếp: transaction_type tăng.\nQuy tắc biên: sale có tổng âm; không lấy trị tuyệt đối.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT transaction_type, COUNT(*) AS transaction_count, SUM(quantity_change) AS net_units\nFROM inventory_transactions GROUP BY transaction_type ORDER BY transaction_type;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-019",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Human Resources",
+    "title": "Quỹ lương hiện tại theo mã phòng",
+    "business_goal": "Theo department_id của nhân viên, tính số nhân viên và tổng current_salary, không lọc status.",
+    "output_grain": "Một mã phòng có nhân viên",
+    "tables_used": [
+      "employees"
+    ],
+    "difficulty_reason": "Một bước tổng hợp lương hiện tại, không suy lương lịch sử.",
+    "order_by": "department_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Quỹ lương hiện tại theo mã phòng",
+      "central_table": "employees",
+      "grain": "Một mã phòng có nhân viên",
+      "transformation": "group department present salary sum",
+      "predicate": "Theo department_id của nhân viên, tính số nhân viên và tổng current_salary, không lọc status.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "employee_count",
+        "meaning": "Số nhân viên"
+      },
+      {
+        "name": "current_payroll",
+        "meaning": "Tổng lương hiện tại, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo department_id của nhân viên, tính số nhân viên và tổng current_salary, không lọc status.\nCột kết quả theo thứ tự: department_id, employee_count, current_payroll.\nSắp xếp: department_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT department_id, COUNT(*) AS employee_count, SUM(current_salary) AS current_payroll\nFROM employees GROUP BY department_id ORDER BY department_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-020",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "easy",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Finance",
+    "title": "Thời gian xử lý hoàn tiền đã hoàn tất",
+    "business_goal": "Trong refund_status='completed' có completed_at không NULL, tính số yêu cầu và thời gian xử lý ngắn nhất, dài nhất, trung bình bằng giờ từ requested_at đến completed_at. Làm tròn các số giờ 2 chữ số.",
+    "output_grain": "Một dòng thống kê toàn bộ refund hoàn tất",
+    "tables_used": [
+      "refunds"
+    ],
+    "difficulty_reason": "Tổng hợp trực tiếp độ dài thời gian trên một bảng, không ghép lịch sử sự kiện.",
+    "order_by": "Một dòng nên không có yêu cầu thứ tự",
+    "edge_cases": "Nếu không có refund hoàn tất thì số yêu cầu=0 và các số giờ=NULL.",
+    "time_basis": "completed_at-requested_at; không dùng attempted_at.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Thời gian xử lý hoàn tiền đã hoàn tất",
+      "central_table": "refunds",
+      "grain": "Một dòng thống kê toàn bộ refund hoàn tất",
+      "transformation": "completed refund turnaround global min max average hours",
+      "predicate": "Trong refund_status='completed' có completed_at không NULL, tính số yêu cầu và thời gian xử lý ngắn nhất, dài nhất, trung bình bằng giờ từ requested_at đến completed_at. Làm tròn các số giờ 2 chữ số.",
+      "edge_cases": "Nếu không có refund hoàn tất thì số yêu cầu=0 và các số giờ=NULL."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "completed_refunds",
+        "meaning": "Số yêu cầu hoàn tiền completed có ngày hoàn tất"
+      },
+      {
+        "name": "min_hours",
+        "meaning": "Số giờ xử lý ngắn nhất"
+      },
+      {
+        "name": "max_hours",
+        "meaning": "Số giờ xử lý dài nhất"
+      },
+      {
+        "name": "avg_hours",
+        "meaning": "Số giờ xử lý trung bình"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": false,
+    "question_text": "Trong refund_status='completed' có completed_at không NULL, tính số yêu cầu và thời gian xử lý ngắn nhất, dài nhất, trung bình bằng giờ từ requested_at đến completed_at. Làm tròn các số giờ 2 chữ số.\nCột kết quả theo thứ tự: completed_refunds, min_hours, max_hours, avg_hours.\nSắp xếp: Một dòng nên không có yêu cầu thứ tự.\nQuy tắc biên: Nếu không có refund hoàn tất thì số yêu cầu=0 và các số giờ=NULL.\nThời gian: completed_at-requested_at; không dùng attempted_at.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT COUNT(*) AS completed_refunds,\n ROUND(MIN(EXTRACT(EPOCH FROM completed_at-requested_at)/3600),2) AS min_hours,\n ROUND(MAX(EXTRACT(EPOCH FROM completed_at-requested_at)/3600),2) AS max_hours,\n ROUND(AVG(EXTRACT(EPOCH FROM completed_at-requested_at)/3600),2) AS avg_hours\nFROM refunds WHERE refund_status='completed' AND completed_at IS NOT NULL;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-021",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Customer Management",
+    "title": "Đơn giao đến thành phố khác địa chỉ mặc định",
+    "business_goal": "Liệt kê đơn có city của địa chỉ giao khác city của một địa chỉ mặc định hiện có của khách. Chỉ so với địa chỉ mặc định được lưu hiện tại, không suy lịch sử thay đổi địa chỉ.",
+    "output_grain": "Một đơn và địa chỉ mặc định được so sánh",
+    "tables_used": [
+      "orders",
+      "customer_addresses"
+    ],
+    "difficulty_reason": "Phân biệt hai vai trò địa chỉ, nối đúng chủ sở hữu rồi so sánh city; không chỉ tra tên.",
+    "order_by": "order_id tăng, default_address_id tăng",
+    "edge_cases": "Không có địa chỉ mặc định thì không xuất hiện; nhiều mặc định thì so từng địa chỉ.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Đơn giao đến thành phố khác địa chỉ mặc định",
+      "central_table": "orders",
+      "grain": "Một đơn và địa chỉ mặc định được so sánh",
+      "transformation": "two address roles composite owner join city comparison",
+      "predicate": "Liệt kê đơn có city của địa chỉ giao khác city của một địa chỉ mặc định hiện có của khách. Chỉ so với địa chỉ mặc định được lưu hiện tại, không suy lịch sử thay đổi địa chỉ.",
+      "edge_cases": "Không có địa chỉ mặc định thì không xuất hiện; nhiều mặc định thì so từng địa chỉ."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "shipping_city",
+        "meaning": "Thành phố địa chỉ giao hàng của đơn"
+      },
+      {
+        "name": "default_address_id",
+        "meaning": "Mã địa chỉ mặc định được so sánh"
+      },
+      {
+        "name": "default_city",
+        "meaning": "Thành phố địa chỉ mặc định"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê đơn có city của địa chỉ giao khác city của một địa chỉ mặc định hiện có của khách. Chỉ so với địa chỉ mặc định được lưu hiện tại, không suy lịch sử thay đổi địa chỉ.\nCột kết quả theo thứ tự: order_id, customer_id, shipping_city, default_address_id, default_city.\nSắp xếp: order_id tăng, default_address_id tăng.\nQuy tắc biên: Không có địa chỉ mặc định thì không xuất hiện; nhiều mặc định thì so từng địa chỉ.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT o.order_id, o.customer_id, a.city AS shipping_city,\n       d.address_id AS default_address_id, d.city AS default_city\nFROM orders o JOIN customer_addresses a\n  ON a.address_id=o.shipping_address_id AND a.customer_id=o.customer_id\nJOIN customer_addresses d ON d.customer_id=o.customer_id AND d.is_default\nWHERE a.city<>d.city ORDER BY o.order_id, d.address_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-022",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Tiến độ xuất từng dòng đơn đang xử lý",
+    "business_goal": "Liệt kê từng dòng của đơn status='processing', kho của đơn và tên kho nếu có; nối giao dịch sale bằng order_item_id để cho biết đã xuất hay chưa và thời điểm xuất.",
+    "output_grain": "Một dòng hàng của đơn processing",
+    "tables_used": [
+      "orders",
+      "order_items",
+      "warehouses",
+      "inventory_transactions"
+    ],
+    "difficulty_reason": "Phối hợp dòng hàng, kho tùy chọn và liên kết sale có điều kiện, vẫn giữ dòng chưa xuất.",
+    "order_by": "order_id tăng, order_item_id tăng",
+    "edge_cases": "Kho hoặc sale có thể NULL; has_sale=false khi chưa xuất.",
+    "time_basis": "sale_at là transaction_date của sale.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Tiến độ xuất từng dòng đơn đang xử lý",
+      "central_table": "orders",
+      "grain": "Một dòng hàng của đơn processing",
+      "transformation": "processing line optional warehouse and conditional sale join",
+      "predicate": "Liệt kê từng dòng của đơn status='processing', kho của đơn và tên kho nếu có; nối giao dịch sale bằng order_item_id để cho biết đã xuất hay chưa và thời điểm xuất.",
+      "edge_cases": "Kho hoặc sale có thể NULL; has_sale=false khi chưa xuất."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "order_item_id",
+        "meaning": "Mã dòng hàng"
+      },
+      {
+        "name": "product_id",
+        "meaning": "Mã sản phẩm"
+      },
+      {
+        "name": "quantity",
+        "meaning": "Số đơn vị trên dòng hàng"
+      },
+      {
+        "name": "warehouse_id",
+        "meaning": "Mã kho"
+      },
+      {
+        "name": "warehouse_name",
+        "meaning": "Tên kho"
+      },
+      {
+        "name": "has_sale",
+        "meaning": "Có sale liên kết dòng hàng hay không"
+      },
+      {
+        "name": "sale_at",
+        "meaning": "Thời điểm transaction_date của sale, có thể NULL"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê từng dòng của đơn status='processing', kho của đơn và tên kho nếu có; nối giao dịch sale bằng order_item_id để cho biết đã xuất hay chưa và thời điểm xuất.\nCột kết quả theo thứ tự: order_id, order_item_id, product_id, quantity, warehouse_id, warehouse_name, has_sale, sale_at.\nSắp xếp: order_id tăng, order_item_id tăng.\nQuy tắc biên: Kho hoặc sale có thể NULL; has_sale=false khi chưa xuất.\nThời gian: sale_at là transaction_date của sale.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT o.order_id, i.order_item_id, i.product_id, i.quantity, o.warehouse_id,\n       w.warehouse_name, t.transaction_id IS NOT NULL AS has_sale, t.transaction_date AS sale_at\nFROM orders o JOIN order_items i ON i.order_id=o.order_id\nLEFT JOIN warehouses w ON w.warehouse_id=o.warehouse_id\nLEFT JOIN inventory_transactions t ON t.order_item_id=i.order_item_id AND t.transaction_type='sale'\nWHERE o.status='processing' ORDER BY o.order_id, i.order_item_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-023",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S2",
+    "primary_business_domain": "Human Resources",
+    "title": "Đối chiếu vai trò quản lý kho và trưởng phòng",
+    "business_goal": "Với mỗi kho, tìm người quản lý kho, phòng của người đó và trưởng phòng được chỉ định. Cho biết người quản lý kho có đồng thời là trưởng phòng đó hay không.",
+    "output_grain": "Một kho",
+    "tables_used": [
+      "warehouses",
+      "employees",
+      "departments"
+    ],
+    "difficulty_reason": "Nối chuỗi vai trò quản lý và so sánh hai khóa có thể NULL; cần phân biệt quản lý kho với trưởng phòng.",
+    "order_by": "warehouse_id tăng",
+    "edge_cases": "same_person=NULL nếu thiếu một trong hai ID, không thay NULL bằng false.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Đối chiếu vai trò quản lý kho và trưởng phòng",
+      "central_table": "warehouses",
+      "grain": "Một kho",
+      "transformation": "warehouse manager department designated manager role comparison",
+      "predicate": "Với mỗi kho, tìm người quản lý kho, phòng của người đó và trưởng phòng được chỉ định. Cho biết người quản lý kho có đồng thời là trưởng phòng đó hay không.",
+      "edge_cases": "same_person=NULL nếu thiếu một trong hai ID, không thay NULL bằng false."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "warehouse_id",
+        "meaning": "Mã kho"
+      },
+      {
+        "name": "warehouse_manager_id",
+        "meaning": "Mã người quản lý kho"
+      },
+      {
+        "name": "warehouse_manager_name",
+        "meaning": "Tên người quản lý kho"
+      },
+      {
+        "name": "department_name",
+        "meaning": "Tên phòng ban"
+      },
+      {
+        "name": "department_manager_id",
+        "meaning": "Mã trưởng phòng của người quản lý kho"
+      },
+      {
+        "name": "same_person",
+        "meaning": "Hai người giữ vai trò quản lý có trùng ID; NULL nếu thiếu ID"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Với mỗi kho, tìm người quản lý kho, phòng của người đó và trưởng phòng được chỉ định. Cho biết người quản lý kho có đồng thời là trưởng phòng đó hay không.\nCột kết quả theo thứ tự: warehouse_id, warehouse_manager_id, warehouse_manager_name, department_name, department_manager_id, same_person.\nSắp xếp: warehouse_id tăng.\nQuy tắc biên: same_person=NULL nếu thiếu một trong hai ID, không thay NULL bằng false.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT w.warehouse_id, e.employee_id AS warehouse_manager_id,\n       e.full_name AS warehouse_manager_name, d.department_name,\n       d.manager_employee_id AS department_manager_id,\n       e.employee_id=d.manager_employee_id AS same_person\nFROM warehouses w LEFT JOIN employees e ON e.employee_id=w.manager_employee_id\nLEFT JOIN departments d ON d.department_id=e.department_id ORDER BY w.warehouse_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-024",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Nhân viên xử lý ít nhất năm đơn đã giao",
+    "business_goal": "Theo employee_id được gán trên đơn (loại NULL), đếm toàn bộ đơn, số đơn delivered và tổng total_amount chỉ của đơn delivered. Giữ người có ít nhất 5 đơn delivered.",
+    "output_grain": "Một nhân viên được gán đơn",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Tổng hợp có điều kiện và lọc nhóm; tránh tính đơn chưa giao vào giá trị đã giao.",
+    "order_by": "employee_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Nhân viên xử lý ít nhất năm đơn đã giao",
+      "central_table": "orders",
+      "grain": "Một nhân viên được gán đơn",
+      "transformation": "conditional order aggregates employee having delivered minimum",
+      "predicate": "Theo employee_id được gán trên đơn (loại NULL), đếm toàn bộ đơn, số đơn delivered và tổng total_amount chỉ của đơn delivered. Giữ người có ít nhất 5 đơn delivered.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [
+      "conditional_aggregation"
+    ],
+    "output_columns": [
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "assigned_orders",
+        "meaning": "Số đơn được gán nhân viên"
+      },
+      {
+        "name": "delivered_orders",
+        "meaning": "Số đơn delivered được gán nhân viên"
+      },
+      {
+        "name": "delivered_order_value",
+        "meaning": "Tổng total_amount của đơn delivered, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo employee_id được gán trên đơn (loại NULL), đếm toàn bộ đơn, số đơn delivered và tổng total_amount chỉ của đơn delivered. Giữ người có ít nhất 5 đơn delivered.\nCột kết quả theo thứ tự: employee_id, assigned_orders, delivered_orders, delivered_order_value.\nSắp xếp: employee_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT employee_id, COUNT(*) AS assigned_orders,\n       COUNT(*) FILTER (WHERE status='delivered') AS delivered_orders,\n       SUM(total_amount) FILTER (WHERE status='delivered') AS delivered_order_value\nFROM orders WHERE employee_id IS NOT NULL GROUP BY employee_id\nHAVING COUNT(*) FILTER (WHERE status='delivered')>=5 ORDER BY employee_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-025",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Nhà cung cấp có danh mục hàng hoạt động đa dạng",
+    "business_goal": "Trong sản phẩm is_active=true, theo supplier_id tính số sản phẩm, số category_id khác nhau và trung bình list_price-cost_price. Chỉ giữ nhóm có ít nhất 5 sản phẩm và 3 danh mục.",
+    "output_grain": "Một nhà cung cấp đạt điều kiện",
+    "tables_used": [
+      "products"
+    ],
+    "difficulty_reason": "Kết hợp lọc dòng, nhiều phép tổng hợp và hai điều kiện HAVING.",
+    "order_by": "supplier_id tăng",
+    "edge_cases": "avg_unit_margin làm tròn 2 chữ số; là chênh giá trên một đơn vị, không phải lợi nhuận thực tế.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Nhà cung cấp có danh mục hàng hoạt động đa dạng",
+      "central_table": "products",
+      "grain": "Một nhà cung cấp đạt điều kiện",
+      "transformation": "supplier active assortment distinct category having average margin",
+      "predicate": "Trong sản phẩm is_active=true, theo supplier_id tính số sản phẩm, số category_id khác nhau và trung bình list_price-cost_price. Chỉ giữ nhóm có ít nhất 5 sản phẩm và 3 danh mục.",
+      "edge_cases": "avg_unit_margin làm tròn 2 chữ số; là chênh giá trên một đơn vị, không phải lợi nhuận thực tế."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "supplier_id",
+        "meaning": "Mã nhà cung cấp"
+      },
+      {
+        "name": "active_products",
+        "meaning": "Số sản phẩm đang hoạt động"
+      },
+      {
+        "name": "category_count",
+        "meaning": "Số danh mục trực tiếp khác nhau"
+      },
+      {
+        "name": "avg_unit_margin",
+        "meaning": "Bình quân list_price-cost_price, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Trong sản phẩm is_active=true, theo supplier_id tính số sản phẩm, số category_id khác nhau và trung bình list_price-cost_price. Chỉ giữ nhóm có ít nhất 5 sản phẩm và 3 danh mục.\nCột kết quả theo thứ tự: supplier_id, active_products, category_count, avg_unit_margin.\nSắp xếp: supplier_id tăng.\nQuy tắc biên: avg_unit_margin làm tròn 2 chữ số; là chênh giá trên một đơn vị, không phải lợi nhuận thực tế.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT supplier_id, COUNT(*) AS active_products, COUNT(DISTINCT category_id) AS category_count,\n       ROUND(AVG(list_price-cost_price),2) AS avg_unit_margin\nFROM products WHERE is_active GROUP BY supplier_id\nHAVING COUNT(*)>=5 AND COUNT(DISTINCT category_id)>=3 ORDER BY supplier_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-026",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Customer Management",
+    "title": "Khách có địa chỉ tại nhiều thành phố",
+    "business_goal": "Theo customer_id trong customer_addresses, đếm địa chỉ, số city khác nhau và số địa chỉ mặc định. Chỉ giữ khách có ít nhất 2 city.",
+    "output_grain": "Một khách đa thành phố",
+    "tables_used": [
+      "customer_addresses"
+    ],
+    "difficulty_reason": "Cần COUNT DISTINCT, tổng hợp có điều kiện và lọc nhóm.",
+    "order_by": "customer_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Khách có địa chỉ tại nhiều thành phố",
+      "central_table": "customer_addresses",
+      "grain": "Một khách đa thành phố",
+      "transformation": "customer address diversity distinct count having",
+      "predicate": "Theo customer_id trong customer_addresses, đếm địa chỉ, số city khác nhau và số địa chỉ mặc định. Chỉ giữ khách có ít nhất 2 city.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [
+      "conditional_aggregation"
+    ],
+    "output_columns": [
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "address_count",
+        "meaning": "Số địa chỉ của khách"
+      },
+      {
+        "name": "city_count",
+        "meaning": "Số thành phố khác nhau của khách"
+      },
+      {
+        "name": "default_count",
+        "meaning": "Số địa chỉ được đánh dấu mặc định"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo customer_id trong customer_addresses, đếm địa chỉ, số city khác nhau và số địa chỉ mặc định. Chỉ giữ khách có ít nhất 2 city.\nCột kết quả theo thứ tự: customer_id, address_count, city_count, default_count.\nSắp xếp: customer_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT customer_id, COUNT(*) AS address_count, COUNT(DISTINCT city) AS city_count,\n       COUNT(*) FILTER (WHERE is_default) AS default_count\nFROM customer_addresses GROUP BY customer_id HAVING COUNT(DISTINCT city)>=2 ORDER BY customer_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-027",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Finance",
+    "title": "Chi phí tháng theo phòng và tình trạng phê duyệt",
+    "business_goal": "Theo tháng expense_date và department_id, tính số khoản chi, tổng amount và tổng amount có approved_by_employee_id không NULL. Chỉ giữ nhóm có ít nhất 2 khoản.",
+    "output_grain": "Một tháng và phòng; NULL là nhóm chưa gán phòng",
+    "tables_used": [
+      "operating_expenses"
+    ],
+    "difficulty_reason": "Nhóm theo thời gian và phòng, tách chi có người phê duyệt rồi lọc nhóm.",
+    "order_by": "month tăng, department_id tăng NULLS LAST",
+    "edge_cases": "Nhóm department_id NULL được giữ; không có chi được phê duyệt thì approved_expense=0.",
+    "time_basis": "expense_date; month là ngày đầu tháng.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Chi phí tháng theo phòng và tình trạng phê duyệt",
+      "central_table": "operating_expenses",
+      "grain": "Một tháng và phòng; NULL là nhóm chưa gán phòng",
+      "transformation": "monthly department conditional expense sums having",
+      "predicate": "Theo tháng expense_date và department_id, tính số khoản chi, tổng amount và tổng amount có approved_by_employee_id không NULL. Chỉ giữ nhóm có ít nhất 2 khoản.",
+      "edge_cases": "Nhóm department_id NULL được giữ; không có chi được phê duyệt thì approved_expense=0."
+    },
+    "secondary_skills": [
+      "conditional_aggregation"
+    ],
+    "output_columns": [
+      {
+        "name": "month",
+        "meaning": "Ngày đầu tháng"
+      },
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "expense_count",
+        "meaning": "Số khoản chi trong nhóm"
+      },
+      {
+        "name": "total_expense",
+        "meaning": "Tổng amount của nhóm chi, VND"
+      },
+      {
+        "name": "approved_expense",
+        "meaning": "Tổng chi có người phê duyệt, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo tháng expense_date và department_id, tính số khoản chi, tổng amount và tổng amount có approved_by_employee_id không NULL. Chỉ giữ nhóm có ít nhất 2 khoản.\nCột kết quả theo thứ tự: month, department_id, expense_count, total_expense, approved_expense.\nSắp xếp: month tăng, department_id tăng NULLS LAST.\nQuy tắc biên: Nhóm department_id NULL được giữ; không có chi được phê duyệt thì approved_expense=0.\nThời gian: expense_date; month là ngày đầu tháng.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT DATE_TRUNC('month',expense_date)::date AS month, department_id,\n       COUNT(*) AS expense_count, SUM(amount) AS total_expense,\n       COALESCE(SUM(amount) FILTER (WHERE approved_by_employee_id IS NOT NULL),0) AS approved_expense\nFROM operating_expenses GROUP BY DATE_TRUNC('month',expense_date)::date, department_id\nHAVING COUNT(*)>=2 ORDER BY month, department_id NULLS LAST;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-028",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S3",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Sức chứa còn lại của từng kho",
+    "business_goal": "Với mọi kho, tính tồn hiện tại từ tổng quantity_change của mọi sản phẩm, sức chứa còn lại và phần trăm sử dụng capacity. Bao gồm kho không có giao dịch.",
+    "output_grain": "Một kho",
+    "tables_used": [
+      "warehouses",
+      "inventory_transactions"
+    ],
+    "difficulty_reason": "Tổng hợp quan hệ một-nhiều và xử lý kho không có giao dịch hoặc capacity=0.",
+    "order_by": "warehouse_id tăng",
+    "edge_cases": "Không có giao dịch thì current_units=0; capacity=0 thì utilization_pct=NULL; phần trăm làm tròn 2 chữ số.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Sức chứa còn lại của từng kho",
+      "central_table": "warehouses",
+      "grain": "Một kho",
+      "transformation": "warehouse left aggregate current stock capacity ratio",
+      "predicate": "Với mọi kho, tính tồn hiện tại từ tổng quantity_change của mọi sản phẩm, sức chứa còn lại và phần trăm sử dụng capacity. Bao gồm kho không có giao dịch.",
+      "edge_cases": "Không có giao dịch thì current_units=0; capacity=0 thì utilization_pct=NULL; phần trăm làm tròn 2 chữ số."
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "warehouse_id",
+        "meaning": "Mã kho"
+      },
+      {
+        "name": "capacity",
+        "meaning": "Sức chứa kho bằng đơn vị sản phẩm"
+      },
+      {
+        "name": "current_units",
+        "meaning": "Số đơn vị tồn từ tổng biến động"
+      },
+      {
+        "name": "free_capacity",
+        "meaning": "capacity trừ tồn hiện tại"
+      },
+      {
+        "name": "utilization_pct",
+        "meaning": "Phần trăm sức chứa đang dùng"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Với mọi kho, tính tồn hiện tại từ tổng quantity_change của mọi sản phẩm, sức chứa còn lại và phần trăm sử dụng capacity. Bao gồm kho không có giao dịch.\nCột kết quả theo thứ tự: warehouse_id, capacity, current_units, free_capacity, utilization_pct.\nSắp xếp: warehouse_id tăng.\nQuy tắc biên: Không có giao dịch thì current_units=0; capacity=0 thì utilization_pct=NULL; phần trăm làm tròn 2 chữ số.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT w.warehouse_id, w.capacity, COALESCE(SUM(t.quantity_change),0) AS current_units,\n       w.capacity-COALESCE(SUM(t.quantity_change),0) AS free_capacity,\n       ROUND(100.0*COALESCE(SUM(t.quantity_change),0)/NULLIF(w.capacity,0),2) AS utilization_pct\nFROM warehouses w LEFT JOIN inventory_transactions t ON t.warehouse_id=w.warehouse_id\nGROUP BY w.warehouse_id, w.capacity ORDER BY w.warehouse_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-029",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S4",
+    "primary_business_domain": "Customer Management",
+    "title": "Khách hàng chưa từng đặt đơn",
+    "business_goal": "Tìm khách hàng không có bất kỳ bản ghi orders nào, không giới hạn status của khách hoặc đơn.",
+    "output_grain": "Một khách hàng",
+    "tables_used": [
+      "customers",
+      "orders"
+    ],
+    "difficulty_reason": "Cần xét sự không tồn tại của quan hệ đơn hàng, không chỉ lọc trạng thái khách.",
+    "order_by": "customer_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Khách hàng chưa từng đặt đơn",
+      "central_table": "customers",
+      "grain": "Một khách hàng",
+      "transformation": "customer anti existence any order",
+      "predicate": "Tìm khách hàng không có bất kỳ bản ghi orders nào, không giới hạn status của khách hoặc đơn.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [
+      "anti_existence"
+    ],
+    "output_columns": [
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "full_name",
+        "meaning": "Họ tên được lưu"
+      },
+      {
+        "name": "registered_at",
+        "meaning": "Thời điểm đăng ký"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Tìm khách hàng không có bất kỳ bản ghi orders nào, không giới hạn status của khách hoặc đơn.\nCột kết quả theo thứ tự: customer_id, full_name, registered_at.\nSắp xếp: customer_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT c.customer_id, c.full_name, c.registered_at FROM customers c\nWHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id=c.customer_id) ORDER BY c.customer_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-030",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S4",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Hàng chưa được đặt nhưng vẫn có tồn",
+    "business_goal": "Tìm sản phẩm không xuất hiện trong bất kỳ order_items nào nhưng có ít nhất một kho với SUM(quantity_change)>0.",
+    "output_grain": "Một sản phẩm",
+    "tables_used": [
+      "products",
+      "order_items",
+      "inventory_transactions"
+    ],
+    "difficulty_reason": "Kết hợp không tồn tại dòng hàng và tồn tại một nhóm tồn dương.",
+    "order_by": "product_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Hàng chưa được đặt nhưng vẫn có tồn",
+      "central_table": "products",
+      "grain": "Một sản phẩm",
+      "transformation": "product anti order existence positive warehouse balance existence",
+      "predicate": "Tìm sản phẩm không xuất hiện trong bất kỳ order_items nào nhưng có ít nhất một kho với SUM(quantity_change)>0.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [
+      "anti_existence"
+    ],
+    "output_columns": [
+      {
+        "name": "product_id",
+        "meaning": "Mã sản phẩm"
+      },
+      {
+        "name": "product_name",
+        "meaning": "Tên sản phẩm"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Tìm sản phẩm không xuất hiện trong bất kỳ order_items nào nhưng có ít nhất một kho với SUM(quantity_change)>0.\nCột kết quả theo thứ tự: product_id, product_name.\nSắp xếp: product_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT p.product_id, p.product_name FROM products p\nWHERE NOT EXISTS (SELECT 1 FROM order_items i WHERE i.product_id=p.product_id)\n  AND EXISTS (SELECT 1 FROM inventory_transactions t WHERE t.product_id=p.product_id\n              GROUP BY t.warehouse_id HAVING SUM(t.quantity_change)>0) ORDER BY p.product_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-031",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S4",
+    "primary_business_domain": "Human Resources",
+    "title": "Lương cao hơn trung bình phòng",
+    "business_goal": "Tìm nhân viên có current_salary cao hơn trung bình current_salary của mọi nhân viên cùng department_id, gồm cả bản thân và không lọc status.",
+    "output_grain": "Một nhân viên",
+    "tables_used": [
+      "employees"
+    ],
+    "difficulty_reason": "So sánh từng nhân viên với tổng hợp tương quan theo phòng.",
+    "order_by": "employee_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Lương cao hơn trung bình phòng",
+      "central_table": "employees",
+      "grain": "Một nhân viên",
+      "transformation": "correlated department salary average comparison",
+      "predicate": "Tìm nhân viên có current_salary cao hơn trung bình current_salary của mọi nhân viên cùng department_id, gồm cả bản thân và không lọc status.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "current_salary",
+        "meaning": "Mức lương hiện tại, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Tìm nhân viên có current_salary cao hơn trung bình current_salary của mọi nhân viên cùng department_id, gồm cả bản thân và không lọc status.\nCột kết quả theo thứ tự: employee_id, department_id, current_salary.\nSắp xếp: employee_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT e.employee_id, e.department_id, e.current_salary FROM employees e\nWHERE e.current_salary>(SELECT AVG(p.current_salary) FROM employees p WHERE p.department_id=e.department_id)\nORDER BY e.employee_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-032",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S4",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Đơn thanh toán thành công sau lần thất bại",
+    "business_goal": "Liệt kê mỗi payment success có ít nhất một payment failed của cùng đơn xảy ra trước, theo cặp (attempted_at,payment_id).",
+    "output_grain": "Một đơn có success sau failed",
+    "tables_used": [
+      "payments"
+    ],
+    "difficulty_reason": "Cần kiểm tra tồn tại sự kiện trước success với khóa thời gian ổn định.",
+    "order_by": "order_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "attempted_at; cùng thời điểm phân thứ tự bằng payment_id.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Đơn thanh toán thành công sau lần thất bại",
+      "central_table": "payments",
+      "grain": "Một đơn có success sau failed",
+      "transformation": "success payment correlated earlier failed existence",
+      "predicate": "Liệt kê mỗi payment success có ít nhất một payment failed của cùng đơn xảy ra trước, theo cặp (attempted_at,payment_id).",
+      "edge_cases": ""
+    },
+    "secondary_skills": [],
+    "output_columns": [
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "success_payment_id",
+        "meaning": "Mã payment success được xét"
+      },
+      {
+        "name": "success_at",
+        "meaning": "Thời điểm attempted_at của payment success"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Liệt kê mỗi payment success có ít nhất một payment failed của cùng đơn xảy ra trước, theo cặp (attempted_at,payment_id).\nCột kết quả theo thứ tự: order_id, success_payment_id, success_at.\nSắp xếp: order_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: attempted_at; cùng thời điểm phân thứ tự bằng payment_id.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT s.order_id, s.payment_id AS success_payment_id, s.attempted_at AS success_at FROM payments s\nWHERE s.payment_status='success' AND EXISTS (\n  SELECT 1 FROM payments f WHERE f.order_id=s.order_id AND f.payment_status='failed'\n  AND (f.attempted_at,f.payment_id)<(s.attempted_at,s.payment_id)) ORDER BY s.order_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-033",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S4",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Nhà cung cấp hoạt động không có hàng ngừng bán",
+    "business_goal": "Tìm supplier status='active' có ít nhất một sản phẩm và không có sản phẩm is_active=false.",
+    "output_grain": "Một nhà cung cấp",
+    "tables_used": [
+      "suppliers",
+      "products"
+    ],
+    "difficulty_reason": "Kết hợp EXISTS và NOT EXISTS để diễn đạt điều kiện mọi sản phẩm mà không nhận nhóm rỗng.",
+    "order_by": "supplier_id tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Nhà cung cấp hoạt động không có hàng ngừng bán",
+      "central_table": "suppliers",
+      "grain": "Một nhà cung cấp",
+      "transformation": "supplier nonvacuous all products active",
+      "predicate": "Tìm supplier status='active' có ít nhất một sản phẩm và không có sản phẩm is_active=false.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [
+      "anti_existence"
+    ],
+    "output_columns": [
+      {
+        "name": "supplier_id",
+        "meaning": "Mã nhà cung cấp"
+      },
+      {
+        "name": "supplier_name",
+        "meaning": "Tên nhà cung cấp"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Tìm supplier status='active' có ít nhất một sản phẩm và không có sản phẩm is_active=false.\nCột kết quả theo thứ tự: supplier_id, supplier_name.\nSắp xếp: supplier_id tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT s.supplier_id, s.supplier_name FROM suppliers s\nWHERE s.status='active' AND EXISTS (SELECT 1 FROM products p WHERE p.supplier_id=s.supplier_id)\nAND NOT EXISTS (SELECT 1 FROM products p WHERE p.supplier_id=s.supplier_id AND NOT p.is_active)\nORDER BY s.supplier_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-034",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S4",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Đơn trả hàng vật lý chưa có hoàn tiền hoàn tất",
+    "business_goal": "Tìm đơn delivered có giao dịch return liên kết ít nhất một dòng hàng, nhưng không có refund completed qua bất kỳ payment của đơn. Đây là danh sách đối soát, không kết luận vi phạm BR.",
+    "output_grain": "Một đơn hàng",
+    "tables_used": [
+      "orders",
+      "order_items",
+      "inventory_transactions",
+      "payments",
+      "refunds"
+    ],
+    "difficulty_reason": "Đối chiếu tồn tại trả hàng vật lý với không tồn tại hoàn tiền qua hai quan hệ khác.",
+    "order_by": "order_id tăng",
+    "edge_cases": "Refund pending/failed không loại đơn; không giả định trả hàng vật lý luôn có refund.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Đơn trả hàng vật lý chưa có hoàn tiền hoàn tất",
+      "central_table": "orders",
+      "grain": "Một đơn hàng",
+      "transformation": "physical return existence anti completed monetary refund",
+      "predicate": "Tìm đơn delivered có giao dịch return liên kết ít nhất một dòng hàng, nhưng không có refund completed qua bất kỳ payment của đơn. Đây là danh sách đối soát, không kết luận vi phạm BR.",
+      "edge_cases": "Refund pending/failed không loại đơn; không giả định trả hàng vật lý luôn có refund."
+    },
+    "secondary_skills": [
+      "anti_existence"
+    ],
+    "output_columns": [
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "total_amount",
+        "meaning": "Giá trị đơn gồm phí giao hàng, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Tìm đơn delivered có giao dịch return liên kết ít nhất một dòng hàng, nhưng không có refund completed qua bất kỳ payment của đơn. Đây là danh sách đối soát, không kết luận vi phạm BR.\nCột kết quả theo thứ tự: order_id, customer_id, total_amount.\nSắp xếp: order_id tăng.\nQuy tắc biên: Refund pending/failed không loại đơn; không giả định trả hàng vật lý luôn có refund.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT o.order_id, o.customer_id, o.total_amount FROM orders o WHERE o.status='delivered'\nAND EXISTS (SELECT 1 FROM order_items i JOIN inventory_transactions t ON t.order_item_id=i.order_item_id\n            WHERE i.order_id=o.order_id AND t.transaction_type='return')\nAND NOT EXISTS (SELECT 1 FROM payments p JOIN refunds r ON r.payment_id=p.payment_id\n                WHERE p.order_id=o.order_id AND r.refund_status='completed') ORDER BY o.order_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-035",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Hai đơn giá trị lớn nhất tại mỗi kho",
+    "business_goal": "Trong mọi đơn có warehouse_id không NULL, lấy tối đa 2 đơn mỗi kho theo total_amount giảm, order_date tăng, order_id tăng; không giới hạn trạng thái.",
+    "output_grain": "Một đơn được chọn tại mỗi kho",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Xếp hạng trong từng kho rồi lọc top 2; tie được phá bằng ngày và ID.",
+    "order_by": "warehouse_id tăng, position tăng",
+    "edge_cases": "Không giữ thêm đồng hạng; loại kho NULL.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": "Tối đa 2 dòng mỗi kho.",
+    "logic_signature": {
+      "goal": "Hai đơn giá trị lớn nhất tại mỗi kho",
+      "central_table": "orders",
+      "grain": "Một đơn được chọn tại mỗi kho",
+      "transformation": "partition warehouse row number top two order value",
+      "predicate": "Trong mọi đơn có warehouse_id không NULL, lấy tối đa 2 đơn mỗi kho theo total_amount giảm, order_date tăng, order_id tăng; không giới hạn trạng thái.",
+      "edge_cases": "Không giữ thêm đồng hạng; loại kho NULL."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "warehouse_id",
+        "meaning": "Mã kho"
+      },
+      {
+        "name": "position",
+        "meaning": "Vị trí theo thứ tự xác định trong đề"
+      },
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "total_amount",
+        "meaning": "Giá trị đơn gồm phí giao hàng, VND"
+      },
+      {
+        "name": "order_date",
+        "meaning": "Thời điểm đặt đơn"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Trong mọi đơn có warehouse_id không NULL, lấy tối đa 2 đơn mỗi kho theo total_amount giảm, order_date tăng, order_id tăng; không giới hạn trạng thái.\nCột kết quả theo thứ tự: warehouse_id, position, order_id, total_amount, order_date.\nSắp xếp: warehouse_id tăng, position tăng.\nQuy tắc biên: Không giữ thêm đồng hạng; loại kho NULL.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH ranked AS (\n SELECT warehouse_id, ROW_NUMBER() OVER (PARTITION BY warehouse_id\n        ORDER BY total_amount DESC,order_date,order_id) AS position, order_id,total_amount,order_date\n FROM orders WHERE warehouse_id IS NOT NULL)\nSELECT warehouse_id,position,order_id,total_amount,order_date FROM ranked WHERE position<=2\nORDER BY warehouse_id,position;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-036",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Ba mức giá cao nhất trong từng danh mục",
+    "business_goal": "Trong toàn bộ sản phẩm, lấy sản phẩm thuộc 3 mức list_price cao nhất khác nhau mỗi category_id. Các sản phẩm đồng giá có cùng hạng và đều được giữ.",
+    "output_grain": "Một sản phẩm thuộc mức giá được chọn",
+    "tables_used": [
+      "products"
+    ],
+    "difficulty_reason": "Cần DENSE_RANK theo danh mục để giữ đầy đủ đồng giá.",
+    "order_by": "category_id tăng, price_rank tăng, product_id tăng",
+    "edge_cases": "Giữ mọi đồng hạng; có thể hơn 3 sản phẩm mỗi danh mục.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": "Tối đa 3 mức giá mỗi danh mục.",
+    "logic_signature": {
+      "goal": "Ba mức giá cao nhất trong từng danh mục",
+      "central_table": "products",
+      "grain": "Một sản phẩm thuộc mức giá được chọn",
+      "transformation": "category dense rank price bands",
+      "predicate": "Trong toàn bộ sản phẩm, lấy sản phẩm thuộc 3 mức list_price cao nhất khác nhau mỗi category_id. Các sản phẩm đồng giá có cùng hạng và đều được giữ.",
+      "edge_cases": "Giữ mọi đồng hạng; có thể hơn 3 sản phẩm mỗi danh mục."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "category_id",
+        "meaning": "Mã danh mục trực tiếp"
+      },
+      {
+        "name": "price_rank",
+        "meaning": "Hạng mức giá khác nhau trong danh mục; đồng giá cùng hạng"
+      },
+      {
+        "name": "product_id",
+        "meaning": "Mã sản phẩm"
+      },
+      {
+        "name": "list_price",
+        "meaning": "Giá niêm yết một đơn vị, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Trong toàn bộ sản phẩm, lấy sản phẩm thuộc 3 mức list_price cao nhất khác nhau mỗi category_id. Các sản phẩm đồng giá có cùng hạng và đều được giữ.\nCột kết quả theo thứ tự: category_id, price_rank, product_id, list_price.\nSắp xếp: category_id tăng, price_rank tăng, product_id tăng.\nQuy tắc biên: Giữ mọi đồng hạng; có thể hơn 3 sản phẩm mỗi danh mục.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH ranked AS (\n SELECT category_id,DENSE_RANK() OVER (PARTITION BY category_id ORDER BY list_price DESC) AS price_rank,\n        product_id,list_price FROM products)\nSELECT category_id,price_rank,product_id,list_price FROM ranked WHERE price_rank<=3\nORDER BY category_id,price_rank,product_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-037",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Human Resources",
+    "title": "Biến động lương giữa hai mốc liên tiếp",
+    "business_goal": "Với mỗi bản ghi salary_history ngoài bản ghi đầu của nhân viên, trả mức lương trước, mới và phần trăm thay đổi. Thứ tự lịch sử là effective_date, salary_history_id.",
+    "output_grain": "Một mốc lương có mốc trước",
+    "tables_used": [
+      "salary_history"
+    ],
+    "difficulty_reason": "Dùng LAG để so sánh hai mốc kề nhau; chưa tìm chuỗi tăng nhiều lần.",
+    "order_by": "employee_id tăng, effective_date tăng",
+    "edge_cases": "Bỏ mốc đầu; phần trăm làm tròn 2 chữ số.",
+    "time_basis": "effective_date, salary_history_id.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Biến động lương giữa hai mốc liên tiếp",
+      "central_table": "salary_history",
+      "grain": "Một mốc lương có mốc trước",
+      "transformation": "salary lag adjacent event percent change",
+      "predicate": "Với mỗi bản ghi salary_history ngoài bản ghi đầu của nhân viên, trả mức lương trước, mới và phần trăm thay đổi. Thứ tự lịch sử là effective_date, salary_history_id.",
+      "edge_cases": "Bỏ mốc đầu; phần trăm làm tròn 2 chữ số."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "effective_date",
+        "meaning": "Ngày bắt đầu áp dụng mức lương"
+      },
+      {
+        "name": "previous_salary",
+        "meaning": "Mức lương tại mốc liền trước, VND"
+      },
+      {
+        "name": "salary",
+        "meaning": "Mức lương có hiệu lực ở mốc mới, VND"
+      },
+      {
+        "name": "change_pct",
+        "meaning": "Phần trăm thay đổi so với mốc trước"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Với mỗi bản ghi salary_history ngoài bản ghi đầu của nhân viên, trả mức lương trước, mới và phần trăm thay đổi. Thứ tự lịch sử là effective_date, salary_history_id.\nCột kết quả theo thứ tự: employee_id, effective_date, previous_salary, salary, change_pct.\nSắp xếp: employee_id tăng, effective_date tăng.\nQuy tắc biên: Bỏ mốc đầu; phần trăm làm tròn 2 chữ số.\nThời gian: effective_date, salary_history_id.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH previous AS (\n SELECT employee_id,effective_date,salary,\n LAG(salary) OVER (PARTITION BY employee_id ORDER BY effective_date,salary_history_id) AS previous_salary\n FROM salary_history)\nSELECT employee_id,effective_date,previous_salary,salary,\n       ROUND(100.0*(salary-previous_salary)/previous_salary,2) AS change_pct\nFROM previous WHERE previous_salary IS NOT NULL ORDER BY employee_id,effective_date;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-038",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Biến động giá trị đơn đã giao theo tháng đặt",
+    "business_goal": "Nhóm đơn status='delivered' theo tháng order_date, tính tổng total_amount và phần trăm thay đổi so với tháng có dữ liệu ngay trước trong kết quả.",
+    "output_grain": "Một tháng có đơn delivered",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Tổng hợp tháng rồi so sánh nhóm liền trước bằng LAG.",
+    "order_by": "month tăng",
+    "edge_cases": "Tháng đầu hoặc previous_value=0 có change_pct=NULL; không tự thêm tháng trống; làm tròn 2 chữ số.",
+    "time_basis": "order_date; không dùng delivered_at.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Biến động giá trị đơn đã giao theo tháng đặt",
+      "central_table": "orders",
+      "grain": "Một tháng có đơn delivered",
+      "transformation": "monthly delivered order value aggregate lag",
+      "predicate": "Nhóm đơn status='delivered' theo tháng order_date, tính tổng total_amount và phần trăm thay đổi so với tháng có dữ liệu ngay trước trong kết quả.",
+      "edge_cases": "Tháng đầu hoặc previous_value=0 có change_pct=NULL; không tự thêm tháng trống; làm tròn 2 chữ số."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "month",
+        "meaning": "Ngày đầu tháng"
+      },
+      {
+        "name": "order_value",
+        "meaning": "Tổng giá trị đơn, không phải tiền thực thu, VND"
+      },
+      {
+        "name": "previous_value",
+        "meaning": "Giá trị của tháng có dữ liệu liền trước, VND"
+      },
+      {
+        "name": "change_pct",
+        "meaning": "Phần trăm thay đổi so với mốc trước"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Nhóm đơn status='delivered' theo tháng order_date, tính tổng total_amount và phần trăm thay đổi so với tháng có dữ liệu ngay trước trong kết quả.\nCột kết quả theo thứ tự: month, order_value, previous_value, change_pct.\nSắp xếp: month tăng.\nQuy tắc biên: Tháng đầu hoặc previous_value=0 có change_pct=NULL; không tự thêm tháng trống; làm tròn 2 chữ số.\nThời gian: order_date; không dùng delivered_at.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH monthly AS (\n SELECT DATE_TRUNC('month',order_date)::date AS month,SUM(total_amount) AS order_value\n FROM orders WHERE status='delivered' GROUP BY 1), compared AS (\n SELECT month,order_value,LAG(order_value) OVER (ORDER BY month) AS previous_value FROM monthly)\nSELECT month,order_value,previous_value,\n       ROUND(100.0*(order_value-previous_value)/NULLIF(previous_value,0),2) AS change_pct\nFROM compared ORDER BY month;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-039",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Finance",
+    "title": "Tiền thu thành công lũy kế theo tháng",
+    "business_goal": "Nhóm payments payment_status='success' theo tháng attempted_at; trả tiền thu tháng và tổng tiền thu lũy kế từ tháng đầu. Không trừ refunds.",
+    "output_grain": "Một tháng có thanh toán success",
+    "tables_used": [
+      "payments"
+    ],
+    "difficulty_reason": "Tổng hợp tiền thu thực tế rồi tính lũy kế trên các nhóm tháng.",
+    "order_by": "month tăng",
+    "edge_cases": "Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.",
+    "time_basis": "attempted_at của success; chỉ tháng có success.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Tiền thu thành công lũy kế theo tháng",
+      "central_table": "payments",
+      "grain": "Một tháng có thanh toán success",
+      "transformation": "monthly successful cash aggregate running total",
+      "predicate": "Nhóm payments payment_status='success' theo tháng attempted_at; trả tiền thu tháng và tổng tiền thu lũy kế từ tháng đầu. Không trừ refunds.",
+      "edge_cases": ""
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "month",
+        "meaning": "Ngày đầu tháng"
+      },
+      {
+        "name": "collected_amount",
+        "meaning": "Tiền payment success trong tháng, VND"
+      },
+      {
+        "name": "cumulative_collected",
+        "meaning": "Tiền payment success lũy kế, chưa trừ refund, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Nhóm payments payment_status='success' theo tháng attempted_at; trả tiền thu tháng và tổng tiền thu lũy kế từ tháng đầu. Không trừ refunds.\nCột kết quả theo thứ tự: month, collected_amount, cumulative_collected.\nSắp xếp: month tăng.\nQuy tắc biên: Giữ nguyên NULL ở cột tùy chọn; không suy diễn giá trị thiếu.\nThời gian: attempted_at của success; chỉ tháng có success.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH monthly AS (\n SELECT DATE_TRUNC('month',attempted_at)::date AS month,SUM(amount) AS collected_amount\n FROM payments WHERE payment_status='success' GROUP BY 1)\nSELECT month,collected_amount,SUM(collected_amount) OVER (ORDER BY month ROWS UNBOUNDED PRECEDING) AS cumulative_collected\nFROM monthly ORDER BY month;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-040",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "medium",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Customer Management",
+    "title": "Khoảng cách giữa các lần đặt của khách",
+    "business_goal": "Với mỗi đơn ngoài đơn đầu của khách, trả order_id trước đó và số ngày giữa hai order_date liên tiếp. Bao gồm mọi trạng thái; thứ tự order_date,order_id.",
+    "output_grain": "Một đơn có đơn trước của cùng khách",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Cần LAG theo khách để xác định đơn kề trước và tính khoảng cách.",
+    "order_by": "customer_id tăng, order_date tăng, order_id tăng",
+    "edge_cases": "Bỏ đơn đầu; gap_days tính cả phần lẻ ngày, làm tròn 2 chữ số.",
+    "time_basis": "order_date,order_id.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Khoảng cách giữa các lần đặt của khách",
+      "central_table": "orders",
+      "grain": "Một đơn có đơn trước của cùng khách",
+      "transformation": "customer repeat order lag fractional day gap",
+      "predicate": "Với mỗi đơn ngoài đơn đầu của khách, trả order_id trước đó và số ngày giữa hai order_date liên tiếp. Bao gồm mọi trạng thái; thứ tự order_date,order_id.",
+      "edge_cases": "Bỏ đơn đầu; gap_days tính cả phần lẻ ngày, làm tròn 2 chữ số."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "customer_id",
+        "meaning": "Mã khách hàng"
+      },
+      {
+        "name": "order_id",
+        "meaning": "Mã đơn hàng"
+      },
+      {
+        "name": "previous_order_id",
+        "meaning": "Mã đơn liền trước của cùng khách"
+      },
+      {
+        "name": "gap_days",
+        "meaning": "Khoảng cách ngày có phần lẻ"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Với mỗi đơn ngoài đơn đầu của khách, trả order_id trước đó và số ngày giữa hai order_date liên tiếp. Bao gồm mọi trạng thái; thứ tự order_date,order_id.\nCột kết quả theo thứ tự: customer_id, order_id, previous_order_id, gap_days.\nSắp xếp: customer_id tăng, order_date tăng, order_id tăng.\nQuy tắc biên: Bỏ đơn đầu; gap_days tính cả phần lẻ ngày, làm tròn 2 chữ số.\nThời gian: order_date,order_id.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH previous AS (\n SELECT customer_id,order_id,order_date,\n LAG(order_id) OVER (PARTITION BY customer_id ORDER BY order_date,order_id) AS previous_order_id,\n LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date,order_id) AS previous_date FROM orders)\nSELECT customer_id,order_id,previous_order_id,\n       ROUND(EXTRACT(EPOCH FROM order_date-previous_date)/86400,2) AS gap_days\nFROM previous WHERE previous_order_id IS NOT NULL ORDER BY customer_id,order_date,order_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-041",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S4",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Nguồn cung phủ đầy đủ hàng bán và kho có tồn",
+    "business_goal": "Tìm nhà cung cấp có ít nhất 2 sản phẩm đang hoạt động. Mỗi sản phẩm đang hoạt động phải có ít nhất một dòng thuộc đơn delivered; tại mọi kho từng có đơn delivered chứa sản phẩm đó, tổng quantity_change của chính sản phẩm tại kho đó phải >0. Sản phẩm không hoạt động không tham gia điều kiện.",
+    "output_grain": "Một nhà cung cấp đạt phép chia quan hệ",
+    "tables_used": [
+      "suppliers",
+      "products",
+      "order_items",
+      "orders",
+      "inventory_transactions"
+    ],
+    "difficulty_reason": "Phép lượng hóa mọi sản phẩm lồng mọi kho đã giao, kết hợp tồn tại bán và tổng tồn tương quan. Cần chống điều kiện đúng trên tập rỗng ở cả hai tầng.",
+    "order_by": "supplier_id tăng",
+    "edge_cases": "Kho không có giao dịch được xem có tồn 0; nhà cung cấp ít hơn 2 hàng active bị loại.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Nguồn cung phủ đầy đủ hàng bán và kho có tồn",
+      "central_table": "suppliers",
+      "grain": "Một nhà cung cấp đạt phép chia quan hệ",
+      "transformation": "supplier all active products delivered exposure all exposed warehouses positive stock",
+      "predicate": "Tìm nhà cung cấp có ít nhất 2 sản phẩm đang hoạt động. Mỗi sản phẩm đang hoạt động phải có ít nhất một dòng thuộc đơn delivered; tại mọi kho từng có đơn delivered chứa sản phẩm đó, tổng quantity_change của chính sản phẩm tại kho đó phải >0. Sản phẩm không hoạt động không tham gia điều kiện.",
+      "edge_cases": "Kho không có giao dịch được xem có tồn 0; nhà cung cấp ít hơn 2 hàng active bị loại."
+    },
+    "secondary_skills": [
+      "anti_existence"
+    ],
+    "output_columns": [
+      {
+        "name": "supplier_id",
+        "meaning": "Mã nhà cung cấp"
+      },
+      {
+        "name": "supplier_name",
+        "meaning": "Tên nhà cung cấp"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Tìm nhà cung cấp có ít nhất 2 sản phẩm đang hoạt động. Mỗi sản phẩm đang hoạt động phải có ít nhất một dòng thuộc đơn delivered; tại mọi kho từng có đơn delivered chứa sản phẩm đó, tổng quantity_change của chính sản phẩm tại kho đó phải >0. Sản phẩm không hoạt động không tham gia điều kiện.\nCột kết quả theo thứ tự: supplier_id, supplier_name.\nSắp xếp: supplier_id tăng.\nQuy tắc biên: Kho không có giao dịch được xem có tồn 0; nhà cung cấp ít hơn 2 hàng active bị loại.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "SELECT s.supplier_id,s.supplier_name FROM suppliers s\nWHERE (SELECT COUNT(*) FROM products p WHERE p.supplier_id=s.supplier_id AND p.is_active)>=2\nAND NOT EXISTS (\n SELECT 1 FROM products p WHERE p.supplier_id=s.supplier_id AND p.is_active AND (\n  NOT EXISTS (SELECT 1 FROM order_items i JOIN orders o ON o.order_id=i.order_id\n              WHERE i.product_id=p.product_id AND o.status='delivered')\n  OR EXISTS (\n   SELECT 1 FROM order_items i JOIN orders o ON o.order_id=i.order_id\n   WHERE i.product_id=p.product_id AND o.status='delivered' AND NOT EXISTS (\n    SELECT 1 FROM inventory_transactions t WHERE t.product_id=p.product_id AND t.warehouse_id=o.warehouse_id\n    GROUP BY t.product_id,t.warehouse_id HAVING SUM(t.quantity_change)>0))))\nORDER BY s.supplier_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-042",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Chuỗi thắng tháng dài nhất của nhân viên",
+    "business_goal": "Trong đơn delivered có employee_id không NULL, tính giá trị total_amount theo nhân viên và tháng order_date. Mỗi tháng chọn đúng một người thắng theo tổng giảm rồi employee_id tăng. Với mỗi người từng thắng, trả chuỗi thắng ở các tháng lịch liên tiếp dài nhất; nếu hòa chọn chuỗi bắt đầu sớm hơn.",
+    "output_grain": "Một nhân viên từng thắng tháng",
+    "tables_used": [
+      "orders"
+    ],
+    "difficulty_reason": "Phải tổng hợp, chọn người thắng từng tháng, phát hiện khoảng đứt theo lịch rồi chọn chuỗi dài nhất từng người. Một ranking đơn lẻ không đủ.",
+    "order_by": "employee_id tăng",
+    "edge_cases": "Tháng không có đơn eligible cắt chuỗi; tie thắng tháng chọn ID nhỏ; tie chuỗi chọn bắt đầu sớm.",
+    "time_basis": "Tháng order_date; liên tiếp theo tháng lịch.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Chuỗi thắng tháng dài nhất của nhân viên",
+      "central_table": "orders",
+      "grain": "Một nhân viên từng thắng tháng",
+      "transformation": "monthly employee sums deterministic winner calendar consecutive islands longest",
+      "predicate": "Trong đơn delivered có employee_id không NULL, tính giá trị total_amount theo nhân viên và tháng order_date. Mỗi tháng chọn đúng một người thắng theo tổng giảm rồi employee_id tăng. Với mỗi người từng thắng, trả chuỗi thắng ở các tháng lịch liên tiếp dài nhất; nếu hòa chọn chuỗi bắt đầu sớm hơn.",
+      "edge_cases": "Tháng không có đơn eligible cắt chuỗi; tie thắng tháng chọn ID nhỏ; tie chuỗi chọn bắt đầu sớm."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "start_month",
+        "meaning": "Ngày đầu tháng bắt đầu đoạn"
+      },
+      {
+        "name": "end_month",
+        "meaning": "Ngày đầu tháng kết thúc đoạn"
+      },
+      {
+        "name": "streak_months",
+        "meaning": "Số tháng lịch liên tiếp trong đoạn"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Trong đơn delivered có employee_id không NULL, tính giá trị total_amount theo nhân viên và tháng order_date. Mỗi tháng chọn đúng một người thắng theo tổng giảm rồi employee_id tăng. Với mỗi người từng thắng, trả chuỗi thắng ở các tháng lịch liên tiếp dài nhất; nếu hòa chọn chuỗi bắt đầu sớm hơn.\nCột kết quả theo thứ tự: employee_id, start_month, end_month, streak_months.\nSắp xếp: employee_id tăng.\nQuy tắc biên: Tháng không có đơn eligible cắt chuỗi; tie thắng tháng chọn ID nhỏ; tie chuỗi chọn bắt đầu sớm.\nThời gian: Tháng order_date; liên tiếp theo tháng lịch.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH totals AS (\n SELECT DATE_TRUNC('month',order_date)::date AS month,employee_id,SUM(total_amount) AS value\n FROM orders WHERE status='delivered' AND employee_id IS NOT NULL GROUP BY 1,2), ranked AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY month ORDER BY value DESC,employee_id) AS pos FROM totals), wins AS (\n SELECT employee_id,month,\n (EXTRACT(YEAR FROM month)::int*12+EXTRACT(MONTH FROM month)::int)\n -ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY month) AS island\n FROM ranked WHERE pos=1), streaks AS (\n SELECT employee_id,MIN(month) AS start_month,MAX(month) AS end_month,COUNT(*) AS streak_months\n FROM wins GROUP BY employee_id,island), picked AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY streak_months DESC,start_month) AS pos FROM streaks)\nSELECT employee_id,start_month,end_month,streak_months FROM picked WHERE pos=1 ORDER BY employee_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-043",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Finance",
+    "title": "Ba cửa sổ ba tháng có tiền ròng lớn nhất",
+    "business_goal": "Gộp tiền vào từ payment success theo attempted_at và tiền ra từ refund completed theo completed_at. Tạo đủ các tháng từ tháng sự kiện sớm nhất đến muộn nhất; tháng trống bằng 0. Tính tiền ròng trong cửa sổ 3 tháng lịch kết thúc mỗi tháng, chỉ giữ cửa sổ đủ 3 tháng. Chọn tối đa 3 cửa sổ có tổng ròng lớn nhất, hòa chọn tháng kết thúc sớm hơn.",
+    "output_grain": "Một cửa sổ ba tháng được chọn",
+    "tables_used": [
+      "payments",
+      "refunds"
+    ],
+    "difficulty_reason": "Cần hợp nhất hai dòng tiền khác ngày ghi nhận, lấp tháng trống, kiểm tra độ dài cửa sổ và xếp hạng tổng trượt. Đây không phải một SUM lũy kế đơn giản.",
+    "order_by": "net_three_months giảm, end_month tăng",
+    "edge_cases": "Chỉ completed refund được trừ; không dùng requested_at; không giữ thêm đồng hạng.",
+    "time_basis": "attempted_at và completed_at; cửa sổ tháng lịch.",
+    "result_limit": 3,
+    "logic_signature": {
+      "goal": "Ba cửa sổ ba tháng có tiền ròng lớn nhất",
+      "central_table": "payments",
+      "grain": "Một cửa sổ ba tháng được chọn",
+      "transformation": "signed cash event union calendar zero fill complete three month rolling top windows",
+      "predicate": "Gộp tiền vào từ payment success theo attempted_at và tiền ra từ refund completed theo completed_at. Tạo đủ các tháng từ tháng sự kiện sớm nhất đến muộn nhất; tháng trống bằng 0. Tính tiền ròng trong cửa sổ 3 tháng lịch kết thúc mỗi tháng, chỉ giữ cửa sổ đủ 3 tháng. Chọn tối đa 3 cửa sổ có tổng ròng lớn nhất, hòa chọn tháng kết thúc sớm hơn.",
+      "edge_cases": "Chỉ completed refund được trừ; không dùng requested_at; không giữ thêm đồng hạng."
+    },
+    "secondary_skills": [
+      "calendar",
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "start_month",
+        "meaning": "Ngày đầu tháng bắt đầu đoạn"
+      },
+      {
+        "name": "end_month",
+        "meaning": "Ngày đầu tháng kết thúc đoạn"
+      },
+      {
+        "name": "net_three_months",
+        "meaning": "Tiền success trừ completed refund theo ngày sự kiện trong 3 tháng, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Gộp tiền vào từ payment success theo attempted_at và tiền ra từ refund completed theo completed_at. Tạo đủ các tháng từ tháng sự kiện sớm nhất đến muộn nhất; tháng trống bằng 0. Tính tiền ròng trong cửa sổ 3 tháng lịch kết thúc mỗi tháng, chỉ giữ cửa sổ đủ 3 tháng. Chọn tối đa 3 cửa sổ có tổng ròng lớn nhất, hòa chọn tháng kết thúc sớm hơn.\nCột kết quả theo thứ tự: start_month, end_month, net_three_months.\nSắp xếp: net_three_months giảm, end_month tăng.\nQuy tắc biên: Chỉ completed refund được trừ; không dùng requested_at; không giữ thêm đồng hạng.\nThời gian: attempted_at và completed_at; cửa sổ tháng lịch.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH events AS (\n SELECT DATE_TRUNC('month',attempted_at)::date AS month,amount AS delta FROM payments WHERE payment_status='success'\n UNION ALL\n SELECT DATE_TRUNC('month',completed_at)::date,-refund_amount FROM refunds WHERE refund_status='completed'),\ncalendar AS (\n SELECT GENERATE_SERIES(MIN(month)::timestamp,MAX(month)::timestamp,INTERVAL '1 month')::date AS month FROM events),\nmonthly AS (\n SELECT c.month,COALESCE(SUM(e.delta),0) AS net FROM calendar c LEFT JOIN events e USING(month) GROUP BY c.month),\nrolling AS (\n SELECT month,SUM(net) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS net_three_months,\n COUNT(*) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS months_in_window FROM monthly)\nSELECT (month-INTERVAL '2 months')::date AS start_month,month AS end_month,net_three_months\nFROM rolling WHERE months_in_window=3 ORDER BY net_three_months DESC,month LIMIT 3;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-044",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Finance",
+    "title": "Nhóm loại chi nhỏ nhất đạt 80 phần trăm chi phòng",
+    "business_goal": "Trong chi có expense_date thuộc năm 2025, tổng hợp amount theo phòng và expense_category. Xếp loại chi theo tổng giảm, tên loại tăng; với mỗi phòng, giữ tiền tố ngắn nhất mà tổng tích lũy đạt ít nhất 80% tổng chi phòng. Trả từng loại trong tiền tố, vị trí, tiền loại và phần trăm tích lũy.",
+    "output_grain": "Một phòng và loại chi trong tiền tố đạt 80%",
+    "tables_used": [
+      "operating_expenses"
+    ],
+    "difficulty_reason": "Cần tổng hợp hai cấp, sắp xếp theo đóng góp, tính tích lũy và giữ đúng loại vượt ngưỡng lần đầu. Phải xử lý nhóm phòng NULL và tie để tiền tố tối thiểu xác định.",
+    "order_by": "department_id tăng NULLS LAST, position tăng",
+    "edge_cases": "Phòng NULL là một nhóm riêng; làm tròn phần trăm sau khi lọc bằng số chính xác.",
+    "time_basis": "expense_date >=2025-01-01 và <2026-01-01.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Nhóm loại chi nhỏ nhất đạt 80 phần trăm chi phòng",
+      "central_table": "operating_expenses",
+      "grain": "Một phòng và loại chi trong tiền tố đạt 80%",
+      "transformation": "department category sum sorted prefix threshold crossing minimal cover",
+      "predicate": "Trong chi có expense_date thuộc năm 2025, tổng hợp amount theo phòng và expense_category. Xếp loại chi theo tổng giảm, tên loại tăng; với mỗi phòng, giữ tiền tố ngắn nhất mà tổng tích lũy đạt ít nhất 80% tổng chi phòng. Trả từng loại trong tiền tố, vị trí, tiền loại và phần trăm tích lũy.",
+      "edge_cases": "Phòng NULL là một nhóm riêng; làm tròn phần trăm sau khi lọc bằng số chính xác."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "position",
+        "meaning": "Vị trí theo thứ tự xác định trong đề"
+      },
+      {
+        "name": "expense_category",
+        "meaning": "Loại chi phí"
+      },
+      {
+        "name": "category_amount",
+        "meaning": "Tổng amount của loại chi trong phòng, VND"
+      },
+      {
+        "name": "cumulative_pct",
+        "meaning": "Phần trăm đóng góp tích lũy"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Trong chi có expense_date thuộc năm 2025, tổng hợp amount theo phòng và expense_category. Xếp loại chi theo tổng giảm, tên loại tăng; với mỗi phòng, giữ tiền tố ngắn nhất mà tổng tích lũy đạt ít nhất 80% tổng chi phòng. Trả từng loại trong tiền tố, vị trí, tiền loại và phần trăm tích lũy.\nCột kết quả theo thứ tự: department_id, position, expense_category, category_amount, cumulative_pct.\nSắp xếp: department_id tăng NULLS LAST, position tăng.\nQuy tắc biên: Phòng NULL là một nhóm riêng; làm tròn phần trăm sau khi lọc bằng số chính xác.\nThời gian: expense_date >=2025-01-01 và <2026-01-01.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH categories AS (\n SELECT department_id,expense_category,SUM(amount) AS category_amount FROM operating_expenses\n WHERE expense_date>=DATE '2025-01-01' AND expense_date<DATE '2026-01-01' GROUP BY 1,2), ranked AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY department_id ORDER BY category_amount DESC,expense_category) AS position,\n SUM(category_amount) OVER (PARTITION BY department_id) AS total,\n SUM(category_amount) OVER (PARTITION BY department_id ORDER BY category_amount DESC,expense_category\n ROWS UNBOUNDED PRECEDING) AS cumulative FROM categories)\nSELECT department_id,position,expense_category,category_amount,ROUND(100.0*cumulative/total,2) AS cumulative_pct\nFROM ranked WHERE cumulative-category_amount<0.8*total ORDER BY department_id NULLS LAST,position;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-045",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S5",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Nhân viên dẫn đầu quý và sản phẩm đóng góp lớn nhất",
+    "business_goal": "Trong đơn delivered được gán nhân viên, tổng line_total theo quý order_date, nhân viên và sản phẩm; chọn sản phẩm có tổng lớn nhất mỗi nhân viên-quý (hòa chọn product_id nhỏ). Tính tổng line_total của nhân viên-quý rồi lấy tối đa 3 nhân viên mỗi quý theo tổng giảm, employee_id tăng. Trả sản phẩm dẫn đầu và tỷ trọng đóng góp của nó. Đây là giá trị hàng theo dòng, không gồm shipping_fee, không trừ refund hoặc trả hàng vật lý, không phải tiền ròng.",
+    "output_grain": "Một nhân viên được chọn mỗi quý",
+    "tables_used": [
+      "orders",
+      "order_items"
+    ],
+    "difficulty_reason": "Xếp hạng ở hai grain khác nhau: sản phẩm trong nhân viên-quý và nhân viên trong quý; tổng nhân viên phải bao gồm cả sản phẩm không thắng. Tie và mẫu số cần xác định riêng.",
+    "order_by": "quarter tăng, employee_rank tăng",
+    "edge_cases": "Tổng bằng 0 thì tỷ trọng NULL; phần trăm làm tròn 2 chữ số; không giữ thêm đồng hạng.",
+    "time_basis": "Quý order_date; quarter là ngày đầu quý.",
+    "result_limit": "Tối đa 3 nhân viên mỗi quý.",
+    "logic_signature": {
+      "goal": "Nhân viên dẫn đầu quý và sản phẩm đóng góp lớn nhất",
+      "central_table": "orders",
+      "grain": "Một nhân viên được chọn mỗi quý",
+      "transformation": "quarter employee product aggregate product leader employee totals top three share",
+      "predicate": "Trong đơn delivered được gán nhân viên, tổng line_total theo quý order_date, nhân viên và sản phẩm; chọn sản phẩm có tổng lớn nhất mỗi nhân viên-quý (hòa chọn product_id nhỏ). Tính tổng line_total của nhân viên-quý rồi lấy tối đa 3 nhân viên mỗi quý theo tổng giảm, employee_id tăng. Trả sản phẩm dẫn đầu và tỷ trọng đóng góp của nó. Đây là giá trị hàng theo dòng, không gồm shipping_fee, không trừ refund hoặc trả hàng vật lý, không phải tiền ròng.",
+      "edge_cases": "Tổng bằng 0 thì tỷ trọng NULL; phần trăm làm tròn 2 chữ số; không giữ thêm đồng hạng."
+    },
+    "secondary_skills": [
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "quarter",
+        "meaning": "Ngày đầu quý"
+      },
+      {
+        "name": "employee_rank",
+        "meaning": "Vị trí nhân viên trong quý"
+      },
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "merchandise_value",
+        "meaning": "Tổng line_total, không gồm shipping_fee hoặc trừ refund, VND"
+      },
+      {
+        "name": "top_product_id",
+        "meaning": "Mã sản phẩm đóng góp lớn nhất theo quy tắc chọn trong đề"
+      },
+      {
+        "name": "top_product_value",
+        "meaning": "Tổng line_total của sản phẩm đứng đầu, VND"
+      },
+      {
+        "name": "top_share_pct",
+        "meaning": "Tỷ trọng phần trăm sản phẩm đứng đầu"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Trong đơn delivered được gán nhân viên, tổng line_total theo quý order_date, nhân viên và sản phẩm; chọn sản phẩm có tổng lớn nhất mỗi nhân viên-quý (hòa chọn product_id nhỏ). Tính tổng line_total của nhân viên-quý rồi lấy tối đa 3 nhân viên mỗi quý theo tổng giảm, employee_id tăng. Trả sản phẩm dẫn đầu và tỷ trọng đóng góp của nó. Đây là giá trị hàng theo dòng, không gồm shipping_fee, không trừ refund hoặc trả hàng vật lý, không phải tiền ròng.\nCột kết quả theo thứ tự: quarter, employee_rank, employee_id, merchandise_value, top_product_id, top_product_value, top_share_pct.\nSắp xếp: quarter tăng, employee_rank tăng.\nQuy tắc biên: Tổng bằng 0 thì tỷ trọng NULL; phần trăm làm tròn 2 chữ số; không giữ thêm đồng hạng.\nThời gian: Quý order_date; quarter là ngày đầu quý.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH products AS (\n SELECT DATE_TRUNC('quarter',o.order_date)::date AS quarter,o.employee_id,i.product_id,SUM(i.line_total) AS product_value\n FROM orders o JOIN order_items i ON i.order_id=o.order_id\n WHERE o.status='delivered' AND o.employee_id IS NOT NULL GROUP BY 1,2,3), product_ranks AS (\n SELECT *,SUM(product_value) OVER (PARTITION BY quarter,employee_id) AS merchandise_value,\n ROW_NUMBER() OVER (PARTITION BY quarter,employee_id ORDER BY product_value DESC,product_id) AS product_pos FROM products),\nleaders AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY quarter ORDER BY merchandise_value DESC,employee_id) AS employee_rank\n FROM product_ranks WHERE product_pos=1)\nSELECT quarter,employee_rank,employee_id,merchandise_value,product_id AS top_product_id,\n       product_value AS top_product_value,ROUND(100.0*product_value/NULLIF(merchandise_value,0),2) AS top_share_pct\nFROM leaders WHERE employee_rank<=3 ORDER BY quarter,employee_rank;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-046",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S6",
+    "primary_business_domain": "Product & Inventory",
+    "title": "Chuỗi giảm tồn liên tiếp dưới ngưỡng 50 đơn vị",
+    "business_goal": "Xét tháng 2025-03 đến 2026-09 cho mỗi cặp sản phẩm-kho có giao dịch. Tồn cuối tháng là tổng mọi quantity_change trước đầu tháng tiếp theo, kể cả giao dịch trước kỳ. Tháng đủ điều kiện khi tồn cuối < tồn đầu và tồn cuối <=50 đơn vị. Với mỗi cặp có tháng đủ điều kiện, tìm chuỗi tháng lịch đủ điều kiện liên tục dài nhất; hòa chọn chuỗi bắt đầu sớm hơn. Trả đầu/cuối chuỗi, số tháng và tổng số đơn vị giảm. Ngưỡng 50 là tham số phân tích, không phải Business Rule.",
+    "output_grain": "Một cặp sản phẩm-kho có chuỗi giảm",
+    "tables_used": [
+      "inventory_transactions"
+    ],
+    "difficulty_reason": "Cần dựng lịch đầy đủ, đưa tồn trước kỳ vào tích lũy, so sánh hai đầu tháng và gom đảo giảm liên tiếp. Tháng trống phải cắt chuỗi giảm.",
+    "order_by": "product_id tăng, warehouse_id tăng",
+    "edge_cases": "Không có giao dịch trước kỳ thì tồn đầu=0; không bỏ tháng trống; bỏ cặp không có tháng giảm.",
+    "time_basis": "transaction_date; kỳ [2025-03-01,2026-10-01).",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Chuỗi giảm tồn liên tiếp dưới ngưỡng 50 đơn vị",
+      "central_table": "inventory_transactions",
+      "grain": "Một cặp sản phẩm-kho có chuỗi giảm",
+      "transformation": "pair calendar historical opening closing stock low threshold negative delta islands longest depletion",
+      "predicate": "Xét tháng 2025-03 đến 2026-09 cho mỗi cặp sản phẩm-kho có giao dịch. Tồn cuối tháng là tổng mọi quantity_change trước đầu tháng tiếp theo, kể cả giao dịch trước kỳ. Tháng đủ điều kiện khi tồn cuối < tồn đầu và tồn cuối <=50 đơn vị. Với mỗi cặp có tháng đủ điều kiện, tìm chuỗi tháng lịch đủ điều kiện liên tục dài nhất; hòa chọn chuỗi bắt đầu sớm hơn. Trả đầu/cuối chuỗi, số tháng và tổng số đơn vị giảm. Ngưỡng 50 là tham số phân tích, không phải Business Rule.",
+      "edge_cases": "Không có giao dịch trước kỳ thì tồn đầu=0; không bỏ tháng trống; bỏ cặp không có tháng giảm."
+    },
+    "secondary_skills": [
+      "calendar",
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "product_id",
+        "meaning": "Mã sản phẩm"
+      },
+      {
+        "name": "warehouse_id",
+        "meaning": "Mã kho"
+      },
+      {
+        "name": "start_month",
+        "meaning": "Ngày đầu tháng bắt đầu đoạn"
+      },
+      {
+        "name": "end_month",
+        "meaning": "Ngày đầu tháng kết thúc đoạn"
+      },
+      {
+        "name": "streak_months",
+        "meaning": "Số tháng lịch liên tiếp trong đoạn"
+      },
+      {
+        "name": "depleted_units",
+        "meaning": "Tổng giảm đơn vị trong đoạn được chọn"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Xét tháng 2025-03 đến 2026-09 cho mỗi cặp sản phẩm-kho có giao dịch. Tồn cuối tháng là tổng mọi quantity_change trước đầu tháng tiếp theo, kể cả giao dịch trước kỳ. Tháng đủ điều kiện khi tồn cuối < tồn đầu và tồn cuối <=50 đơn vị. Với mỗi cặp có tháng đủ điều kiện, tìm chuỗi tháng lịch đủ điều kiện liên tục dài nhất; hòa chọn chuỗi bắt đầu sớm hơn. Trả đầu/cuối chuỗi, số tháng và tổng số đơn vị giảm. Ngưỡng 50 là tham số phân tích, không phải Business Rule.\nCột kết quả theo thứ tự: product_id, warehouse_id, start_month, end_month, streak_months, depleted_units.\nSắp xếp: product_id tăng, warehouse_id tăng.\nQuy tắc biên: Không có giao dịch trước kỳ thì tồn đầu=0; không bỏ tháng trống; bỏ cặp không có tháng giảm.\nThời gian: transaction_date; kỳ [2025-03-01,2026-10-01).\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH pairs AS (\n SELECT DISTINCT product_id,warehouse_id FROM inventory_transactions), calendar AS (\n SELECT GENERATE_SERIES(TIMESTAMP '2025-03-01',TIMESTAMP '2026-09-01',INTERVAL '1 month')::date AS month),\nopening AS (\n SELECT product_id,warehouse_id,SUM(quantity_change) AS opening_stock FROM inventory_transactions\n WHERE transaction_date<TIMESTAMP '2025-03-01' GROUP BY 1,2), movements AS (\n SELECT product_id,warehouse_id,DATE_TRUNC('month',transaction_date)::date AS month,SUM(quantity_change) AS delta\n FROM inventory_transactions WHERE transaction_date>=TIMESTAMP '2025-03-01' AND transaction_date<TIMESTAMP '2026-10-01'\n GROUP BY 1,2,3), monthly AS (\n SELECT p.product_id,p.warehouse_id,c.month,COALESCE(m.delta,0) AS delta,\n COALESCE(o.opening_stock,0)+SUM(COALESCE(m.delta,0)) OVER (\n PARTITION BY p.product_id,p.warehouse_id ORDER BY c.month ROWS UNBOUNDED PRECEDING) AS closing_stock\n FROM pairs p CROSS JOIN calendar c LEFT JOIN movements m\n ON m.product_id=p.product_id AND m.warehouse_id=p.warehouse_id AND m.month=c.month\n LEFT JOIN opening o ON o.product_id=p.product_id AND o.warehouse_id=p.warehouse_id), eligible AS (\n SELECT *,EXTRACT(YEAR FROM month)::int*12+EXTRACT(MONTH FROM month)::int\n -ROW_NUMBER() OVER (PARTITION BY product_id,warehouse_id ORDER BY month) AS island\n FROM monthly WHERE delta<0 AND closing_stock<=50), streaks AS (\n SELECT product_id,warehouse_id,MIN(month) AS start_month,MAX(month) AS end_month,\n COUNT(*) AS streak_months,-SUM(delta) AS depleted_units FROM eligible GROUP BY product_id,warehouse_id,island), picked AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY product_id,warehouse_id ORDER BY streak_months DESC,start_month) AS pos FROM streaks)\nSELECT product_id,warehouse_id,start_month,end_month,streak_months,depleted_units FROM picked WHERE pos=1\nORDER BY product_id,warehouse_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-047",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S6",
+    "primary_business_domain": "Human Resources",
+    "title": "Quy mô cây nhân sự dưới trưởng phòng",
+    "business_goal": "Với mỗi phòng ban, bắt đầu từ manager_employee_id được chỉ định và duyệt mọi hậu duệ qua employees.manager_id, không giới hạn phòng của hậu duệ. Trả số hậu duệ (không gồm gốc), độ sâu lớn nhất với con trực tiếp ở độ sâu 1, và tổng current_salary của hậu duệ. Không có gốc hoặc không có con thì các số bằng 0.",
+    "output_grain": "Một phòng ban",
+    "tables_used": [
+      "departments",
+      "employees"
+    ],
+    "difficulty_reason": "Cần đệ quy nhiều cấp, chống lặp đường đi, loại gốc khỏi thống kê và giữ phòng chưa có cây. SELF JOIN một cấp không giải được.",
+    "order_by": "department_id tăng",
+    "edge_cases": "Không lọc status; đường đi dùng mảng ID chống chu trình; số liệu không gồm trưởng phòng gốc.",
+    "time_basis": "Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Quy mô cây nhân sự dưới trưởng phòng",
+      "central_table": "departments",
+      "grain": "Một phòng ban",
+      "transformation": "designated manager recursive descendants depth payroll cycle guard",
+      "predicate": "Với mỗi phòng ban, bắt đầu từ manager_employee_id được chỉ định và duyệt mọi hậu duệ qua employees.manager_id, không giới hạn phòng của hậu duệ. Trả số hậu duệ (không gồm gốc), độ sâu lớn nhất với con trực tiếp ở độ sâu 1, và tổng current_salary của hậu duệ. Không có gốc hoặc không có con thì các số bằng 0.",
+      "edge_cases": "Không lọc status; đường đi dùng mảng ID chống chu trình; số liệu không gồm trưởng phòng gốc."
+    },
+    "secondary_skills": [
+      "conditional_aggregation",
+      "recursive_hierarchy"
+    ],
+    "output_columns": [
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "root_manager_id",
+        "meaning": "Mã trưởng phòng gốc của cây"
+      },
+      {
+        "name": "descendant_count",
+        "meaning": "Số hậu duệ không gồm gốc"
+      },
+      {
+        "name": "max_depth",
+        "meaning": "Độ sâu lớn nhất, con trực tiếp có độ sâu 1"
+      },
+      {
+        "name": "descendant_payroll",
+        "meaning": "Tổng lương hiện tại của hậu duệ, không gồm gốc, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Với mỗi phòng ban, bắt đầu từ manager_employee_id được chỉ định và duyệt mọi hậu duệ qua employees.manager_id, không giới hạn phòng của hậu duệ. Trả số hậu duệ (không gồm gốc), độ sâu lớn nhất với con trực tiếp ở độ sâu 1, và tổng current_salary của hậu duệ. Không có gốc hoặc không có con thì các số bằng 0.\nCột kết quả theo thứ tự: department_id, root_manager_id, descendant_count, max_depth, descendant_payroll.\nSắp xếp: department_id tăng.\nQuy tắc biên: Không lọc status; đường đi dùng mảng ID chống chu trình; số liệu không gồm trưởng phòng gốc.\nThời gian: Dữ liệu hiện có; không phụ thuộc CURRENT_DATE.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH RECURSIVE tree AS (\n SELECT d.department_id,d.manager_employee_id AS root_manager_id,e.employee_id,0 AS depth,\n        ARRAY[e.employee_id] AS path,e.current_salary\n FROM departments d JOIN employees e ON e.employee_id=d.manager_employee_id\n UNION ALL\n SELECT t.department_id,t.root_manager_id,e.employee_id,t.depth+1,t.path||e.employee_id,e.current_salary\n FROM tree t JOIN employees e ON e.manager_id=t.employee_id WHERE NOT e.employee_id=ANY(t.path))\nSELECT d.department_id,d.manager_employee_id AS root_manager_id,\n       COUNT(t.employee_id) FILTER (WHERE t.depth>0) AS descendant_count,\n       COALESCE(MAX(t.depth),0) AS max_depth,\n       COALESCE(SUM(t.current_salary) FILTER (WHERE t.depth>0),0) AS descendant_payroll\nFROM departments d LEFT JOIN tree t ON t.department_id=d.department_id\nGROUP BY d.department_id,d.manager_employee_id ORDER BY d.department_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-048",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S6",
+    "primary_business_domain": "Finance",
+    "title": "Mức lương tháng bình quân có bằng chứng trong năm 2025",
+    "business_goal": "Theo phòng hiện tại, xét từng nhân viên từ max(hire_date,2025-01-01) đến hết 2025-12-31; ngày trước tuyển không tính. Mỗi salary_history.salary áp dụng từ effective_date đến trước mốc kế tiếp. Tính số ngày-nhân viên có mức lương lịch sử xác định, số ngày-nhân viên chưa xác định, và tổng (salary * số ngày áp dụng trong 2025) / 365 làm mức lương tháng bình quân quy đổi trên phần có bằng chứng. Đây là chỉ số lập ngân sách, không phải lương đã trả; không dùng current_salary để lấp giai đoạn thiếu.",
+    "output_grain": "Một phòng có ít nhất một nhân viên được tuyển trước hết 2025",
+    "tables_used": [
+      "employees",
+      "salary_history"
+    ],
+    "difficulty_reason": "Cần dựng khoảng hiệu lực, cắt theo ngày tuyển và năm, cộng mức lương nhân số ngày rồi đối chiếu độ phủ. Lương hiện tại không xác định được quá khứ bị thiếu.",
+    "order_by": "department_id tăng",
+    "edge_cases": "Không có lịch sử thì known=0 và unknown=mọi ngày eligible; chỉ số lương bằng 0 nếu không có phần được ghi nhận; ngày kết thúc loại trừ.",
+    "time_basis": "Năm 2025 có 365 ngày; hiệu lực [effective_date,next_effective_date).",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Mức lương tháng bình quân có bằng chứng trong năm 2025",
+      "central_table": "employees",
+      "grain": "Một phòng có ít nhất một nhân viên được tuyển trước hết 2025",
+      "transformation": "salary effective intervals clip employment year weighted salary days missing coverage",
+      "predicate": "Theo phòng hiện tại, xét từng nhân viên từ max(hire_date,2025-01-01) đến hết 2025-12-31; ngày trước tuyển không tính. Mỗi salary_history.salary áp dụng từ effective_date đến trước mốc kế tiếp. Tính số ngày-nhân viên có mức lương lịch sử xác định, số ngày-nhân viên chưa xác định, và tổng (salary * số ngày áp dụng trong 2025) / 365 làm mức lương tháng bình quân quy đổi trên phần có bằng chứng. Đây là chỉ số lập ngân sách, không phải lương đã trả; không dùng current_salary để lấp giai đoạn thiếu.",
+      "edge_cases": "Không có lịch sử thì known=0 và unknown=mọi ngày eligible; chỉ số lương bằng 0 nếu không có phần được ghi nhận; ngày kết thúc loại trừ."
+    },
+    "secondary_skills": [
+      "window",
+      "temporal_intervals"
+    ],
+    "output_columns": [
+      {
+        "name": "department_id",
+        "meaning": "Mã phòng hiện tại"
+      },
+      {
+        "name": "eligible_employee_days",
+        "meaning": "Tổng ngày-nhân viên sau ngày tuyển trong năm"
+      },
+      {
+        "name": "known_salary_days",
+        "meaning": "Tổng ngày-nhân viên có mức lương lịch sử xác định"
+      },
+      {
+        "name": "unknown_salary_days",
+        "meaning": "Tổng ngày-nhân viên chưa biết mức lương lịch sử"
+      },
+      {
+        "name": "evidenced_monthly_payroll",
+        "meaning": "Tổng salary*ngày có bằng chứng chia 365; chỉ số ngân sách, VND"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo phòng hiện tại, xét từng nhân viên từ max(hire_date,2025-01-01) đến hết 2025-12-31; ngày trước tuyển không tính. Mỗi salary_history.salary áp dụng từ effective_date đến trước mốc kế tiếp. Tính số ngày-nhân viên có mức lương lịch sử xác định, số ngày-nhân viên chưa xác định, và tổng (salary * số ngày áp dụng trong 2025) / 365 làm mức lương tháng bình quân quy đổi trên phần có bằng chứng. Đây là chỉ số lập ngân sách, không phải lương đã trả; không dùng current_salary để lấp giai đoạn thiếu.\nCột kết quả theo thứ tự: department_id, eligible_employee_days, known_salary_days, unknown_salary_days, evidenced_monthly_payroll.\nSắp xếp: department_id tăng.\nQuy tắc biên: Không có lịch sử thì known=0 và unknown=mọi ngày eligible; chỉ số lương bằng 0 nếu không có phần được ghi nhận; ngày kết thúc loại trừ.\nThời gian: Năm 2025 có 365 ngày; hiệu lực [effective_date,next_effective_date).\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH intervals AS (\n SELECT employee_id,salary,effective_date,\n LEAD(effective_date,1,DATE '2026-01-01') OVER (PARTITION BY employee_id ORDER BY effective_date,salary_history_id) AS next_date\n FROM salary_history), clipped AS (\n SELECT e.employee_id,e.department_id,s.salary,\n GREATEST(LEAST(s.next_date,DATE '2026-01-01')-GREATEST(s.effective_date,e.hire_date,DATE '2025-01-01'),0) AS days\n FROM employees e JOIN intervals s ON s.employee_id=e.employee_id WHERE e.hire_date<DATE '2026-01-01'),\nknown AS (\n SELECT employee_id,SUM(days) AS known_days,SUM(salary*days) AS weighted_salary FROM clipped GROUP BY employee_id),\neligible AS (\n SELECT e.department_id,DATE '2026-01-01'-GREATEST(e.hire_date,DATE '2025-01-01') AS eligible_days,\n COALESCE(k.known_days,0) AS known_days,COALESCE(k.weighted_salary,0) AS weighted_salary\n FROM employees e LEFT JOIN known k USING(employee_id) WHERE e.hire_date<DATE '2026-01-01')\nSELECT department_id,SUM(eligible_days) AS eligible_employee_days,SUM(known_days) AS known_salary_days,\n       SUM(eligible_days-known_days) AS unknown_salary_days,\n       ROUND(SUM(weighted_salary)/365.0,2) AS evidenced_monthly_payroll\nFROM eligible GROUP BY department_id ORDER BY department_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-049",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S6",
+    "primary_business_domain": "Sales & Orders",
+    "title": "Nút thắt trạng thái phổ biến theo kho và quý",
+    "business_goal": "Với đơn hiện tại delivered có warehouse_id không NULL, sắp history theo changed_at,history_id. Thời gian một trạng thái là từ sự kiện vào trạng thái đến sự kiện kế tiếp. Trong pending,processing,shipped, chọn trạng thái có thời gian dài nhất của mỗi đơn; hòa ưu tiên pending rồi processing rồi shipped. Nhóm theo warehouse_id và quý order_date; chọn trạng thái được nhiều đơn chọn nhất, hòa theo ưu tiên trên. Trả số đơn chọn trạng thái đó và số giờ trung bình của đoạn trạng thái trên những đơn đó.",
+    "output_grain": "Một kho-quý có đơn delivered",
+    "tables_used": [
+      "orders",
+      "order_status_history"
+    ],
+    "difficulty_reason": "Phải tái dựng đoạn lịch sử, chọn cực đại từng đơn rồi chọn mode ở grain kho-quý. Hai tầng lựa chọn có tie riêng và không được trộn thời gian của trạng thái khác.",
+    "order_by": "warehouse_id tăng, quarter tăng",
+    "edge_cases": "Không tính thời gian delivered vì không có sự kiện kết thúc; trung bình giờ làm tròn 2 chữ số.",
+    "time_basis": "Độ dài bằng changed_at; nhóm quý theo order_date.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Nút thắt trạng thái phổ biến theo kho và quý",
+      "central_table": "orders",
+      "grain": "Một kho-quý có đơn delivered",
+      "transformation": "status lead intervals per order bottleneck then warehouse quarter modal bottleneck",
+      "predicate": "Với đơn hiện tại delivered có warehouse_id không NULL, sắp history theo changed_at,history_id. Thời gian một trạng thái là từ sự kiện vào trạng thái đến sự kiện kế tiếp. Trong pending,processing,shipped, chọn trạng thái có thời gian dài nhất của mỗi đơn; hòa ưu tiên pending rồi processing rồi shipped. Nhóm theo warehouse_id và quý order_date; chọn trạng thái được nhiều đơn chọn nhất, hòa theo ưu tiên trên. Trả số đơn chọn trạng thái đó và số giờ trung bình của đoạn trạng thái trên những đơn đó.",
+      "edge_cases": "Không tính thời gian delivered vì không có sự kiện kết thúc; trung bình giờ làm tròn 2 chữ số."
+    },
+    "secondary_skills": [
+      "conditional_aggregation",
+      "window",
+      "temporal_intervals"
+    ],
+    "output_columns": [
+      {
+        "name": "warehouse_id",
+        "meaning": "Mã kho"
+      },
+      {
+        "name": "quarter",
+        "meaning": "Ngày đầu quý"
+      },
+      {
+        "name": "bottleneck_status",
+        "meaning": "Trạng thái thắng hai tầng chọn theo đề"
+      },
+      {
+        "name": "selected_orders",
+        "meaning": "Số đơn chọn trạng thái thắng"
+      },
+      {
+        "name": "avg_stage_hours",
+        "meaning": "Giờ trung bình đoạn trạng thái thắng của các đơn chọn nó"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Với đơn hiện tại delivered có warehouse_id không NULL, sắp history theo changed_at,history_id. Thời gian một trạng thái là từ sự kiện vào trạng thái đến sự kiện kế tiếp. Trong pending,processing,shipped, chọn trạng thái có thời gian dài nhất của mỗi đơn; hòa ưu tiên pending rồi processing rồi shipped. Nhóm theo warehouse_id và quý order_date; chọn trạng thái được nhiều đơn chọn nhất, hòa theo ưu tiên trên. Trả số đơn chọn trạng thái đó và số giờ trung bình của đoạn trạng thái trên những đơn đó.\nCột kết quả theo thứ tự: warehouse_id, quarter, bottleneck_status, selected_orders, avg_stage_hours.\nSắp xếp: warehouse_id tăng, quarter tăng.\nQuy tắc biên: Không tính thời gian delivered vì không có sự kiện kết thúc; trung bình giờ làm tròn 2 chữ số.\nThời gian: Độ dài bằng changed_at; nhóm quý theo order_date.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH episodes AS (\n SELECT o.order_id,o.warehouse_id,DATE_TRUNC('quarter',o.order_date)::date AS quarter,h.new_status,\n h.changed_at,LEAD(h.changed_at) OVER (PARTITION BY o.order_id ORDER BY h.changed_at,h.history_id) AS next_at\n FROM orders o JOIN order_status_history h ON h.order_id=o.order_id\n WHERE o.status='delivered' AND o.warehouse_id IS NOT NULL), stages AS (\n SELECT *,EXTRACT(EPOCH FROM next_at-changed_at)/3600 AS hours,\n CASE new_status WHEN 'pending' THEN 1 WHEN 'processing' THEN 2 WHEN 'shipped' THEN 3 END AS priority\n FROM episodes WHERE new_status IN ('pending','processing','shipped') AND next_at IS NOT NULL),\nper_order AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY hours DESC,priority) AS pos FROM stages), totals AS (\n SELECT warehouse_id,quarter,new_status,priority,COUNT(*) AS selected_orders,AVG(hours) AS average_hours\n FROM per_order WHERE pos=1 GROUP BY 1,2,3,4), picked AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY warehouse_id,quarter ORDER BY selected_orders DESC,priority) AS pos FROM totals)\nSELECT warehouse_id,quarter,new_status AS bottleneck_status,selected_orders,ROUND(average_hours,2) AS avg_stage_hours\nFROM picked WHERE pos=1 ORDER BY warehouse_id,quarter;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  },
+  {
+    "question_id": "ENT-050",
+    "world_id": "enterprise_v1",
+    "taxonomy_version": "v1",
+    "difficulty": "hard",
+    "primary_skill_group": "S6",
+    "primary_business_domain": "Human Resources",
+    "title": "Chuỗi tăng lương liên tiếp có mức tăng tổng cao nhất",
+    "business_goal": "Theo từng nhân viên, sắp salary_history bằng effective_date,salary_history_id. Một chuỗi tăng là một đoạn tối đa gồm các mốc liên tiếp có salary sau > salary trước; mốc bằng hoặc giảm cắt chuỗi. Chỉ xét chuỗi có ít nhất 2 lần tăng. Chọn một chuỗi mỗi nhân viên theo tỷ lệ (lương cuối/lương đầu-1) giảm, số lần tăng giảm, ngày bắt đầu tăng. Trả ngày đầu (mốc trước lần tăng thứ nhất), ngày cuối, số lần tăng, lương đầu/cuối và tỷ lệ tăng phần trăm.",
+    "output_grain": "Một nhân viên có chuỗi ít nhất hai lần tăng",
+    "tables_used": [
+      "salary_history"
+    ],
+    "difficulty_reason": "Cần phát hiện các cạnh tăng, giữ mốc tiền nhiệm ở đầu chuỗi, gom đoạn tối đa rồi so sánh tỷ lệ hai đầu. Tính từng LAG riêng lẻ không xác định được chuỗi tốt nhất.",
+    "order_by": "employee_id tăng",
+    "edge_cases": "Mốc bằng/giảm cắt chuỗi; xếp bằng tỷ lệ chưa làm tròn, chỉ làm tròn growth_pct đầu ra 2 chữ số.",
+    "time_basis": "effective_date; salary_history_id phá hòa.",
+    "result_limit": null,
+    "logic_signature": {
+      "goal": "Chuỗi tăng lương liên tiếp có mức tăng tổng cao nhất",
+      "central_table": "salary_history",
+      "grain": "Một nhân viên có chuỗi ít nhất hai lần tăng",
+      "transformation": "adjacent salary raises maximal islands endpoint growth best streak",
+      "predicate": "Theo từng nhân viên, sắp salary_history bằng effective_date,salary_history_id. Một chuỗi tăng là một đoạn tối đa gồm các mốc liên tiếp có salary sau > salary trước; mốc bằng hoặc giảm cắt chuỗi. Chỉ xét chuỗi có ít nhất 2 lần tăng. Chọn một chuỗi mỗi nhân viên theo tỷ lệ (lương cuối/lương đầu-1) giảm, số lần tăng giảm, ngày bắt đầu tăng. Trả ngày đầu (mốc trước lần tăng thứ nhất), ngày cuối, số lần tăng, lương đầu/cuối và tỷ lệ tăng phần trăm.",
+      "edge_cases": "Mốc bằng/giảm cắt chuỗi; xếp bằng tỷ lệ chưa làm tròn, chỉ làm tròn growth_pct đầu ra 2 chữ số."
+    },
+    "secondary_skills": [
+      "conditional_aggregation",
+      "window"
+    ],
+    "output_columns": [
+      {
+        "name": "employee_id",
+        "meaning": "Mã nhân viên"
+      },
+      {
+        "name": "start_date",
+        "meaning": "Ngày hiệu lực mốc lương đầu đoạn"
+      },
+      {
+        "name": "end_date",
+        "meaning": "Ngày hiệu lực mốc lương cuối đoạn"
+      },
+      {
+        "name": "raise_count",
+        "meaning": "Số cạnh tăng lương liên tiếp trong đoạn"
+      },
+      {
+        "name": "start_salary",
+        "meaning": "Mức lương đầu đoạn, VND"
+      },
+      {
+        "name": "end_salary",
+        "meaning": "Mức lương cuối đoạn, VND"
+      },
+      {
+        "name": "growth_pct",
+        "meaning": "Phần trăm tăng giữa hai đầu đoạn"
+      }
+    ],
+    "money_unit": "VND",
+    "ordering_required": true,
+    "question_text": "Theo từng nhân viên, sắp salary_history bằng effective_date,salary_history_id. Một chuỗi tăng là một đoạn tối đa gồm các mốc liên tiếp có salary sau > salary trước; mốc bằng hoặc giảm cắt chuỗi. Chỉ xét chuỗi có ít nhất 2 lần tăng. Chọn một chuỗi mỗi nhân viên theo tỷ lệ (lương cuối/lương đầu-1) giảm, số lần tăng giảm, ngày bắt đầu tăng. Trả ngày đầu (mốc trước lần tăng thứ nhất), ngày cuối, số lần tăng, lương đầu/cuối và tỷ lệ tăng phần trăm.\nCột kết quả theo thứ tự: employee_id, start_date, end_date, raise_count, start_salary, end_salary, growth_pct.\nSắp xếp: employee_id tăng.\nQuy tắc biên: Mốc bằng/giảm cắt chuỗi; xếp bằng tỷ lệ chưa làm tròn, chỉ làm tròn growth_pct đầu ra 2 chữ số.\nThời gian: effective_date; salary_history_id phá hòa.\nMọi số tiền giữ đơn vị tiền của dataset (VND), không đổi sang triệu đồng.",
+    "reference_sql": "WITH previous AS (\n SELECT *,LAG(salary) OVER (PARTITION BY employee_id ORDER BY effective_date,salary_history_id) AS previous_salary,\n LAG(effective_date) OVER (PARTITION BY employee_id ORDER BY effective_date,salary_history_id) AS previous_date\n FROM salary_history), numbered AS (\n SELECT *,SUM(CASE WHEN previous_salary IS NULL OR salary<=previous_salary THEN 1 ELSE 0 END)\n OVER (PARTITION BY employee_id ORDER BY effective_date,salary_history_id ROWS UNBOUNDED PRECEDING) AS island\n FROM previous), streaks AS (\n SELECT employee_id,island,MIN(previous_date) AS start_date,MAX(effective_date) AS end_date,\n COUNT(*) AS raise_count,MIN(previous_salary) AS start_salary,MAX(salary) AS end_salary\n FROM numbered WHERE salary>previous_salary GROUP BY employee_id,island HAVING COUNT(*)>=2), ranked AS (\n SELECT *,ROW_NUMBER() OVER (PARTITION BY employee_id\n ORDER BY (end_salary/start_salary-1) DESC,raise_count DESC,start_date) AS pos FROM streaks)\nSELECT employee_id,start_date,end_date,raise_count,start_salary,end_salary,\n       ROUND(100.0*(end_salary/start_salary-1),2) AS growth_pct\nFROM ranked WHERE pos=1 ORDER BY employee_id;",
+    "validation": {
+      "status": "NOT_EXECUTED",
+      "sql_executed": false,
+      "semantic_valid": false,
+      "row_count": null,
+      "runtime_ms": null,
+      "column_types": [],
+      "result_summary": null,
+      "error": null
+    }
+  }
+]

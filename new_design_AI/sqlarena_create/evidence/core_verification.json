@@ -1,0 +1,275 @@
+{
+  "status": "PASS",
+  "started_at": "2026-10-10T16:51:44.533426+00:00",
+  "source_connection": {
+    "database": "enterprise_db",
+    "login_role": "postgres",
+    "effective_role": "pg_read_all_data",
+    "server_version": "PostgreSQL 18.3 on x86_64-windows, compiled by msvc-19.44.35225, 64-bit",
+    "can_write_orders": false,
+    "statement_timeout": "15s",
+    "effective_superuser": false,
+    "can_create_in_public": false,
+    "transaction_read_only": "on",
+    "table_privileges": [
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "categories"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "customer_addresses"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "customers"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "departments"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "employees"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "inventory_transactions"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "operating_expenses"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "order_items"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "order_status_history"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "orders"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "payments"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "products"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "refunds"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "salary_history"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "suppliers"
+      },
+      {
+        "can_read": true,
+        "can_write": false,
+        "table_name": "warehouses"
+      }
+    ]
+  },
+  "source_quotas": {
+    "difficulty": {
+      "easy": 20,
+      "medium": 20,
+      "hard": 10
+    },
+    "skills": {
+      "S1": 8,
+      "S2": 10,
+      "S3": 10,
+      "S4": 7,
+      "S5": 10,
+      "S6": 5
+    },
+    "domains": {
+      "Customer Management": 8,
+      "Sales & Orders": 13,
+      "Product & Inventory": 12,
+      "Human Resources": 9,
+      "Finance": 8
+    },
+    "matrix": {
+      "easy": {
+        "S1": 8,
+        "S2": 7,
+        "S3": 5
+      },
+      "medium": {
+        "S2": 3,
+        "S3": 5,
+        "S4": 6,
+        "S5": 6
+      },
+      "hard": {
+        "S4": 1,
+        "S5": 4,
+        "S6": 5
+      }
+    }
+  },
+  "enterprise_table_count": 16,
+  "enterprise_fk_count": 24,
+  "business_rule_count": 16,
+  "enterprise_rows_before": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b",
+  "enterprise_catalog_before": "57e199fd63d3af2a1a7cd0684c6c12eec52606b5f0982ac0074d6569cc9d48c1",
+  "protected_file_hashes_before": {
+    "question_generation/questions_validated.json": "d9e3e294f6b7b0059bbb52f781db70aaeb678499d87d12617c5a1dd1d0b8f3f2",
+    "question_create/enterprise_50_question_rules_v1.md": "cbfc2da38e9c94410a6ae1f53f63a37939e9a2ca1b268c946ce51f367e90a331",
+    "sqlarena_create/sqlarena_core_mapping_rules_v2.md": "bc7044a3fe1a218ce105f452ae8600a072b3d4c5e217b598e071775f36190bd2",
+    "sqlarena_create/prompt_agent_build_sqlarena_core_v2.md": "5f0d7669632ac3578b7c46b91924db3fd8c2021c5cd4b61cdcb543fba9b97181",
+    "generate_seed.py": "f648cb619ffa508ddce3488e73ad48e936aaf9aec282c362a37f28bbec412a88",
+    "build/enterprise_seed_data.sql": "7de870543f225986ba390773c843bd27adf439f156636695493956cc3fade163",
+    "postgre/enterprise_db/constraint.sql": "895ebd68926a0141ae6cee993167453158a249365b724fe946b9426e8d6516ff",
+    "postgre/enterprise_db/enterprise_50_questions_answers.sql": "eee4cb6eba74f643a12af1f2735f9154a4957bf0f8369d69438cd7ff0c7a0a9c",
+    "postgre/enterprise_db/schema_code.sql": "4f7566c255daa358aeff3e72b6572c316ba15b9da3c69779a33023b4ed204715",
+    "postgre/enterprise_db/validate_enterprisedb_br01_br16.sql": "f253afd3cef9176ee149905c597bd87ee0b0d2a07bb35e1abf1ca4ed520d9aa3",
+    "rang_buoc.docx": "a1d4df7a8036a4836f7a06af781fdf9729c69a7fd14085006c492ef44e259f1e",
+    "Schema database.docx": "b28943284f62635a2df721de01af869da1adcec86e2af9a47ca9c526b4b8c305"
+  },
+  "sql_file_sha256": {
+    "01_create_sqlarena_core.sql": "01ad642f4cec987234dd136e0c95bfc8f9452b7ebe3cef0b8b12346d25d2b131",
+    "02_insert_sqlarena_core_data.sql": "5666bc2745515d65295a2f165df97cf14941465e25451cbd0bb171303837e4ad"
+  },
+  "target_database_created": false,
+  "verification": {
+    "counts": {
+      "worlds": 1,
+      "skills": 6,
+      "templates": 0,
+      "source_questions": 50
+    },
+    "orphan_counts": {
+      "question_skill_orphans": 0,
+      "question_world_orphans": 0,
+      "template_world_orphans": 0
+    },
+    "difficulty": {
+      "easy": 20,
+      "medium": 20,
+      "hard": 10
+    },
+    "skills": {
+      "S1": 8,
+      "S5": 10,
+      "S3": 10,
+      "S6": 5,
+      "S2": 10,
+      "S4": 7
+    },
+    "domains": {
+      "Sales & Orders": 13,
+      "Product & Inventory": 12,
+      "Finance": 8,
+      "Customer Management": 8,
+      "Human Resources": 9
+    },
+    "matrix": [
+      {
+        "count": 8,
+        "difficulty": "easy",
+        "primary_skill_group": "S1"
+      },
+      {
+        "count": 7,
+        "difficulty": "easy",
+        "primary_skill_group": "S2"
+      },
+      {
+        "count": 5,
+        "difficulty": "easy",
+        "primary_skill_group": "S3"
+      },
+      {
+        "count": 1,
+        "difficulty": "hard",
+        "primary_skill_group": "S4"
+      },
+      {
+        "count": 4,
+        "difficulty": "hard",
+        "primary_skill_group": "S5"
+      },
+      {
+        "count": 5,
+        "difficulty": "hard",
+        "primary_skill_group": "S6"
+      },
+      {
+        "count": 3,
+        "difficulty": "medium",
+        "primary_skill_group": "S2"
+      },
+      {
+        "count": 5,
+        "difficulty": "medium",
+        "primary_skill_group": "S3"
+      },
+      {
+        "count": 6,
+        "difficulty": "medium",
+        "primary_skill_group": "S4"
+      },
+      {
+        "count": 6,
+        "difficulty": "medium",
+        "primary_skill_group": "S5"
+      }
+    ],
+    "text_utf8_exact_matches": 50,
+    "sql_utf8_exact_matches": 50,
+    "validation_exact_matches": 50,
+    "metadata_exact_matches": 50,
+    "lossless_source_reconstruction_matches": 50,
+    "core_state_sha256": "9786dbc02195d945b587c2fb354bc20202d46bae0a2f1d61818b4183b42375a0"
+  },
+  "ddl_repeat_unchanged": true,
+  "data_repeat_refused_unchanged": true,
+  "schema_mismatch_refused_unchanged": true,
+  "enterprise_rows_after": "6ca07439e31df98e2296bcf5def64b478e760b8efa1802b81e3bffba1c4b3b5b",
+  "enterprise_catalog_after": "57e199fd63d3af2a1a7cd0684c6c12eec52606b5f0982ac0074d6569cc9d48c1",
+  "enterprise_rows_unchanged": true,
+  "enterprise_catalog_unchanged": true,
+  "protected_files_unchanged": true,
+  "protected_file_hashes_after": {
+    "question_generation/questions_validated.json": "d9e3e294f6b7b0059bbb52f781db70aaeb678499d87d12617c5a1dd1d0b8f3f2",
+    "question_create/enterprise_50_question_rules_v1.md": "cbfc2da38e9c94410a6ae1f53f63a37939e9a2ca1b268c946ce51f367e90a331",
+    "sqlarena_create/sqlarena_core_mapping_rules_v2.md": "bc7044a3fe1a218ce105f452ae8600a072b3d4c5e217b598e071775f36190bd2",
+    "sqlarena_create/prompt_agent_build_sqlarena_core_v2.md": "5f0d7669632ac3578b7c46b91924db3fd8c2021c5cd4b61cdcb543fba9b97181",
+    "generate_seed.py": "f648cb619ffa508ddce3488e73ad48e936aaf9aec282c362a37f28bbec412a88",
+    "build/enterprise_seed_data.sql": "7de870543f225986ba390773c843bd27adf439f156636695493956cc3fade163",
+    "postgre/enterprise_db/constraint.sql": "895ebd68926a0141ae6cee993167453158a249365b724fe946b9426e8d6516ff",
+    "postgre/enterprise_db/enterprise_50_questions_answers.sql": "eee4cb6eba74f643a12af1f2735f9154a4957bf0f8369d69438cd7ff0c7a0a9c",
+    "postgre/enterprise_db/schema_code.sql": "4f7566c255daa358aeff3e72b6572c316ba15b9da3c69779a33023b4ed204715",
+    "postgre/enterprise_db/validate_enterprisedb_br01_br16.sql": "f253afd3cef9176ee149905c597bd87ee0b0d2a07bb35e1abf1ca4ed520d9aa3",
+    "rang_buoc.docx": "a1d4df7a8036a4836f7a06af781fdf9729c69a7fd14085006c492ef44e259f1e",
+    "Schema database.docx": "b28943284f62635a2df721de01af869da1adcec86e2af9a47ca9c526b4b8c305"
+  },
+  "finished_at": "2026-10-10T16:51:50.477413+00:00"
+}
