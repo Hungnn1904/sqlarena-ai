@@ -105,6 +105,14 @@ Giữ PostgreSQL và Ollama hoạt động khi chạy AI.
 
 ### 3.3. Kiểm Tra Kết Nối
 
+thiết lâp kết nối:
+
+[Environment]::SetEnvironmentVariable(
+  "OLLAMA_HOST",
+  "http://localhost:11434",
+  "User"
+)
+
 Từ thư mục gốc dự án:
 
 ```powershell
