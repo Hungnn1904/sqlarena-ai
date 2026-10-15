@@ -1,13 +1,19 @@
-.env
-.env.*
-!.env.example
-
+# Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.venv/
+venv/
 
-/ai/backups/
-/ai/outputs/
-/logs/
-*.dump
+# Local secrets
+.env
+.env.*
+!*.env.example
+ai/.env
 
-/generate_seed.py
+# Generated outputs / local artifacts
+ai/outputs/
+ai/backups/
+*.log
+.DS_Store
+Thumbs.db
