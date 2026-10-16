@@ -24,7 +24,7 @@ import main as arena
 from validator import SAFE_FUNCTIONS, SQLSchema, parse_select, strings, verify_readonly, walk
 
 HERE = Path(__file__).resolve().parent
-REVIEW_VERSION = "review_v1.0_model_b_consensus"
+REVIEW_VERSION = "review_v1.2_explicit_semantic_contracts"
 STATUSES = ("approved", "needs_human", "rejected")
 SQL_ERRORS = (ValueError, TypeError, KeyError, parser.ParseError)
 ORDER_WORDS = re.compile(r"(sắp xếp|xếp theo|thứ tự|giảm dần|tăng dần|từ cao|từ thấp|xếp hạng|top\s*\d|"
@@ -32,6 +32,15 @@ ORDER_WORDS = re.compile(r"(sắp xếp|xếp theo|thứ tự|giảm dần|tăng
 LEAK_PATTERNS = (re.compile(r"\bselect\b[\s\S]{0,400}\bfrom\b", re.I), re.compile(r"```"),
                  re.compile(r"\breference_sql\b", re.I))
 AGGREGATES = {"count", "sum", "avg", "min", "max", "string_agg", "array_agg"}
+DATE_WORDS = {"day", "week", "month", "quarter", "year", "hour", "minute", "second", "epoch", "dow", "doy", "isodow"}
+GLOSSARY = (
+    'Meaning of common Vietnamese phrases in questions:',
+    '"loại X", "bỏ X", "trừ X", "không tính X", "không bao gồm X" = EXCLUDE X (so "loại NULL" means keep only non-NULL: col IS NOT NULL).',
+    '"giữ nguyên", "giữ lại", "vẫn xuất hiện", "không loại" = keep those rows/values as they are: do NOT filter them out and do NOT replace NULL.',
+    '"không duyệt cha", "không suy diễn", "không thêm" = do not add any logic the question did not ask for (no extra filter, join or fallback value).',
+    '"khác nhau" = DISTINCT; "tăng dần" = ASC; "giảm dần" = DESC; "không giới hạn" = no filter on that attribute.',
+    'If the question lists "Cột kết quả", return exactly those columns, in that order, with those names.',
+)
 
 
 class InfraError(Exception):
@@ -56,13 +65,18 @@ def load_review_config(env=None):
         config[key] = value
 
     config["REVIEW_MODEL_NAME"] = config.get("REVIEW_MODEL_NAME") or config["MODEL_NAME"]
+    # Nhieu model: REVIEW_MODEL_NAME=modelA,modelB (cac mau giai chia lien tiep cho cac model, phai dong thuan chung).
+    config["REVIEW_MODELS"] = [m.strip() for m in config["REVIEW_MODEL_NAME"].split(",") if m.strip()]
+    if not config["REVIEW_MODELS"]:
+        raise ValueError("REVIEW_MODEL_NAME khong hop le.")
     config["REVIEW_OLLAMA_HOST"] = config.get("REVIEW_OLLAMA_HOST") or config["OLLAMA_HOST"]
     number("REVIEW_SAMPLES", 3, int, 1)
     number("REVIEW_SAMPLE_RETRIES", 1, int, 0)
     number("REVIEW_TEMPERATURE", 0.3, float, 0)
     number("REVIEW_NUM_PREDICT", 900, int, 64)
     number("REVIEW_MAX_ROWS", 5000, int, 1)
-    action = (config.get("REVIEW_ZERO_VALID_ACTION") or "rejected").strip()
+    number("REVIEW_FEWSHOT", 2, int, 0)
+    action = (config.get("REVIEW_ZERO_VALID_ACTION") or "needs_human").strip()
     if action not in ("rejected", "needs_human"):
         raise ValueError("REVIEW_ZERO_VALID_ACTION chi nhan rejected hoac needs_human.")
     config["REVIEW_ZERO_VALID_ACTION"] = action
@@ -70,7 +84,15 @@ def load_review_config(env=None):
     config["REVIEW_THINK"] = {"": None, "true": True, "false": False}.get(think, "bad")
     if config["REVIEW_THINK"] == "bad":
         raise ValueError("REVIEW_THINK chi nhan true, false hoac de trong.")
+    if config["REVIEW_SAMPLES"] < len(config["REVIEW_MODELS"]):
+        raise ValueError("REVIEW_SAMPLES phai >= so model trong REVIEW_MODEL_NAME.")
     config["REVIEW_VARIANT_DBS"] = [d.strip() for d in (config.get("REVIEW_VARIANT_DBS") or "").split(",") if d.strip()]
+    audit_enabled = (config.get("REVIEW_SEMANTIC_AUDIT") or "true").strip().lower()
+    if audit_enabled not in ("true", "false"):
+        raise ValueError("REVIEW_SEMANTIC_AUDIT chi nhan true/false.")
+    config["REVIEW_SEMANTIC_AUDIT"] = audit_enabled == "true"
+    config["REVIEW_AUDIT_MODEL_NAME"] = (config.get("REVIEW_AUDIT_MODEL_NAME") or config["REVIEW_MODELS"][-1]).strip()
+    number("REVIEW_AUDIT_NUM_PREDICT", 600, int, 128)
     return config
 
 
@@ -180,13 +202,181 @@ def ordering_requested(question):
     return bool(ORDER_WORDS.search(unicodedata.normalize("NFC", question or "")))
 
 
+def expected_columns_from_text(question):
+    """Read the explicit output-column contract used by SQLArena's generated questions."""
+    match = re.search(r"(?im)^\s*Cột kết quả theo thứ tự\s*:\s*([^\n]+)", question or "")
+    if not match:
+        return []
+    raw = match.group(1).strip().rstrip(".")
+    return [part.strip().strip('`"\' ') for part in raw.split(",") if part.strip()]
+
+
+def normalize_output_columns(value):
+    if not isinstance(value, (list, tuple)):
+        return []
+    result = []
+    for item in value:
+        if isinstance(item, dict):
+            item = item.get("name") or item.get("column") or item.get("alias")
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+    return result
+
+
+def parse_expected_order(text):
+    """Parse SQLArena metadata like 'employee_id tăng, position giảm' into (key, direction)."""
+    if not isinstance(text, str) or not text.strip():
+        return []
+    pieces = [p.strip().strip(".") for p in text.split(",") if p.strip()]
+    specs = []
+    pattern = re.compile(r"^([A-Za-z_][A-Za-z0-9_$.]*)\s+(tăng(?:\s+dần)?|giảm(?:\s+dần)?|asc|desc)\b", re.I)
+    for piece in pieces:
+        found = pattern.match(piece)
+        if not found:
+            return []
+        key, direction = found.groups()
+        specs.append((key.split(".")[-1].lower(), "desc" if direction.lower().startswith(("giảm", "desc")) else "asc"))
+    return specs
+
+
+def expected_order_specs(ctx):
+    metadata_order = ctx.get("expected_order_by")
+    if metadata_order:
+        parsed = parse_expected_order(metadata_order)
+        if parsed:
+            return parsed
+    question = ctx.get("question") or ""
+    match = re.search(r"(?i)\bSắp xếp(?:\s+theo)?\s*:?\s*([^\n]+)", question)
+    return parse_expected_order(match.group(1)) if match else []
+
+
+def ordering_required(ctx):
+    # Explicit metadata False must override loose keyword matches such as 'thứ tự lịch sử'.
+    if ctx.get("ordering_required") is not None:
+        return bool(ctx["ordering_required"])
+    if expected_order_specs(ctx):
+        return True
+    question = ctx.get("question") or ""
+    return bool(re.search(r"(?i)\bSắp xếp(?:\s+theo)?\s*:?", question)
+                or re.search(r"(?i)\b(?:order\s+by|tăng dần|giảm dần|từ cao xuống thấp|từ thấp lên cao)\b", question))
+
+
+def actual_order_specs(tree):
+    query = tree.get("SelectStmt", {})
+    specs = []
+    for item in query.get("sortClause") or []:
+        sort = item.get("SortBy", {})
+        node = sort.get("node", {})
+        fields = [f["String"]["sval"] for f in node.get("ColumnRef", {}).get("fields", []) if "String" in f]
+        key = fields[-1].lower() if fields else None
+        raw_dir = sort.get("sortby_dir", 0)
+        if isinstance(raw_dir, str):
+            direction = "desc" if "DESC" in raw_dir.upper() else "asc"
+        else:
+            direction = {2: "desc"}.get(raw_dir, "asc")  # PostgreSQL default is ASC.
+        specs.append((key, direction))
+    return specs
+
+
 def decide_mode(tree, question):
     return "ordered" if order_keys(tree) and ordering_requested(question) else "unordered"
 
 
 def tiebreaker_ok(tree, primary_keys):
-    keys = order_keys(tree)
-    return any(k and (k.endswith("_id") or k in primary_keys) for k in keys)
+    """A column suffix such as *_id is not proof of uniqueness; check result keys instead."""
+    keys = [k.lower() for k in order_keys(tree) if k]
+    return bool(keys) and any(k in {str(pk).lower() for pk in primary_keys} for k in keys)
+
+
+def ordering_deterministic(tree, output_columns, results, primary_keys):
+    """Fail closed unless the complete ORDER BY key tuple is exposed and unique on every dataset.
+
+    This intentionally prefers manual review over guessing that an *_id field is unique at the
+    query's row grain (a JOIN can duplicate parent IDs).
+    """
+    keys = [k.lower() for k in order_keys(tree) if k]
+    names = [str(c).lower() for c in output_columns]
+    if not keys or len(keys) != len(order_keys(tree)) or any(k not in names for k in keys):
+        return False
+    indices = [names.index(k) for k in keys]
+    for res in results:
+        key_tuples = [tuple(json.dumps(row[i], ensure_ascii=False, sort_keys=True) for i in indices)
+                      for row in res["rows"]]
+        if len(set(key_tuples)) != len(key_tuples):
+            return False
+    return True
+
+
+def shadowed_subquery_aliases(tree):
+    """Return relation aliases reused across nested SELECT scopes (often breaks correlation).
+
+    Reusing an alias can be legal SQL, but it makes a correlated predicate easy to accidentally
+    bind to the inner relation. Such cases go to human review rather than being auto-approved.
+    """
+    def direct_aliases(query):
+        aliases = set()
+        def visit_from(node):
+            if not isinstance(node, dict):
+                return
+            if "RangeVar" in node:
+                rel = node["RangeVar"]
+                alias = (rel.get("alias") or {}).get("aliasname") or rel.get("relname")
+                if alias:
+                    aliases.add(str(alias).lower())
+            elif "JoinExpr" in node:
+                join = node["JoinExpr"]
+                visit_from(join.get("larg"))
+                visit_from(join.get("rarg"))
+            elif "RangeSubselect" in node:
+                alias = (node["RangeSubselect"].get("alias") or {}).get("aliasname")
+                if alias:
+                    aliases.add(str(alias).lower())
+        for source in query.get("fromClause") or []:
+            visit_from(source)
+        return aliases
+
+    def child_queries(value, current_query, out):
+        if isinstance(value, dict):
+            if "SelectStmt" in value and value is not current_query:
+                out.append(value["SelectStmt"])
+                return
+            for item in value.values():
+                child_queries(item, current_query, out)
+        elif isinstance(value, list):
+            for item in value:
+                child_queries(item, current_query, out)
+
+    findings = set()
+    def descend(query, ancestors):
+        aliases = direct_aliases(query)
+        collisions = aliases & ancestors
+        if collisions:
+            # Only flag collisions when the nested SELECT actually qualifies a column with them.
+            local_refs = set()
+            def refs(value):
+                if isinstance(value, dict):
+                    if "SelectStmt" in value and value is not query:
+                        return
+                    if "ColumnRef" in value:
+                        fields = value["ColumnRef"].get("fields") or []
+                        names = [f["String"]["sval"] for f in fields if "String" in f]
+                        if len(names) >= 2:
+                            local_refs.add(names[-2].lower())
+                    for item in value.values():
+                        refs(item)
+                elif isinstance(value, list):
+                    for item in value:
+                        refs(item)
+            refs(query)
+            findings.update(collisions & local_refs)
+        nested = []
+        child_queries(query, query, nested)
+        for child in nested:
+            descend(child, ancestors | aliases)
+
+    root = tree.get("SelectStmt", {})
+    descend(root, set())
+    return sorted(findings)
 
 
 def hardcoded_id_literals(tree, question):
@@ -209,6 +399,22 @@ def hardcoded_id_literals(tree, question):
     return found
 
 
+def unstated_string_literals(tree, question, checks):
+    """Hang chuoi trong SQL khong xuat hien trong de hoac trong CHECK cua bang (vd COALESCE(x, 'None'))."""
+    haystack = unicodedata.normalize("NFC", (question or "") + " " + " ".join(checks)).casefold()
+    found = []
+    for tag, node in walk(tree):
+        if tag != "A_Const" or "sval" not in node:
+            continue
+        literal = node["sval"].get("sval", "")
+        core = literal.strip("%_ ").casefold()
+        if (not core or core in DATE_WORDS or re.fullmatch(r"[ymdhisw0-9\-/:. ]+", core, re.I)
+                or core in haystack):
+            continue
+        found.append(literal)
+    return sorted(set(found))
+
+
 def skill_difficulty_issues(skill, difficulty, f):
     issues = []
     if skill == "S1" and (f["joins"] or f["aggregate"] or f["ctes"] or f["sublinks"] or f["window"] or f["selects"] > 1):
@@ -217,7 +423,7 @@ def skill_difficulty_issues(skill, difficulty, f):
         issues.append("skill_s2_no_join")
     if skill == "S3" and not f["aggregate"]:
         issues.append("skill_s3_no_aggregate")
-    if skill == "S4" and not (f["sublinks"] or f["range_subselects"] or f["joins"]):
+    if skill == "S4" and not (f["sublinks"] or f["range_subselects"]):
         issues.append("skill_s4_no_subquery")
     if skill == "S5" and not (f["ctes"] or f["window"]):
         issues.append("skill_s5_no_cte_or_window")
@@ -350,10 +556,22 @@ def draft_context(row):
     checks = {t: [c[:200] for c in defs[t].get("checks", [])] for t in tables_used if t in defs and defs[t].get("checks")}
     rules = [f"{r.get('code')}: {r.get('title')}" for r in (sc.get("business_rules") or [])[:4]
              if set(r.get("related_tables", [])) & used]
-    return {"draft_id": row["draft_id"], "question": row["question"], "difficulty": row["difficulty"],
+    parents = row.get("parent_ids") or []
+    question = row["question"]
+    meta_columns = normalize_output_columns(meta.get("output_columns"))
+    expected_columns = meta_columns or expected_columns_from_text(question)
+    ordering_meta = meta.get("ordering_required") if "ordering_required" in meta else None
+    order_by = meta.get("order_by") or ""
+    output_grain = meta.get("output_grain") or (meta.get("logic_signature") or {}).get("grain") or ""
+    edge_cases = meta.get("edge_cases") or (meta.get("logic_signature") or {}).get("edge_cases") or ""
+    return {"draft_id": row["draft_id"], "question": question, "difficulty": row["difficulty"],
+            "parent_ids": [p for p in parents if isinstance(p, str)], "examples": [],
             "skill": meta.get("primary_skill_group") or (skills[0] if skills else None),
             "tables_used": tables_used, "schema": schema, "fks": fks, "checks": checks, "rules": rules,
             "primary_keys": {k for t in tables_used if t in defs for k in defs[t].get("primary_key", [])},
+            "all_checks": [c for t in tables_used if t in defs for c in defs[t].get("checks", [])],
+            "expected_output_columns": expected_columns, "ordering_required": ordering_meta,
+            "expected_order_by": order_by, "output_grain": output_grain, "edge_cases": edge_cases,
             "schema_text": row.get("schema_text") or "", "duplicate": vr.get("duplicate") or {}}
 
 
@@ -376,10 +594,17 @@ def build_solver_prompt(ctx, feedback=None):
         "Exactly one PostgreSQL SELECT statement (WITH ... SELECT allowed). No DDL/DML.",
         "Use only the allowed tables and only columns that exist in them. Give every output column an alias.",
         "Follow the question literally: output columns and their order, filters, rounding, grouping.",
+        "Do NOT add any WHERE/HAVING/JOIN condition that the question does not state.",
+        "Do NOT use COALESCE/CASE to invent placeholder text; keep NULL as NULL unless the question gives the replacement.",
         "Add ORDER BY only if the question asks for an ordering; if it does, end with a unique tie-breaker key.",
         "No now(), CURRENT_DATE or CURRENT_TIMESTAMP; use the dates stated in the question.",
         "Do not hardcode ids or values that the question does not state.",
         "Allowed functions only: " + ", ".join(sorted(SAFE_FUNCTIONS)) + ".")))
+    parts.append("\n".join(GLOSSARY))
+    if ctx.get("examples"):
+        shown = "\n\n".join(f"Example {i}\nQuestion: {e['question']}\nSQL: {e['sql']}" for i, e in enumerate(ctx["examples"], 1))
+        parts.append("SOLVED EXAMPLES (same dataset; they only show the conventions. They may use other tables: you may use "
+                     "ONLY the allowed tables above. Never copy them blindly):\n" + shown)
     if feedback:
         parts.append("YOUR PREVIOUS ATTEMPT WAS REJECTED:\n" + feedback + "\nFix it and answer again.")
     parts.append('Return only JSON: {"sql": "<one SELECT statement>"}')
@@ -391,10 +616,10 @@ def solver_format():
             "required": ["sql"], "additionalProperties": False}
 
 
-def call_solver(config, prompt, seed, temperature):
+def call_solver(config, prompt, seed, temperature, model=None):
     options = {"num_ctx": config["OLLAMA_CONTEXT_SIZE"], "num_predict": config["REVIEW_NUM_PREDICT"],
                "temperature": temperature, "seed": seed}
-    body = {"model": config["REVIEW_MODEL_NAME"], "prompt": prompt, "stream": False,
+    body = {"model": model or config["REVIEW_MODELS"][0], "prompt": prompt, "stream": False,
             "format": solver_format(), "options": options}
     if config["REVIEW_THINK"] is not None:
         body["think"] = config["REVIEW_THINK"]
@@ -415,18 +640,110 @@ def call_solver(config, prompt, seed, temperature):
     return sql.strip().rstrip(";").strip(), {k: result.get(k) for k in ("prompt_eval_count", "eval_count", "total_duration")}
 
 
-def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None):
+def auditor_format():
+    return {"type": "object", "properties": {
+        "verdict": {"type": "string", "enum": ["pass", "needs_human"]},
+        "issues": {"type": "array", "items": {"type": "string"}},
+        "checks": {"type": "array", "items": {"type": "object", "properties": {
+            "requirement": {"type": "string"},
+            "status": {"type": "string", "enum": ["pass", "fail", "uncertain"]},
+            "finding": {"type": "string"}},
+            "required": ["requirement", "status", "finding"], "additionalProperties": False}},
+        }, "required": ["verdict", "issues", "checks"], "additionalProperties": False}
+
+
+def semantic_audit_prompt(ctx, sql):
+    """Build a separate audit prompt; it does not receive the model's sample consensus or answer SQL."""
+    contract = {
+        "question": ctx.get("question", ""),
+        "required_output_columns": ctx.get("expected_output_columns") or expected_columns_from_text(ctx.get("question", "")),
+        "ordering_required": ordering_required(ctx),
+        "required_order_by": ctx.get("expected_order_by") or None,
+        "output_grain": ctx.get("output_grain") or None,
+        "edge_cases": ctx.get("edge_cases") or None,
+        "allowed_tables_and_columns": ctx.get("schema", {}),
+        "foreign_keys": ctx.get("fks", []),
+        "business_rules": ctx.get("rules", []),
+        "check_constraints": ctx.get("all_checks", []),
+        "candidate_sql": sql,
+    }
+    return ("You are a separate PostgreSQL SQL SEMANTIC AUDITOR. Do not write or repair SQL. "
+            "Judge whether candidate_sql implements the Vietnamese question, not whether it parses or executes. "
+            "Read the SQL literally and audit each requirement. Pay special attention to: every WHERE/HAVING "
+            "predicate and threshold; aggregate filters versus total-row counts; NULL handling; joins that can "
+            "multiply rows when the requested output grain is one row per entity; EXISTS/NOT EXISTS semantics; "
+            "correlated subqueries and alias scope; required output columns/aliases/order; rounding and units; "
+            "date/time semantics; and ORDER BY keys/directions/tie-breakers. Do not assume that successful execution "
+            "or agreement with another sample means correctness. Return AT LEAST FIVE distinct checks, one for each "
+            "of these groups: (1) output columns and aliases, (2) WHERE/HAVING/aggregate thresholds, (3) joins, row "
+            "grain, EXISTS and correlated subqueries, (4) NULL/date/rounding/unit edge cases, and (5) ordering and "
+            "tie-breakers. If a group is not applicable, mark it pass only with a concise explanation. If a requirement "
+            "is ambiguous, not demonstrably satisfied, or a plausible semantic bug exists, choose needs_human. Use pass "
+            "only when all explicit requirements are supported by the SQL. `issues` must be empty for pass. Keep "
+            "findings concise and cite the relevant SQL clause.\n\nAUDIT INPUT JSON:\n" + json.dumps(contract, ensure_ascii=False, default=str))
+
+
+def call_semantic_auditor(config, ctx, sql):
+    if not config.get("REVIEW_SEMANTIC_AUDIT", True):
+        return {"verdict": "needs_human", "issues": ["Semantic audit is disabled; fail-closed."], "checks": []}
+    model = config["REVIEW_AUDIT_MODEL_NAME"]
+    body = {"model": model, "prompt": semantic_audit_prompt(ctx, sql), "stream": False,
+            "format": auditor_format(),
+            "options": {"num_ctx": config["OLLAMA_CONTEXT_SIZE"],
+                        "num_predict": config["REVIEW_AUDIT_NUM_PREDICT"], "temperature": 0, "seed": 0}}
+    if config.get("REVIEW_THINK") is not None:
+        body["think"] = config["REVIEW_THINK"]
+    try:
+        response = arena.ollama_request({**config, "OLLAMA_HOST": config["REVIEW_OLLAMA_HOST"]}, "/api/generate", body)
+    except ValueError as exc:
+        raise InfraError(f"Semantic auditor khong goi duoc model {model}: {exc}") from exc
+    if response.get("done_reason") == "length":
+        return {"verdict": "needs_human", "issues": ["semantic_audit_output_truncated"], "checks": []}
+    try:
+        result = json.loads(response["response"])
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return {"verdict": "needs_human", "issues": ["semantic_audit_invalid_json"], "checks": []}
+    if (not isinstance(result, dict) or result.get("verdict") not in ("pass", "needs_human")
+            or not isinstance(result.get("issues"), list) or not isinstance(result.get("checks"), list)):
+        return {"verdict": "needs_human", "issues": ["semantic_audit_invalid_schema"], "checks": []}
+    # Fail closed: any issue, failed check, uncertain check, or non-pass verdict blocks auto-approval.
+    uncertain = [c for c in result["checks"]
+                 if (not isinstance(c, dict) or c.get("status") != "pass"
+                     or not isinstance(c.get("requirement"), str) or not c.get("requirement", "").strip()
+                     or not isinstance(c.get("finding"), str) or not c.get("finding", "").strip())]
+    issues = [str(x)[:400] for x in result["issues"] if str(x).strip()]
+    if len(result["checks"]) < 5:
+        uncertain.append({"finding": "semantic_audit_insufficient_checks"})
+    if result["verdict"] != "pass" or issues or uncertain:
+        result["verdict"] = "needs_human"
+        if uncertain:
+            issues.extend(str(c.get("finding", "Auditor khong xac minh duoc mot yeu cau"))[:400]
+                          for c in uncertain if isinstance(c, dict))
+        result["issues"] = list(dict.fromkeys(issues)) or ["semantic_audit_needs_human"]
+    return result
+
+
+def make_auditor(config):
+    return lambda ctx, sql: call_semantic_auditor(config, ctx, sql)
+
+
+def model_for(index, k, models):
+    return models[index * len(models) // k] if models else None
+
+
+def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None, models=None):
     """Moi mau: toi da 1+retries lan goi; chi nhan mau qua guard va chay duoc tren MOI dataset."""
     samples = []
     for index in range(k):
         feedback, attempts = None, []
-        sample = {"index": index, "ok": False, "sql": None, "attempts": attempts}
+        model = model_for(index, k, models)
+        sample = {"index": index, "ok": False, "sql": None, "attempts": attempts, "model": model}
         for attempt in range(retries + 1):
             record = {"attempt": attempt}
             attempts.append(record)
             try:
                 sql, metrics = solver(build_solver_prompt(ctx, feedback), index * 100 + attempt,
-                                      0.0 if index == 0 else None)
+                                      0.0 if index == 0 or (models and model_for(index - 1, k, models) != model) else None, model)
             except SolverOutputError as exc:
                 record["error"] = feedback = f"format: {exc}"
                 continue
@@ -470,7 +787,136 @@ def pre_checks(ctx):
     return issues
 
 
-def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="rejected", log=lambda *_: None):
+
+def _top_level_clause_body(sql, clause, stop_words=()):
+    """Get a top-level SQL clause body while ignoring parentheses and quoted strings/identifiers."""
+    depth = 0
+    single_quote = False
+    double_quote = False
+    dollar_tag = None
+    start = None
+    i = 0
+    stop_words = {w.upper() for w in stop_words}
+    while i < len(sql):
+        if dollar_tag:
+            if sql.startswith(dollar_tag, i):
+                i += len(dollar_tag)
+                dollar_tag = None
+            else:
+                i += 1
+            continue
+        ch = sql[i]
+        if single_quote:
+            if ch == "'":
+                if i + 1 < len(sql) and sql[i + 1] == "'":
+                    i += 2
+                    continue
+                single_quote = False
+            i += 1
+            continue
+        if double_quote:
+            if ch == '"':
+                if i + 1 < len(sql) and sql[i + 1] == '"':
+                    i += 2
+                    continue
+                double_quote = False
+            i += 1
+            continue
+        if ch == "'":
+            single_quote = True
+            i += 1
+            continue
+        if ch == '"':
+            double_quote = True
+            i += 1
+            continue
+        if ch == '$':
+            match = re.match(r"\$[A-Za-z_0-9]*\$", sql[i:])
+            if match:
+                dollar_tag = match.group(0)
+                i += len(dollar_tag)
+                continue
+        if ch == '(':
+            depth += 1
+            i += 1
+            continue
+        if ch == ')':
+            depth = max(0, depth - 1)
+            i += 1
+            continue
+        if depth == 0 and (ch.isalpha() or ch == '_'):
+            match = re.match(r"[A-Za-z_][A-Za-z_0-9$]*", sql[i:])
+            if match:
+                word = match.group(0).upper()
+                end = i + len(match.group(0))
+                if start is None and word == clause.upper():
+                    start = end
+                elif start is not None and word in stop_words:
+                    return sql[start:i].strip()
+                i = end
+                continue
+        i += 1
+    return sql[start:].strip() if start is not None else ""
+
+
+def explicit_semantic_contract_issues(ctx, sql):
+    """Conservative checks for explicit, machine-detectable requirements in the question.
+
+    These checks do not try to prove arbitrary SQL correctness. They block a few common,
+    high-impact mismatches where the question states an exact contract.
+    """
+    question = unicodedata.normalize("NFC", ctx.get("question") or "")
+    q_lower = question.lower()
+    sql_text = sql or ""
+    issues = []
+
+    # If the question names a column and explicitly says "(loại NULL)", require that
+    # column to be excluded by the top-level WHERE, not merely by a nested subquery.
+    null_match = re.search(
+        r"\b([A-Za-z_][A-Za-z_0-9]*)\s+được\s+gán[^()]*\(\s*loại\s+NULL\s*\)",
+        question, re.I)
+    if null_match:
+        col = re.escape(null_match.group(1))
+        where_body = _top_level_clause_body(sql_text, "WHERE", ("GROUP", "HAVING", "ORDER", "LIMIT", "FETCH"))
+        if not re.search(rf"(?i)(?:\b[A-Za-z_][A-Za-z_0-9]*\s*\.\s*)?\b{col}\s+IS\s+NOT\s+NULL\b", where_body):
+            issues.append("explicit_null_exclusion_missing")
+
+    # "At least N delivered orders" is a conditional aggregate threshold, not all orders.
+    threshold = re.search(r"ít nhất\s+(\d+)\s+đơn\s+(?:đã\s+)?delivered\b", q_lower, re.I)
+    if threshold:
+        n = threshold.group(1)
+        having_body = _top_level_clause_body(sql_text, "HAVING", ("ORDER", "LIMIT", "FETCH"))
+        has_delivered_condition = bool(re.search(r"(?i)\bdelivered\b", having_body))
+        has_threshold = bool(re.search(rf"(?:>=\s*{re.escape(n)}\b|\b{re.escape(n)}\s*<=)", having_body))
+        has_aggregate = bool(re.search(r"(?i)\b(?:COUNT|SUM)\s*\(", having_body))
+        if not (has_delivered_condition and has_threshold and has_aggregate):
+            issues.append("conditional_having_threshold_missing_delivered_filter")
+
+    # The question explicitly defines month as a DATE (first day of the month). A raw
+    # date_trunc(...) returns timestamp in PostgreSQL and is a different output contract.
+    if re.search(r"\bmonth\s+là\s+ngày\s+đầu\s+tháng\b", q_lower):
+        has_date_cast = bool(
+            re.search(r"(?is)date_trunc\s*\(\s*'month'\s*,\s*[^)]*\)\s*::\s*date\b", sql_text)
+            or re.search(r"(?is)cast\s*\(\s*date_trunc\s*\(\s*'month'\s*,.*?\)\s+as\s+date\s*\)", sql_text)
+        )
+        if not has_date_cast:
+            issues.append("month_output_must_be_date")
+
+    # For explicitly rounded min/max/avg hour columns, require each output metric to be
+    # wrapped in ROUND(metric(...), N), rather than relying on this dataset's current values.
+    rounding = re.search(r"làm tròn[^.\n]*?\b(\d+)\s+chữ số\b", q_lower, re.I)
+    expected = {str(c).lower() for c in (ctx.get("expected_output_columns") or [])}
+    if rounding and {"min_hours", "max_hours", "avg_hours"}.issubset(expected):
+        precision = re.escape(rounding.group(1))
+        for fn, alias in (("MIN", "min_hours"), ("MAX", "max_hours"), ("AVG", "avg_hours")):
+            pattern = rf"(?is)\bROUND\s*\(\s*{fn}\s*\(.*\)\s*,\s*{precision}\s*\)\s+(?:AS\s+)?\b{alias}\b"
+            if not re.search(pattern, sql_text):
+                issues.append(f"required_rounding_missing_{alias}")
+
+    return list(dict.fromkeys(issues))
+
+
+def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_human", log=lambda *_: None, models=None, auditor=None):
     """Tra ve dict ket qua; khong ghi DB. Fail-closed: thieu bang chung -> khong approved."""
     out = {"draft_id": ctx["draft_id"], "status": None, "reasons": [], "mode": None, "reference_sql": None,
            "samples": [], "testcases": [], "stages": {}, "notes": []}
@@ -480,21 +926,39 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="rejected"
         out.update(status="rejected", reasons=pre)
         return out
 
-    samples = solve_samples(ctx, datasets, solver, k, retries, log)
+    samples = solve_samples(ctx, datasets, solver, k, retries, log, models)
     out["samples"] = samples
     valid = [s for s in samples if s["ok"]]
     out["stages"]["solve"] = {"passed": len(valid) == k, "valid": len(valid), "k": k}
     if not valid:
+        # Failure to solve is not proof that the question itself is invalid.
         out.update(status=zero_valid_action, reasons=["no_valid_solution"])
         return out
     if len(valid) < k:
         out.update(status="needs_human", reasons=["insufficient_valid_solutions"])
         return out
 
+    # If the prompt explicitly requires ordering, every sample must implement it; accidental natural
+    # row order on the current dataset is not evidence that ORDER BY is optional.
+    if ordering_required(ctx):
+        missing_order = [s["index"] for s in valid if not order_keys(s["tree"])]
+        if missing_order:
+            out["stages"]["ordering_contract"] = {"passed": False, "missing_samples": missing_order}
+            out.update(status="needs_human", reasons=["required_order_by_missing"])
+            return out
+        required_specs = expected_order_specs(ctx)
+        if required_specs:
+            wrong_order = [s["index"] for s in valid if actual_order_specs(s["tree"]) != required_specs]
+            if wrong_order:
+                out["stages"]["ordering_contract"] = {"passed": False, "required": required_specs,
+                                                         "mismatched_samples": wrong_order}
+                out.update(status="needs_human", reasons=["order_by_contract_mismatch"])
+                return out
+
     # De yeu cau sap xep -> uu tien loi giai co ORDER BY (neu khong, tham chieu se mat thu tu cua de).
-    pool = [s for s in valid if order_keys(s["tree"])] if ordering_requested(ctx["question"]) else []
+    pool = [s for s in valid if order_keys(s["tree"])] if ordering_required(ctx) else []
     selected = min(pool or valid, key=lambda s: (s["info"]["features"]["ast_nodes"], len(s["sql"]), s["index"]))
-    mode = decide_mode(selected["tree"], ctx["question"])
+    mode = "ordered" if order_keys(selected["tree"]) and ordering_required(ctx) else "unordered"
     out["mode"], out["reference_sql"] = mode, selected["sql"]
     mismatches = {}
     for s in valid:
@@ -528,16 +992,36 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="rejected"
             reasons_reject.append("nondeterministic_reference")
     features = selected["info"]["features"]
     reasons_human += skill_difficulty_issues(ctx["skill"], ctx["difficulty"], features)
-    if mode == "ordered" and not tiebreaker_ok(selected["tree"], ctx["primary_keys"]):
+    expected_cols = ctx.get("expected_output_columns") or expected_columns_from_text(ctx.get("question", ""))
+    if expected_cols and selected["info"]["output_columns"] != expected_cols:
+        reasons_human.append("output_columns_mismatch")
+        out["notes"].append({"expected_output_columns": expected_cols,
+                              "actual_output_columns": selected["info"]["output_columns"]})
+    if mode == "ordered" and not ordering_deterministic(selected["tree"], selected["info"]["output_columns"],
+                                                         [selected["results"][ds.ref] for ds in datasets], ctx["primary_keys"]):
         reasons_human.append("order_tiebreaker_missing")
+    shadowed = shadowed_subquery_aliases(selected["tree"])
+    if shadowed:
+        reasons_human.append("subquery_alias_shadowing")
+        out["notes"].append({"shadowed_subquery_aliases": shadowed})
     hard = hardcoded_id_literals(selected["tree"], ctx["question"])
     if hard:
         reasons_human.append("hardcoded_id_literal")
         out["notes"].append({"hardcoded": hard})
+    if set(selected["info"]["tables"]) != set(ctx["tables_used"]):
+        reasons_human.append("tables_mismatch")
+        out["notes"].append({"declared": sorted(ctx["tables_used"]), "used": selected["info"]["tables"]})
+    invented = unstated_string_literals(selected["tree"], ctx["question"], ctx.get("all_checks", []))
+    if invented:
+        reasons_human.append("unstated_string_literal")
+        out["notes"].append({"unstated_literals": invented})
     if ctx["duplicate"].get("suspected_duplicate"):
         reasons_human.append("suspected_duplicate")
     if len(datasets) == 1:
         out["notes"].append("Chi co 1 dataset: chua bat duoc dap an dung rieng cho du lieu hien co (hardcode gia tri).")
+    contract_issues = explicit_semantic_contract_issues(ctx, selected["sql"])
+    out["stages"]["semantic_contract"] = {"passed": not contract_issues, "issues": contract_issues}
+    reasons_human.extend(contract_issues)
     out["stages"]["post"] = {"passed": not (reasons_reject or reasons_human),
                              "reasons": sorted(set(reasons_reject + reasons_human)), "features": features}
     if reasons_reject:
@@ -545,6 +1029,33 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="rejected"
         return out
     if reasons_human:
         out.update(status="needs_human", reasons=sorted(set(reasons_human)))
+        return out
+
+    if auditor is None:
+        out["stages"]["semantic_audit"] = {"passed": False, "verdict": "needs_human",
+                                            "issues": ["semantic_auditor_not_configured"], "checks": []}
+        out.update(status="needs_human", reasons=["semantic_audit_unavailable"])
+        return out
+    try:
+        audit = auditor(ctx, selected["sql"])
+    except InfraError:
+        raise
+    except Exception as exc:
+        audit = {"verdict": "needs_human", "issues": [f"semantic_audit_exception: {type(exc).__name__}"], "checks": []}
+    audit_passed = (isinstance(audit, dict) and audit.get("verdict") == "pass" and not audit.get("issues")
+                    and isinstance(audit.get("checks"), list) and len(audit.get("checks", [])) >= 5
+                    and all(isinstance(c, dict) and c.get("status") == "pass"
+                            and isinstance(c.get("requirement"), str) and c.get("requirement", "").strip()
+                            and isinstance(c.get("finding"), str) and c.get("finding", "").strip()
+                            for c in audit.get("checks", [])))
+    out["stages"]["semantic_audit"] = {"passed": audit_passed,
+                                        "verdict": audit.get("verdict") if isinstance(audit, dict) else "needs_human",
+                                        "issues": audit.get("issues", []) if isinstance(audit, dict) else ["invalid_audit_result"],
+                                        "checks": audit.get("checks", []) if isinstance(audit, dict) else []}
+    if not audit_passed:
+        audit_issues = out["stages"]["semantic_audit"]["issues"] or ["semantic_audit_needs_human"]
+        out["notes"].append({"semantic_audit": audit_issues})
+        out.update(status="needs_human", reasons=["semantic_audit_flagged"])
         return out
 
     for ds in datasets:
@@ -564,7 +1075,7 @@ def sample_rows(result, model):
     for s in result["samples"]:
         res = (s.get("results") or {})
         first = next(iter(res.values()), None) or {}
-        rows.append({"sample_index": s["index"], "sql": s["sql"], "is_selected": bool(s.get("is_selected")),
+        rows.append({"sample_index": s["index"], "model": s.get("model") or model, "sql": s["sql"], "is_selected": bool(s.get("is_selected")),
                      "exec_status": "ok" if s["ok"] else "failed", "row_count": first.get("row_count"),
                      "hash": result_hash(first["rows"], result["mode"] or "unordered") if first else None,
                      "error": s.get("error"), "mismatch": s.get("mismatch"),
@@ -573,7 +1084,7 @@ def sample_rows(result, model):
 
 
 def persist(config, result, datasets):
-    model = config["REVIEW_MODEL_NAME"]
+    model = config["REVIEW_MODELS"][0]
     dataset_info = [{"ref": d.ref, "version": d.version} for d in datasets]
     rows = sample_rows(result, model)
     with arena.connect(config, "ARENA", readonly=False) as conn:
@@ -594,22 +1105,28 @@ def persist(config, result, datasets):
                          "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                          (draft_id, r["sql"], Jsonb(r["matched"]), Jsonb(r["mismatch"]) if r["mismatch"] else None,
                           r["sample_index"], r["is_selected"], r["exec_status"], r["row_count"], r["hash"],
-                          r["error"], model))
+                          r["error"], r["model"]))
         stages = result["stages"]
 
         def log(stage, passed, reasons, raw, score=None):
             conn.execute("INSERT INTO draft.review_logs (draft_id, stage, passed, score, reasons, review_model, raw_output) "
-                         "VALUES (%s,%s,%s,%s,%s,%s,%s)", (draft_id, stage, passed, score, Jsonb(reasons), model,
+                         "VALUES (%s,%s,%s,%s,%s,%s,%s)", (draft_id, stage, passed, score, Jsonb(reasons), ",".join(config["REVIEW_MODELS"]),
                                                           Jsonb({"review_version": REVIEW_VERSION, **raw})))
         log("code_check", stages["pre"]["passed"], stages["pre"]["reasons"], {"phase": "pre"})
         if "solve" in stages:
             k = stages["solve"]["k"]
             log("self_solve", stages["solve"]["passed"], [] if stages["solve"]["passed"] else ["not_all_samples_valid"],
-                {"samples": [{k2: v for k2, v in r.items() if k2 != "sql"} for r in rows], "datasets": dataset_info},
+                {"samples": [{k2: v for k2, v in r.items() if k2 != "sql"} for r in rows], "datasets": dataset_info,
+                 "models": config["REVIEW_MODELS"]},
                 score=round(100 * stages["solve"]["valid"] / k, 2))
         if "post" in stages:
             log("code_check", stages["post"]["passed"], stages["post"]["reasons"],
                 {"phase": "post", "features": stages["post"]["features"], "notes": result["notes"]})
+        if "semantic_audit" in stages:
+            audit_stage = stages["semantic_audit"]
+            log("checklist", audit_stage["passed"], audit_stage.get("issues", []),
+                {"phase": "semantic_audit", "verdict": audit_stage.get("verdict"),
+                 "issues": audit_stage.get("issues", []), "checks": audit_stage.get("checks", [])})
         if result["testcases"]:
             for t in result["testcases"]:
                 conn.execute("INSERT INTO draft.test_cases (draft_id, dataset_ref, dataset_version, compare_mode, reference_sql, "
@@ -626,18 +1143,43 @@ def persist(config, result, datasets):
 
 # --------------------------------------------------------------------------- CLI plumbing
 
+def load_example_pool(conn, world_id):
+    rows = conn.execute("SELECT question_id, difficulty, primary_skill_group, question_text, reference_sql, metadata "
+                        "FROM core.source_questions WHERE world_id=%s ORDER BY question_id", (world_id,)).fetchall()
+    return [r for r in rows if r["reference_sql"] and r["question_text"]]
+
+
+def pick_examples(pool, ctx, n, exclude=()):
+    """Vi du da giai cung dataset: uu tien cung skill, trung bang, cung do kho. Loai cau cha/cau dang do."""
+    if n <= 0:
+        return []
+    used, ranked = set(ctx["tables_used"]), []
+    for r in pool:
+        if r["question_id"] in exclude or len(r["question_text"]) > 900 or len(r["reference_sql"]) > 700:
+            continue
+        overlap = len(used & set((r["metadata"] or {}).get("tables_used") or []))
+        ranked.append((-(r["primary_skill_group"] == ctx["skill"]), -overlap, -(r["difficulty"] == ctx["difficulty"]), r["question_id"], r))
+    ranked.sort(key=lambda t: t[:4])
+    return [{"id": r["question_id"], "question": r["question_text"].strip(), "sql": r["reference_sql"].strip()}
+            for *_, r in ranked[:n]]
+
+
 def make_solver(config):
-    def solver(prompt, seed, temperature):
-        return call_solver(config, prompt, seed, config["REVIEW_TEMPERATURE"] if temperature is None else temperature)
+    def solver(prompt, seed, temperature, model=None):
+        return call_solver(config, prompt, seed, config["REVIEW_TEMPERATURE"] if temperature is None else temperature, model)
     return solver
 
 
 def ensure_model(config):
     tags = arena.ollama_request({**config, "OLLAMA_HOST": config["REVIEW_OLLAMA_HOST"]}, "/api/tags")
     names = {m["name"] for m in tags.get("models", [])}
-    wanted = config["REVIEW_MODEL_NAME"]
-    if wanted not in names and wanted + ":latest" not in names:
-        raise ValueError(f"Model B {wanted} chua cai. Tu chay: ollama pull {wanted}")
+    wanted_models = list(config["REVIEW_MODELS"])
+    if config.get("REVIEW_SEMANTIC_AUDIT", True):
+        wanted_models.append(config["REVIEW_AUDIT_MODEL_NAME"])
+    for wanted in dict.fromkeys(wanted_models):
+        if wanted not in names and wanted + ":latest" not in names:
+            kind = "Semantic auditor" if wanted == config.get("REVIEW_AUDIT_MODEL_NAME") else "Model B"
+            raise ValueError(f"{kind} {wanted} chua cai. Tu chay: ollama pull {wanted}")
 
 
 def new_output(prefix):
@@ -697,9 +1239,12 @@ def cmd_check(config):
         print("Thiếu migration: " + gap)
     print("Draft theo trạng thái: " + (", ".join(f"{r['status']}={r['n']}" for r in counts) or "chưa có"))
     ensure_model(config)
-    print(f"Model B: {config['REVIEW_MODEL_NAME']} @ {config['REVIEW_OLLAMA_HOST']} (đã cài)")
-    if config["REVIEW_MODEL_NAME"] == config["MODEL_NAME"]:
+    print(f"Model B: {', '.join(config['REVIEW_MODELS'])} @ {config['REVIEW_OLLAMA_HOST']} (đã cài)")
+    print(f"Semantic auditor: {config['REVIEW_AUDIT_MODEL_NAME']} | enabled={config['REVIEW_SEMANTIC_AUDIT']}")
+    if config["MODEL_NAME"] in config["REVIEW_MODELS"]:
         print("Cảnh báo: Model B trùng Model A; sai lệch của hai model sẽ giống nhau, đồng thuận kém tin cậy.")
+    if len(config["REVIEW_MODELS"]) == 1:
+        print("Gợi ý: có thể khai 2 model (REVIEW_MODEL_NAME=modelX,modelY) để hai model khác họ phải đồng thuận.")
     datasets = build_datasets(config)
     for ds in datasets:
         print(f"Dataset {ds.ref}: role chỉ đọc đạt chuẩn, phiên bản {ds.version}")
@@ -713,24 +1258,27 @@ def cmd_review(config, options):
         if gaps:
             raise ValueError("Chưa chạy migration 03_create_review_pipeline.sql: " + "; ".join(gaps))
         rows = fetch_pending(conn, options.limit, options.draft_id)
+        pool = load_example_pool(conn, config["WORLD_ID"]) if config["REVIEW_FEWSHOT"] else []
     if not rows:
         print("Không có draft pending để kiểm duyệt.")
         return 0
     ensure_model(config)
     datasets = build_datasets(config)
-    print(f"{len(rows)} draft pending | Model B {config['REVIEW_MODEL_NAME']} | k={k} | "
+    print(f"{len(rows)} draft pending | Model B {', '.join(config['REVIEW_MODELS'])} | auditor {config['REVIEW_AUDIT_MODEL_NAME']} | k={k} | few-shot={config['REVIEW_FEWSHOT']} | "
           f"dataset: {', '.join(d.ref for d in datasets)}" + (" | DRY-RUN" if options.dry_run else ""))
     if not confirm("Bắt đầu kiểm duyệt?", options.yes):
         print("Đã hủy.")
         return 0
     output = new_output("review")
     session = {"review_version": REVIEW_VERSION, "started_at": datetime.now().astimezone().isoformat(),
-               "model_b": config["REVIEW_MODEL_NAME"], "k": k, "dry_run": options.dry_run,
+               "model_b": config["REVIEW_MODELS"], "semantic_audit_model": config["REVIEW_AUDIT_MODEL_NAME"],
+               "k": k, "fewshot": config["REVIEW_FEWSHOT"], "dry_run": options.dry_run,
                "datasets": [{"ref": d.ref, "version": d.version} for d in datasets], "results": [], "status": "running"}
-    solver, counts = make_solver(config), Counter()
+    solver, auditor, counts = make_solver(config), make_auditor(config), Counter()
     try:
         for row in rows:
             ctx = draft_context(row)
+            ctx["examples"] = pick_examples(pool, ctx, config["REVIEW_FEWSHOT"], set(ctx["parent_ids"]))
             if not options.dry_run and not claim(config, ctx["draft_id"]):
                 print(f"Draft {ctx['draft_id']}: đã bị tiến trình khác nhận, bỏ qua.")
                 continue
@@ -738,7 +1286,8 @@ def cmd_review(config, options):
             try:
                 result = review_draft(ctx, datasets, solver, k, config["REVIEW_SAMPLE_RETRIES"],
                                       config["REVIEW_ZERO_VALID_ACTION"],
-                                      log=lambda i, s: print(f"  mẫu {i + 1}/{k}: {'OK' if s['ok'] else 'LỖI - ' + str(s.get('error'))[:110]}"))
+                                      log=lambda i, s: print(f"  mẫu {i + 1}/{k}: {'OK' if s['ok'] else 'LỖI - ' + str(s.get('error'))[:110]}"),
+                                      models=config["REVIEW_MODELS"], auditor=auditor)
                 if not options.dry_run:
                     persist(config, result, datasets)
             except BaseException:
@@ -769,55 +1318,89 @@ def cmd_review(config, options):
     return 0
 
 
+def source_to_row(src, world):
+    """Cau nguon -> dong giong draft that, de calibrate chay dung duong di cua pipeline that."""
+    used = set(src["metadata"].get("tables_used") or [])
+    tables = [{"table": t["table"], "columns": [{"name": c["name"], "type": c["postgres_type"], "nullable": c["nullable"]}
+                                                for c in t["columns"]], "primary_key": t["primary_key"],
+               "checks": [c["definition"] for c in t["constraints"] if c["kind"] == "c"]}
+              for t in world["schema_description"]["tables"] if t["table"] in used]
+    schema_context = {"tables": tables, "fk_relations": [f for f in world["fk_relations"]
+                                                         if {f["table_name"], f["referenced_table"]} <= used],
+                      "business_rules": []}
+    return {"draft_id": src["question_id"], "question": src["question_text"], "difficulty": src["difficulty"],
+            "skills": [src["primary_skill_group"]], "parent_ids": [src["question_id"]],
+            "schema_context": schema_context, "schema_text": arena.render_schema_text(schema_context, sorted(used)),
+            "validation_report": {"candidate_metadata": {"primary_skill_group": src["primary_skill_group"],
+                                                         "tables_used": sorted(used),
+                                                         "output_columns": src["metadata"].get("output_columns", []),
+                                                         "ordering_required": src["metadata"].get("ordering_required"),
+                                                         "order_by": src["metadata"].get("order_by", ""),
+                                                         "output_grain": src["metadata"].get("output_grain", ""),
+                                                         "edge_cases": src["metadata"].get("edge_cases", "")},
+                                 "duplicate": {}}}
+
+
 def cmd_calibrate(config, options):
-    """Do Model B tren cau nguon da co dap an: tra loi 'consensus co dang tin khong' bang so lieu."""
+    """Chay DUNG pipeline review tren cau nguon co dap an. Chi so nguy hiem nhat: approved_WRONG."""
     k = options.samples or config["REVIEW_SAMPLES"]
     ensure_model(config)
-    datasets = build_datasets(config)[:1]
-    ds = datasets[0]
+    datasets = build_datasets(config)
     with arena.connect(config, "ARENA") as conn:
         world = conn.execute("SELECT * FROM core.worlds WHERE world_id=%s", (config["WORLD_ID"],)).fetchone()
         query = "SELECT * FROM core.source_questions WHERE world_id=%s" + (" AND difficulty=%s" if options.difficulty else "") + " ORDER BY question_id"
         sources = conn.execute(query, (config["WORLD_ID"], options.difficulty) if options.difficulty else (config["WORLD_ID"],)).fetchall()
+        pool = load_example_pool(conn, config["WORLD_ID"]) if config["REVIEW_FEWSHOT"] else []
+    sources = sources[options.skip or 0:]
     if options.limit:
         sources = sources[:options.limit]
-    world_schema = {t["table"]: {c["name"]: c["postgres_type"] for c in t["columns"]} for t in world["schema_description"]["tables"]}
-    print(f"Calibrate: {len(sources)} câu nguồn | Model B {config['REVIEW_MODEL_NAME']} | k={k}")
+    evaluated = {src["question_id"] for src in sources}
+    print(f"Calibrate: {len(sources)} câu nguồn | Model B {', '.join(config['REVIEW_MODELS'])} | semantic auditor {config['REVIEW_AUDIT_MODEL_NAME']} | k={k} | few-shot={config['REVIEW_FEWSHOT']}"
+          f" | ví dụ lấy từ {len([r for r in pool if r['question_id'] not in evaluated])} câu KHÔNG nằm trong tập đo")
     if not confirm("Bắt đầu?", options.yes):
         return 0
-    solver, report, tally = make_solver(config), [], Counter()
+    solver, auditor, report, tally = make_solver(config), make_auditor(config), [], Counter()
     for src in sources:
-        tables = list(src["metadata"].get("tables_used") or [])
-        ctx = {"draft_id": src["question_id"], "question": src["question_text"], "difficulty": src["difficulty"],
-               "skill": src["primary_skill_group"], "tables_used": tables,
-               "schema": {t: world_schema[t] for t in tables}, "fks": [], "checks": {}, "rules": [],
-               "schema_text": "", "primary_keys": set(), "duplicate": {}}
-        truth = ds.run(src["reference_sql"])
+        ctx = draft_context(source_to_row(src, world))
+        ctx["examples"] = pick_examples(pool, ctx, config["REVIEW_FEWSHOT"], evaluated)
+        truths = {ds.ref: ds.run(src["reference_sql"]) for ds in datasets}
         mode = "ordered" if src["metadata"].get("ordering_required") else "unordered"
-        samples = solve_samples(ctx, datasets, solver, k, config["REVIEW_SAMPLE_RETRIES"])
-        valid = [s for s in samples if s["ok"]]
-        correct = [s for s in valid if same_result(truth, s["results"][ds.ref], mode)]
-        agree = len(valid) == k and all(same_result(valid[0]["results"][ds.ref], s["results"][ds.ref], mode) for s in valid)
-        if not valid:
-            outcome = "no_valid_solution"
-        elif agree and len(correct) == k:
-            outcome = "consensus_correct"
-        elif agree:
-            outcome = "consensus_WRONG"
+        out = review_draft(ctx, datasets, solver, k, config["REVIEW_SAMPLE_RETRIES"], config["REVIEW_ZERO_VALID_ACTION"],
+                           models=config["REVIEW_MODELS"], auditor=auditor)
+        valid = [s for s in out["samples"] if s["ok"]]
+        right = [s for s in valid if all(same_result(truths[ds.ref], s["results"][ds.ref], mode) for ds in datasets)]
+        if out["status"] == "approved":
+            ok_all = all(same_result(truths[t["dataset_ref"]], {"status": "ok", "columns": t["expected_columns"],
+                                                               "rows": t["expected_rows"], "row_count": t["row_count"]}, mode)
+                         for t in out["testcases"])
+            outcome = "approved_correct" if ok_all else "approved_WRONG"
         else:
-            outcome = "no_consensus"
+            outcome = out["status"] + ("_but_all_samples_correct" if valid and len(right) == len(valid) else "")
         tally[(src["difficulty"], outcome)] += 1
         tally[("all", outcome)] += 1
         report.append({"id": src["question_id"], "difficulty": src["difficulty"], "skill": src["primary_skill_group"],
-                       "outcome": outcome, "first_sample_correct": bool(samples[0]["ok"] and same_result(
-                           truth, samples[0]["results"][ds.ref], mode)),
-                       "valid": len(valid), "correct": len(correct), "sqls": [s["sql"] for s in samples]})
-        print(f"  {src['question_id']} [{src['difficulty']}/{src['primary_skill_group']}] {outcome} (đúng {len(correct)}/{k})")
+                       "outcome": outcome, "reasons": out["reasons"], "valid": len(valid), "correct": len(right),
+                       "mode_differs": bool(out["mode"] and out["mode"] != mode), "notes": out["notes"],
+                       "semantic_contract": out["stages"].get("semantic_contract"),
+                       "semantic_audit": out["stages"].get("semantic_audit"),
+                       "sqls": [s["sql"] for s in out["samples"]], "reference_sql": src["reference_sql"]})
+        print(f"  {src['question_id']} [{src['difficulty']}/{src['primary_skill_group']}] {outcome} "
+              f"(đúng {len(right)}/{k}) {', '.join(out['reasons'])}")
+        audit_stage = out["stages"].get("semantic_audit")
+        if audit_stage and not audit_stage.get("passed"):
+            print("     SEMANTIC AUDIT: " + "; ".join(map(str, audit_stage.get("issues", [])))[:350])
+        if outcome == "approved_WRONG":
+            print("     B:  " + " ".join((out["reference_sql"] or "").split())[:300])
+            print("     ĐÁP ÁN: " + " ".join(src["reference_sql"].split())[:300])
     output = new_output("calibration")
-    arena.checkpoint(output, {"review_version": REVIEW_VERSION, "model_b": config["REVIEW_MODEL_NAME"], "k": k,
-                              "tally": {f"{a}/{b}": n for (a, b), n in tally.items()}, "items": report})
-    print("\nTổng hợp (all):", {o: tally[("all", o)] for o in ("consensus_correct", "consensus_WRONG", "no_consensus", "no_valid_solution")})
-    print("consensus_WRONG là chỉ số nguy hiểm nhất: các lần giải đồng ý với nhau nhưng sai so với đáp án nguồn.")
+    names = ("approved_correct", "approved_WRONG", "needs_human", "needs_human_but_all_samples_correct",
+             "rejected", "rejected_but_all_samples_correct")
+    arena.checkpoint(output, {"review_version": REVIEW_VERSION, "model_b": config["REVIEW_MODELS"],
+                              "semantic_audit_model": config["REVIEW_AUDIT_MODEL_NAME"], "k": k,
+                              "fewshot": config["REVIEW_FEWSHOT"], "tally": {f"{a}/{b}": n for (a, b), n in tally.items()},
+                              "items": report})
+    print("\nTổng hợp:", {o: tally[("all", o)] for o in names if tally[("all", o)]})
+    print("approved_WRONG: pipeline duyệt nhầm (nguy hiểm nhất). *_but_all_samples_correct: đề đúng nhưng bị chặn (quá thận trọng).")
     print(f"JSON: {output}")
     return 0
 
@@ -862,6 +1445,7 @@ def main(argv=None):
     args.add_argument("--reset-stuck", action="store_true", help="Trả draft kẹt ở reviewing về pending")
     args.add_argument("--dry-run", action="store_true", help="Review nhưng không ghi DB (chỉ ghi JSON)")
     args.add_argument("--limit", type=int, help="Số draft/câu nguồn tối đa")
+    args.add_argument("--skip", type=int, help="Bỏ qua N câu nguồn đầu (calibrate), vd --skip 15 để đo từ ENT-016")
     args.add_argument("--draft-id", type=int, help="Chỉ review một draft pending")
     args.add_argument("--difficulty", choices=("easy", "medium", "hard"), help="Lọc theo độ khó (calibrate)")
     args.add_argument("--samples", type=int, help="Ghi đè REVIEW_SAMPLES (k)")
