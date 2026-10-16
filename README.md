@@ -1,215 +1,180 @@
 # SQLArena AI
 
-Pipeline Python dùng LLM chạy cục bộ (Ollama) để **tự động sinh và kiểm duyệt câu hỏi SQL** trên một cơ sở dữ liệu doanh nghiệp mô phỏng (PostgreSQL).
+SQLArena AI là pipeline Python dùng LLM để **sinh câu hỏi SQL (Model A)** và **kiểm duyệt câu hỏi bằng cách giải độc lập, đối chiếu kết quả và tạo test cases (Model B)**. Dữ liệu nghiệp vụ và metadata được lưu trong PostgreSQL.
 
-- **Model A** (`ai/main.py`): sinh câu hỏi SQL + metadata (không sinh đáp án), kiểm tra sơ bộ rồi lưu vào bảng draft.
-- **Model B** (`ai/review.py`): giải độc lập từng câu nhiều lần, chạy trên DB bằng role chỉ đọc, đối chiếu kết quả, chạy semantic audit và tạo test case. Thiếu bằng chứng thì không bao giờ tự duyệt (`fail-closed`).
+> Hướng dẫn này dành cho người clone repo mới trên Windows + PowerShell + pgAdmin 4. Nếu bạn đã có database chứa dữ liệu, hãy đọc phần an toàn dữ liệu trước khi chạy SQL.
 
-```
-Core (50 câu nguồn) ──► Model A ──► draft.question_drafts (pending)
-                                          │
-                       enterprise_db ◄──► Model B ──► approved / needs_human / rejected + test case
-```
+## 1. Kiến trúc nhanh
 
-## Mục lục
-
-1. [Cấu trúc repo](#1-cấu-trúc-repo)
-2. [Yêu cầu](#2-yêu-cầu)
-3. [Cài đặt nhanh (Quick start)](#3-cài-đặt-nhanh)
-4. [Cài đặt database](#4-cài-đặt-database)
-5. [Cấu hình `ai/.env`](#5-cấu-hình-aienv)
-6. [Cài model Ollama](#6-cài-model-ollama)
-7. [Sử dụng](#7-sử-dụng)
-8. [Kiểm thử](#8-kiểm-thử)
-9. [Lưu ý an toàn](#9-lưu-ý-an-toàn)
-10. [Tài liệu chi tiết](#10-tài-liệu-chi-tiết)
-
-## 1. Cấu trúc repo
-
-| Thư mục / file | Nội dung |
-|---|---|
-| `ai/` | Code pipeline: `main.py` (Model A), `review.py` (Model B), `validator.py`, `context_policy.py`, các file `test_*.py`, `.env.example` |
-| `postgre/enterprise_db/` | SQL tạo schema, ràng buộc, role chỉ đọc và script kiểm tra BR01–BR16 cho `enterprise_db` |
-| `postgre/sqlarena_db/` | SQL tạo schema `core` / `draft` và nạp 50 câu nguồn cho `sqlarena_db` |
-| `build/` | Dữ liệu seed đã sinh sẵn: `enterprise_seed_data.sql` (không cần sinh lại) |
-| `validate_scenario_coverage.sql` | Kiểm tra dataset đủ các tình huống thiết kế |
-| `question_create/`, `question_generation/` | Bộ quy tắc và 50 câu nguồn (JSON) + công cụ tạo/kiểm chứng. **Không cần chạy khi setup** |
-| `sqlarena_create/`, `seed_create/` | Công cụ/prompt đã dùng để dựng Core và seed. **Không cần chạy khi setup** |
-| `docs/` | Tài liệu chi tiết (xem [mục 10](#10-tài-liệu-chi-tiết)) |
+- `enterprise_db`: dataset nghiệp vụ PostgreSQL để làm ngữ cảnh cho câu hỏi; pipeline kết nối đọc.
+- `sqlarena_db`: dữ liệu lõi trong schema `core`, draft và trạng thái kiểm duyệt trong schema `draft`.
+- `ai/main.py`: Model A tạo đề và kiểm tra sơ bộ.
+- `ai/review.py`: Model B giải đề nhiều lần, so sánh kết quả và ghi kết quả kiểm duyệt/test cases.
+- `ai/validator.py`, `ai/context_policy.py`: kiểm tra SQL, kỹ năng và giới hạn ngữ cảnh.
+- `postgre/`: SQL schema, constraints, dữ liệu nguồn và kiểm tra.
+- `build/enterprise_seed_data.sql`: dữ liệu Enterprise đã xuất sẵn; không cần chạy lại script sinh dữ liệu.
+- `question_create/`, `question_generation/`: quy tắc và bộ 50 câu nguồn.
+- Tài liệu quy trình chi tiết: [`ai/review_pipeline.md`](ai/review_pipeline.md), [`ai/question_only_pipeline.md`](ai/question_only_pipeline.md), [`postgre/sqlarena_db/sqlarena_database_guide.md`](postgre/sqlarena_db/sqlarena_database_guide.md).
 
 ## 2. Yêu cầu
 
-- **PostgreSQL** (dự án được kiểm chứng trên PostgreSQL 18.3; các bản khác chưa được kiểm chứng) và pgAdmin 4 *hoặc* `psql`; server chạy ở cổng `5432`.
-- **Python 3.11–3.13**. Nếu `pip install` lỗi build, đừng dùng bản Python mới nhất ngay khi ra mắt.
-- **Ollama** chạy tại `http://localhost:11434`.
-- Hệ điều hành: Windows 10/11, macOS hoặc Linux (lệnh bên dưới có đủ cả hai kiểu).
-- Cấu hình máy: Model B mặc định `qwen2.5-coder:7b` cần khoảng 8 GB RAM/VRAM trở lên. Máy yếu hãy chọn model nhỏ hơn trong `.env` (chất lượng review có thể giảm).
+- Windows 10/11 64-bit (hướng dẫn dưới đây dùng PowerShell).
+- PostgreSQL và pgAdmin 4; PostgreSQL server phải đang chạy, mặc định cổng `5432`.
+- Python **3.11–3.13 khuyến nghị**. Dùng phiên bản Python được các dependency hỗ trợ; nếu gặp lỗi build package, không nên mặc định dùng bản Python mới nhất.
+- Ollama cho Windows, có thể truy cập tại `http://localhost:11434`.
+- Dung lượng model: Model A mặc định `llama3`; Model B mặc định `qwen2.5-coder:7b`. Model B 7B cần RAM/VRAM đáng kể. Nếu máy yếu, chọn model nhỏ hơn trong `.env` và chấp nhận chất lượng review có thể giảm.
 
-## 3. Cài đặt nhanh
+## 3. Clone và tạo môi trường Python
 
-```bash
-git clone https://github.com/<your-username>/sqlarena-ai.git
-cd sqlarena-ai
-```
-
-**Windows (PowerShell)**
+Mở PowerShell tại nơi muốn lưu source:
 
 ```powershell
+git clone --branch Hung --single-branch https://github.com/Hungnn1904/sqlarena-ai.git
+cd sqlarena-ai
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-Copy-Item ai\.env.example ai\.env
 ```
 
-**macOS / Linux**
+Nếu `py -3.12` không tồn tại, cài Python 3.12 rồi thử lại. Nếu PowerShell chặn kích hoạt môi trường, có thể dùng trực tiếp `\.venv\Scripts\python.exe -m pip install -r requirements.txt` và `\.venv\Scripts\python.exe ai\main.py --check`.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-cp ai/.env.example ai/.env
-```
+## 4. Cài PostgreSQL database (cài mới)
 
-> PowerShell chặn kích hoạt venv? Gọi trực tiếp `.\.venv\Scripts\python.exe` thay cho `python`.
-
-Sau đó làm tiếp [mục 4](#4-cài-đặt-database) → [5](#5-cấu-hình-aienv) → [6](#6-cài-model-ollama) → [7](#7-sử-dụng).
-
-## 4. Cài đặt database
-
-Tạo **hai database trống**: `enterprise_db` và `sqlarena_db`.
-
-```sql
--- kết nối database "postgres", chạy từng lệnh một (bật auto-commit)
-CREATE DATABASE enterprise_db;
-CREATE DATABASE sqlarena_db;
-```
-
-Chạy các file theo **đúng thứ tự**, mỗi file trên **đúng database** ghi bên dưới. Dùng pgAdmin Query Tool (mở file → Execute) hoặc `psql`:
-
-```bash
-psql -U postgres -d enterprise_db -f postgre/enterprise_db/schema_code.sql
-```
-
-Sau mỗi file hãy đọc tab Messages; dừng lại nếu có lỗi.
+Tạo **hai database trống** trong pgAdmin: `enterprise_db` và `sqlarena_db`. Không chạy các file khởi tạo trên database có dữ liệu quan trọng.
 
 ### 4.1 `enterprise_db`
 
-| # | File | Ghi chú |
-|---|---|---|
-| 1 | `postgre/enterprise_db/schema_code.sql` | Tạo 16 bảng (đã gồm các bước migration ở cuối file) |
-| 2 | `postgre/enterprise_db/constraint.sql` | Ràng buộc nghiệp vụ bổ sung |
-| 3 | `build/enterprise_seed_data.sql` | Dữ liệu mẫu (~1 MB) |
-| 4 | `postgre/enterprise_db/03_create_readonly_role.sql` | Tạo role `sqlarena_ai_ro`. **Đổi `DOI_MAT_KHAU_NAY` thành mật khẩu của bạn trước khi chạy.** Dòng kiểm tra cuối phải ra `false / false / true` |
-| 5 | `postgre/enterprise_db/validate_enterprisedb_br01_br16.sql` | Kỳ vọng `overall_status = PASS`, `total_violations = 0` |
-| 6 | `validate_scenario_coverage.sql` | Kỳ vọng không có dòng `FAIL` |
+Mở Query Tool kết nối đúng database `enterprise_db`; chạy toàn bộ từng file theo thứ tự:
+
+1. `postgre/enterprise_db/schema_code.sql`
+2. `postgre/enterprise_db/constraint.sql`
+3. `build/enterprise_seed_data.sql`
+4. `postgre/enterprise_db/03_create_readonly_role.sql` (khuyến nghị; thay placeholder password trước khi chạy)
+5. `postgre/enterprise_db/validate_enterprisedb_br01_br16.sql`
+6. `validate_scenario_coverage.sql`
+
+Sau mỗi file, đọc cả tab Messages và kết quả truy vấn. Dừng nếu có lỗi. Kiểm tra Business Rules BR01–BR16 đều `PASS`, `overall_status = PASS`, `total_violations = 0`; scenario coverage không có dòng `FAIL`.
 
 ### 4.2 `sqlarena_db`
 
-| # | File | Ghi chú |
-|---|---|---|
-| 1 | `postgre/sqlarena_db/01_create_sqlarena_core.sql` | Tạo schema `core` và `draft` |
-| 2 | `postgre/sqlarena_db/02_insert_sqlarena_core_data.sql` | Kết quả cuối: `worlds=1, skills=6, templates=0, source_questions=50` |
-| 3 | `postgre/sqlarena_db/03_create_review_pipeline.sql` | Bảng `draft.test_cases`… (cần cho Model B) |
+Mở Query Tool kết nối `sqlarena_db`; chạy toàn bộ theo thứ tự:
 
-> **Đây không phải script reset.** File 02 từ chối chạy nếu Core đã có dữ liệu. Không chạy trên database đang chứa dữ liệu quan trọng. Nếu một lần chạy lỗi giữa chừng và Query Tool báo transaction lỗi, chạy `ROLLBACK;`.
+1. `postgre/sqlarena_db/01_create_sqlarena_core.sql`
+2. `postgre/sqlarena_db/02_insert_sqlarena_core_data.sql`
+3. `postgre/sqlarena_db/03_create_review_pipeline.sql` (cần cho Model B; chạy sau hai file đầu)
 
-## 5. Cấu hình `ai/.env`
+Kết quả kiểm tra cuối file dữ liệu cần là `worlds=1`, `skills=6`, `templates=0`, `source_questions=50`.
 
-Mở `ai/.env` (đã tạo ở mục 3) và điền:
+**Không chạy lại bước import dữ liệu** trên database đã được nạp. Các script được thiết kế để phát hiện một số trường hợp sai cấu trúc/dữ liệu và có thể dừng thay vì ghi đè; đừng xem đó là script reset.
 
-| Nhóm biến | Ý nghĩa |
-|---|---|
-| `ARENA_DB_*` | Kết nối `sqlarena_db`. Đây là kết nối duy nhất cần quyền ghi |
-| `CATALOG_DB_*` | Kết nối **đọc** `enterprise_db` để lấy catalog/schema |
-| `ENTERPRISE_DB_USER` / `_PASSWORD` | Role chỉ đọc dùng để chạy SQL do model sinh: `sqlarena_ai_ro` + mật khẩu đã đặt ở bước 4.1-4 |
-| `OLLAMA_HOST` | Mặc định `http://localhost:11434` |
-| `MODEL_NAME` | Model A (sinh đề), mặc định `llama3` |
-| `REVIEW_MODEL_NAME` | Model B (kiểm duyệt), mặc định `qwen2.5-coder:7b`. **Nên khác họ với Model A** |
+## 5. Cấu hình `.env`
 
-Các biến còn lại (`REVIEW_*`, timeout, ngưỡng trùng lặp…) có giá trị mặc định hợp lý và được giải thích trong `.env.example`.
+Tạo file cấu hình cục bộ nếu chưa có:
 
-Pipeline **từ chối** chạy SQL của model bằng superuser; vì vậy bắt buộc dùng `sqlarena_ai_ro` cho `ENTERPRISE_DB_*` khi chạy Model B.
+```powershell
+Copy-Item ai\.env.example ai\.env
+```
 
-## 6. Cài model Ollama
+Mở `ai/.env` và sửa các trường sau cho khớp máy của bạn:
 
-Cài Ollama từ <https://ollama.com/download>, rồi:
+- `ARENA_DB_*`: kết nối `sqlarena_db`.
+- `CATALOG_DB_*`: kết nối đọc `enterprise_db`; nên dùng role `sqlarena_ai_ro`.
+- `OLLAMA_HOST`: mặc định `http://localhost:11434`.
+- `MODEL_NAME`: model sinh đề, mặc định `llama3`.
+- `REVIEW_MODEL_NAME`: model kiểm duyệt, mặc định `qwen2.5-coder:7b`.
 
-```bash
+Điền password vào `ARENA_DB_PASSWORD`, `CATALOG_DB_PASSWORD` và `ENTERPRISE_DB_PASSWORD` nếu tài khoản yêu cầu. Nếu đã chạy `03_create_readonly_role.sql`, đặt `CATALOG_DB_USER` và `ENTERPRISE_DB_USER` là `sqlarena_ai_ro`; chỉ `ARENA_DB_USER` cần quyền ghi vào `sqlarena_db`. Không commit, gửi hoặc đăng `ai/.env`. File `.env.example` chỉ là mẫu; nó không chứa thông tin xác thực. Không dùng tài khoản superuser trong môi trường dùng chung/production.
+
+## 6. Cài và kiểm tra Ollama
+
+Cài Ollama từ [trang chính thức](https://ollama.com/download/windows), sau đó trong PowerShell:
+
+```powershell
 ollama pull llama3
 ollama pull qwen2.5-coder:7b
 ollama list
 ```
 
-Giữ Ollama chạy nền khi dùng pipeline. Nếu đổi model, sửa tên tương ứng trong `ai/.env`.
+Giữ Ollama đang chạy. Nếu dùng model khác, đổi tên tương ứng trong `ai/.env`. Model A và Model B nên khác nhau để giảm nguy cơ cùng mắc một lỗi.
 
-## 7. Sử dụng
+## 7. Kiểm tra và chạy pipeline
 
-Chạy mọi lệnh từ **thư mục gốc repo**.
+Chạy lệnh từ **thư mục gốc repository** (thư mục chứa `ai`, `postgre`, `build`):
 
-### Bước 1 — Kiểm tra môi trường
-
-```bash
-python ai/main.py --check       # Rules, Core, Draft, Ollama (không sinh, không ghi)
-python ai/review.py --check     # migration, Model B, role chỉ đọc
+```powershell
+python ai/main.py --check
 ```
 
-Chỉ tiếp tục khi cả hai báo thành công.
+Lệnh này kiểm tra cấu hình, Rules/Core/Draft và Ollama; không sinh hay ghi đề. Chỉ tiếp tục nếu kiểm tra thành công.
 
-### Bước 2 — Sinh câu hỏi bằng Model A
+Sinh thử, không lưu draft:
 
-```bash
-python ai/main.py --dry-run     # sinh thử, chỉ xuất JSON, KHÔNG ghi DB
-python ai/main.py               # sinh và lưu draft đạt kiểm tra sơ bộ (status = pending)
+```powershell
+python ai/main.py --dry-run
 ```
 
-Chương trình hỏi số lượng, độ khó, kỹ năng (S1–S6), chủ đề nghiệp vụ và yêu cầu bổ sung. Draft `pending` **chưa phải đã được duyệt**. Mỗi lượt chạy được xuất JSON ở `ai/outputs/` (thư mục này không được commit).
+Sinh đề và lưu các đề qua kiểm tra sơ bộ vào `draft.question_drafts`:
 
-### Bước 3 — Kiểm duyệt bằng Model B
-
-```bash
-python ai/review.py --calibrate --limit 15 --samples 3   # đo độ tin cậy trên câu nguồn có đáp án (chạy trước)
-python ai/review.py --dry-run --limit 3                  # review thử, không ghi DB
-python ai/review.py --draft-id 7                         # review một draft
-python ai/review.py                                      # review mọi draft pending (hỏi xác nhận)
-python ai/review.py --show 7                             # xem log, lời giải, test case của draft 7
-python ai/review.py --reset-stuck                        # trả draft kẹt "reviewing" về "pending"
+```powershell
+python ai/main.py
 ```
 
-Kết quả: `approved` (kèm reference SQL + test case trong `draft.test_cases`), `needs_human` hoặc `rejected`. Xem [docs/model_b_review.md](docs/model_b_review.md) trước khi review hàng loạt: bước này ghi vào database.
+Chương trình sẽ hỏi số lượng, độ khó, kỹ năng, chủ đề và tùy chọn bổ sung. Đề được lưu có trạng thái `pending`; **pending không có nghĩa là đã được duyệt**. Kết quả mỗi lượt cũng được xuất JSON trong `ai/outputs/` (thư mục này không được commit).
+
+Kiểm tra Model B trước khi review:
+
+```powershell
+python ai/review.py --check
+```
+
+Review một draft cụ thể:
+
+```powershell
+python ai/review.py --draft-id 123
+```
+
+Thay `123` bằng `draft_id` thật. Để xem các tuỳ chọn, chạy `python ai/review.py --help`. Đọc [`ai/review_pipeline.md`](ai/review_pipeline.md) trước khi chạy review hàng loạt; bước này có thể cập nhật trạng thái draft và ghi log/test cases vào database.
 
 ## 8. Kiểm thử
 
-```bash
+Từ thư mục gốc, sau khi cài dependency:
+
+```powershell
 python -m unittest discover -s ai -p "test_*.py"
 ```
 
-| File test | Cần DB/Ollama? |
+Một số test có thể kiểm tra logic thuần, trong khi kiểm tra tích hợp cần database/model hoặc cấu hình phù hợp. Nếu test cần dịch vụ ngoài, đọc đầu file test và tài liệu pipeline trước khi chạy; không xem test pass là thay thế cho kiểm thử toàn bộ database.
+
+## 9. Dữ liệu và an toàn
+
+- Không chạy SQL setup/import trên database đang chứa dữ liệu quan trọng.
+- Không commit mật khẩu, token, dump cá nhân hoặc file `.env`.
+- Không đưa tài khoản superuser cho pipeline nếu có thể tạo user giới hạn quyền.
+- Model AI có thể sinh SQL sai hoặc câu hỏi mơ hồ. Model A validator chỉ là kiểm tra sơ bộ; kết quả Model B vẫn cần xem xét theo quy trình review.
+- Các file `ai/outputs/`, `__pycache__/`, `.venv/` là dữ liệu local/cache, không phải source cần clone.
+- Thư mục `.git` không cần đóng gói khi gửi source dạng ZIP.
+
+## 10. Lỗi thường gặp
+
+| Triệu chứng | Kiểm tra / cách xử lý |
 |---|---|
-| `test_review.py`, `test_pipeline_v2.py`, `test_question_only.py` | Không |
-| `test_model_a.py` | Phần lớn chạy offline; 2 test tích hợp (`test_real_core_...`, `test_superuser_...`) cần `sqlarena_db` đã cài |
-| `test_domain_groups.py` | Cần `sqlarena_db` đã cài và `ai/.env` đúng |
+| `connection refused` PostgreSQL | Kiểm tra service PostgreSQL đang chạy, `*_DB_HOST`, `*_DB_PORT`, firewall và database name. |
+| `password authentication failed` | Kiểm tra user/password trong `ai/.env`; không sửa bằng cách commit password. |
+| Thiếu bảng/schema hoặc số câu nguồn không đúng | Xác nhận đã chạy đúng SQL trên đúng database theo đúng thứ tự; kiểm tra database đích trước khi chạy lại. |
+| `Ollama` không kết nối được | Mở Ollama, kiểm tra `http://localhost:11434`, `ollama list`; không nhầm tên model với model đã tải. |
+| Không đủ RAM hoặc model chạy rất chậm | Thử model nhỏ hơn và giảm context; cấu hình model phải tồn tại trong Ollama. |
+| `Rules` không tìm thấy | Chạy lệnh ở thư mục gốc repository; kiểm tra `RULES_PATH` trong `ai/.env`. |
+| Sinh được JSON nhưng không có draft lưu | Dùng `--dry-run` sẽ không ghi DB; nếu không dùng dry-run, xem `saved_count`, lỗi kết nối và bảng `draft.question_drafts`. |
+| Draft vẫn `pending` | Đây là trạng thái chờ review, chưa phải lỗi tự động; chạy quy trình Model B sau khi `python ai/review.py --check` thành công. |
 
-Trên máy chưa cài DB, các test cần DB sẽ báo `connection refused`: đó là bình thường. Test pass không thay thế việc kiểm tra dữ liệu thực.
+## 11. Tài liệu tham khảo
 
-## 9. Lưu ý an toàn
-
-- **Không commit `ai/.env`** (đã nằm trong `.gitignore`). Kiểm tra bằng `git status` trước khi push.
-- Không chạy SQL setup/import trên database đang có dữ liệu quan trọng.
-- Dùng role giới hạn quyền cho pipeline, không dùng superuser ở môi trường dùng chung.
-- LLM có thể sinh SQL/câu hỏi sai hoặc mơ hồ. Kiểm tra của Model A chỉ là sơ bộ; kết quả Model B (kể cả semantic audit) vẫn cần con người xem xét, đặc biệt các draft `needs_human`.
-- Dữ liệu Enterprise là **dữ liệu mô phỏng**, không chứa thông tin cá nhân thật.
-
-## 10. Tài liệu chi tiết
-
-| Tài liệu | Nội dung |
-|---|---|
-| [docs/model_a_pipeline.md](docs/model_a_pipeline.md) | Cách Model A sinh đề, validator, lưu trữ, giới hạn |
-| [docs/model_b_review.md](docs/model_b_review.md) | Pipeline kiểm duyệt, cấu hình, calibrate, trạng thái |
-| [docs/enterprise_db.md](docs/enterprise_db.md) | Schema 16 bảng của `enterprise_db` |
-| [docs/business_rules.md](docs/business_rules.md) | Business Rules BR01–BR16 |
-| [docs/enterprise_db_validation_report.md](docs/enterprise_db_validation_report.md) | Kết quả kiểm tra dataset seed |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Chẩn đoán và xử lý lỗi thường gặp |
-| [postgre/sqlarena_db/sqlarena_database_guide.md](postgre/sqlarena_db/sqlarena_database_guide.md) | Cấu trúc và truy vấn kiểm tra `sqlarena_db` |
-| [question_create/enterprise_50_question_rules_v1.md](question_create/enterprise_50_question_rules_v1.md) | Quy tắc bộ 50 câu nguồn |
+- [PostgreSQL Downloads](https://www.postgresql.org/download/)
+- [pgAdmin](https://www.pgadmin.org/download/)
+- [Python](https://www.python.org/downloads/)
+- [Ollama](https://ollama.com/download/windows)
+- [Hướng dẫn database SQLArena](postgre/sqlarena_db/sqlarena_database_guide.md)
+- [Quy trình Model B](ai/review_pipeline.md)
+- [Ghi chú pipeline AI](ai/pipeline_ai_notes.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
