@@ -1,162 +1,110 @@
-# Pipeline kiểm duyệt (Model B) — hướng dẫn cài và chạy
+# SQLArena Review Pipeline v1.3
 
-`ai/review.py` lấy các draft `pending` do Model A sinh, cho **Model B giải k lần**, chạy từng lời giải trên
-`enterprise_db` bằng role chỉ đọc, so kết quả, kiểm tra hợp đồng đầu ra/ORDER BY, rà alias subquery và chạy thêm
-**semantic audit** bằng một lượt gọi LLM riêng trước khi chốt `approved` / `needs_human` / `rejected`.
-Draft `approved` có sẵn **reference SQL + test case** (kết quả mong đợi) trong `draft.test_cases`.
-Semantic audit giúp giảm lỗi hiểu đề nhưng không phải chứng minh toán học; phải tiếp tục theo dõi `approved_WRONG`
-qua calibration và có thể cấu hình một model audit khác với Model B.
+## Mục tiêu và nguyên tắc
 
-`main.py` (Model A) **không bị sửa**. Các draft cũ đang `pending` dùng được ngay.
+`ai/review.py` kiểm duyệt các draft `pending` bằng PostgreSQL read-only sandbox, nhiều mẫu Model B, kiểm tra AST/rule, đối chiếu kết quả, semantic auditor và tối đa hai vòng sinh lại khi lỗi có thể sửa. Khi được duyệt, pipeline lưu reference SQL và test case vào `draft.test_cases`.
 
-## 1. Cài đặt (làm đúng thứ tự, một lần)
+Nguyên tắc quyết định:
 
-**Bước 1 — Chép file vào dự án** (giữ đúng đường dẫn, ghi đè `.env.example` và `README.md` nếu hỏi):
+- `approved` chỉ khi mọi bước bắt buộc đều qua.
+- `needs_human` nếu thiếu bằng chứng, các mẫu bất đồng, contract không khớp, auditor không chắc chắn hoặc không sửa được.
+- Không có lời giải hợp lệ là lỗi của lần giải, không tự động chứng minh câu hỏi sai. Mặc định `REVIEW_ZERO_VALID_ACTION=needs_human`.
+- Semantic auditor là một lớp phòng vệ bằng LLM, không phải chứng minh hình thức SQL đúng.
 
-| File | Việc |
-|---|---|
-| `ai/review.py` | pipeline kiểm duyệt |
-| `ai/test_review.py` | unit test (không cần DB/Ollama) |
-| `postgre/sqlarena_db/03_create_review_pipeline.sql` | migration cho `sqlarena_db` |
-| `postgre/enterprise_db/03_create_readonly_role.sql` | tạo role chỉ đọc cho `enterprise_db` |
+## Những thay đổi ở v1.3
 
-**Bước 2 — Migration (pgAdmin hoặc psql, kết nối `sqlarena_db`):** chạy `03_create_review_pipeline.sql`.
-Chạy lại nhiều lần vẫn an toàn. File chỉ thêm bảng `draft.test_cases`, thêm cột cho `draft.self_solve_runs`
-và nới ràng buộc `draft.review_logs.stage`; không động vào `core.*` hay `draft.question_drafts`.
+1. Tạo `query_contract` khi review từ câu hỏi, `output_columns`, `logic_signature`, output grain, edge cases và quy tắc sắp xếp hiện có. Câu hỏi là nguồn sự thật; metadata chỉ hỗ trợ cấu trúc. Không thêm cột database và không cần migration.
+2. Sửa việc đọc `logic_signature.output_grain`.
+3. Sửa nhận diện câu không cần sắp xếp, ví dụ `Sắp xếp: Một dòng nên không có yêu cầu thứ tự`; câu này không bắt buộc `ORDER BY`, kể cả khi metadata cũ ghi sai.
+4. So sánh `ORDER BY` dựa trên các khóa và chiều được yêu cầu; chấp nhận thêm khóa tie-breaker sau tiền tố bắt buộc. Nếu đề nêu `NULLS FIRST/LAST`, vị trí NULL cũng được kiểm tra.
+5. Thêm rule kiểm tra một số hợp đồng diễn đạt rõ ràng trong câu hỏi: loại NULL, ngưỡng aggregate có điều kiện, kiểu DATE của cột tháng, và làm tròn từng chỉ tiêu giờ.
+6. Thêm kiểm tra rủi ro JOIN một-nhiều làm nhân bản kết quả khi metadata khai báo grain là một thực thể. Nếu `central_table` vắng mặt, guard có thể suy luận bảng cha từ alias của các cột outer SELECT và quan hệ FK child->parent hiện có. Nếu truy vấn JOIN trực tiếp child table nhưng đầu ra vẫn ở grain parent mà không có DISTINCT/GROUP BY phù hợp, chuyển sang needs_human. Đây là guard thận trọng, không phải chứng minh rằng mọi JOIN như vậy đều sai.
+7. Semantic audit nhận contract có cấu trúc và phải có đủ năm nhóm kiểm tra với nhãn riêng biệt: cột đầu ra; điều kiện/aggregate; JOIN/grain/subquery; NULL/ngày/tháng/làm tròn/đơn vị; sắp xếp/tie-breaker. Một nhãn lặp lại hoặc chung chung không được tính cho nhiều nhóm.
+8. Có tối đa hai vòng sửa. Mỗi vòng sinh lại `k` lời giải rồi chạy lại toàn bộ guard, thực thi, consensus, contract và auditor. Không dùng reference SQL của tập calibration để làm feedback cho Model B.
 
-**Bước 3 — Role chỉ đọc (kết nối `enterprise_db` bằng `postgres`):**
-1. Mở `03_create_readonly_role.sql`, đổi `DOI_MAT_KHAU_NAY` thành mật khẩu của bạn.
-2. Chạy file. Dòng kiểm tra cuối phải ra `f | f | t`.
+## Cài đặt
 
-Lý do: code từ chối chạy SQL do model sinh bằng `postgres` (superuser). Role mới chỉ có `SELECT`,
-không có `CREATE`/`TEMP`.
+Không cần database migration cho v1.3.
 
-**Bước 4 — Sửa `ai/.env`:**
+1. Sao lưu `ai/review.py`, `ai/test_review.py`, `ai/.env.example`, `ai/review_pipeline.md`.
+2. Ghi đè các file tương ứng từ gói v1.3.
+3. Giữ nguyên `ai/.env` riêng của máy; không chép đè file đó từ `.env.example`.
+4. Trong `ai/.env`, đặt tối thiểu:
+
+```dotenv
+REVIEW_ZERO_VALID_ACTION=needs_human
+REVIEW_SEMANTIC_AUDIT=true
+REVIEW_MODEL_NAME=qwen2.5-coder:7b
+REVIEW_AUDIT_MODEL_NAME=llama3:latest
+REVIEW_AUDIT_NUM_PREDICT=600
+REVIEW_REPAIR_ROUNDS=2
 ```
-ENTERPRISE_DB_USER=sqlarena_ai_ro
-ENTERPRISE_DB_PASSWORD=<mật khẩu ở bước 3>
-REVIEW_MODEL_NAME=<model B, xem bước 5>
-```
-Các khóa `REVIEW_*` khác có trong `.env.example` (đều có giá trị mặc định; không bắt buộc chép hết).
 
-**Bước 5 — Cài Model B** (tên model hãy kiểm tra lại trên ollama.com/library trước khi pull):
-```
-ollama pull qwen2.5-coder:7b      # máy yếu/CPU; 14b nếu có GPU 16GB; qwen3-coder:30b nếu có 24GB+
-```
-Nên chọn model **khác họ** với Model A (`llama3`). Nếu `REVIEW_MODEL_NAME` trùng `MODEL_NAME`,
-`--check` sẽ cảnh báo vì hai model sẽ sai giống nhau.
+Đảm bảo cả hai model được cài trong Ollama. Kiểm tra bằng `ollama list`. Không cần tải model lớn hơn để dùng các rule v1.3.
 
-**Bước 6 — Kiểm tra:**
+## Kiểm tra theo thứ tự
+
+Chạy tại thư mục gốc `D:\sqlarena-ai`.
+
+### 1. Kiểm tra cú pháp
+
+```powershell
+python -m py_compile ai/review.py ai/test_review.py
 ```
+
+### 2. Chạy unit tests
+
+```powershell
+python -m unittest discover -s ai -p "test_review.py" -v
+```
+
+Nếu thiếu package, cài dependency dự án bằng:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+### 3. Kiểm tra môi trường PostgreSQL/Ollama
+
+```powershell
 python ai/review.py --check
+ollama list
 ```
-Phải thấy: Model B đã cài, role chỉ đọc đạt chuẩn, và không có dòng "Thiếu migration".
-Nếu role chưa đạt, thông báo nói rõ lý do (còn quyền TEMP/CREATE, thiếu SELECT...).
 
-## 2. Cách dùng
+### 4. Chạy calibration
 
-| Lệnh | Tác dụng |
-|---|---|
-| `python ai/review.py --calibrate --limit 15 --samples 3` | Chạy **đúng pipeline review** trên câu **nguồn** có đáp án thật, không ghi DB. **Chạy trước.** |
-| `python ai/review.py --calibrate --skip 15 --limit 20 --samples 3` | Đo tiếp từ câu thứ 16 (ENT-016...). Lần đo sau khi chỉnh prompt nên dùng các câu chưa dùng để chỉnh |
-| `python ai/review.py --dry-run --limit 3` | Review thử, chỉ ghi JSON, không đổi DB |
-| `python ai/review.py` | Review tất cả draft `pending` (hỏi xác nhận; `--yes` để bỏ qua) |
-| `python ai/review.py --draft-id 7` | Review một draft |
-| `python ai/review.py --show 7` | Xem log, các lời giải, test case của draft 7 |
-| `python ai/review.py --reset-stuck` | Trả draft kẹt `reviewing` về `pending` (sau khi bị tắt đột ngột) |
-| `--samples K` | Ghi đè số lần giải (mặc định 3) |
+Giữ nguyên lệnh đang dùng:
 
-Kết quả JSON lưu ở `ai/outputs/review_*.json` và `ai/outputs/calibration_*.json`.
+```powershell
+python ai/review.py --calibrate --skip 15 --limit 20 --samples 3
+```
 
-**Cách đọc `--calibrate`** (quan trọng nhất trước khi tin pipeline). Mỗi câu nguồn được chạy qua toàn bộ pipeline, rồi so với đáp án thật:
-- `approved_correct`: pipeline duyệt và test case đúng.
-- `approved_WRONG`: pipeline duyệt **nhưng sai** so với đáp án nguồn. Đây là rủi ro lớn nhất. Màn hình in kèm SQL của model và đáp án để so.
-- `needs_human` / `rejected`: pipeline chặn lại. An toàn, nhưng tốn công duyệt tay.
-- `*_but_all_samples_correct`: đề thực ra đúng nhưng bị chặn (quá thận trọng); nhiều dòng này nghĩa là kiểm tra đang quá chặt.
+Lệnh vẫn tương thích. Với `REVIEW_REPAIR_ROUNDS=2`, các câu bị chặn vì lý do có thể sửa có thể sinh lại tối đa hai vòng; calibration sẽ lâu hơn và gọi LLM nhiều hơn. Đặt `REVIEW_REPAIR_ROUNDS=0` trong `.env` để đo chỉ một lượt, nhưng không phải khuyến nghị cho lần xác nhận release.
 
-Ví dụ trong tập đo, các câu nguồn được **loại khỏi nguồn few-shot**, nên kết quả không bị "chép đáp án".
-Nếu `approved_WRONG` còn cao: đổi/tăng Model B hoặc dùng hai model (mục 3b) trước khi review hàng loạt.
+## Đọc kết quả
 
-## 3. Luồng xử lý và cách chốt trạng thái
+Mở file JSON mới được in ở cuối lệnh trong `ai/outputs/calibration_*.json`. Kiểm tra:
 
-1. **Kiểm tra trước giải**: đề trống/quá ngắn, bảng khai báo không hợp lệ, đề chứa SQL (lộ đáp án) → `rejected`.
-2. **Model B giải k lần** (chỉ thấy câu hỏi, schema, FK, CHECK; không thấy metadata của Model A).
-   Prompt có: bảng nghĩa các cụm tiếng Việt ("loại/bỏ/trừ" = loại trừ, "giữ nguyên" = không lọc...), quy tắc **không tự thêm điều kiện** và **không bịa giá trị thay NULL**, và `REVIEW_FEWSHOT` ví dụ đã giải (cùng skill/bảng, **không** lấy câu cha của đề đang duyệt).
-   Mỗi lần qua guard AST (`validator.py`) rồi chạy bằng role chỉ đọc; lỗi thì thử lại tối đa `REVIEW_SAMPLE_RETRIES` lần kèm lý do lỗi.
-3. **Hợp đồng đầu ra**: nếu câu hỏi nêu `Cột kết quả theo thứ tự`, so sánh đúng tên và thứ tự cột. Nếu yêu cầu `Sắp xếp`, mọi mẫu phải có `ORDER BY`; khi parser hiểu được yêu cầu, đối chiếu đúng khóa và chiều tăng/giảm.
-4. **Đồng thuận kiểu `all`**: mọi lời giải hợp lệ phải cho cùng kết quả (so theo vị trí cột; alias được kiểm tra riêng theo hợp đồng đầu ra).
-5. **Kiểm tra code**: chạy lại reference (phải ổn định), kết quả không rỗng và không quá lớn, khớp skill/độ khó, **dùng đúng các bảng đã khai báo**, tie-breaker phải duy nhất theo cả bộ khóa sắp xếp trên dataset và các khóa này cần hiện trong đầu ra, không hardcode `*_id`, **không có hằng chuỗi lạ**, không nghi trùng lặp. S4 bắt buộc phải có subquery/derived table, không thể chỉ dùng JOIN.
-6. **Semantic audit**: một prompt audit riêng phải trả về ít nhất 5 mục checklist bao phủ (a) cột/alias đầu ra, (b) WHERE/HAVING/ngưỡng aggregate, (c) JOIN/grain/EXISTS/subquery tương quan, (d) NULL/ngày/rounding/đơn vị, (e) ORDER BY/tie-breaker. Nếu audit báo lỗi, thiếu một trong 5 nhóm, checklist không đủ 5 mục, output lỗi hoặc không chắc chắn thì `needs_human`. Đây là kiểm tra bổ sung dựa trên LLM, không phải chứng minh toán học rằng SQL đúng.
-7. **Sinh test case** từ chính reference SQL, gắn `dataset_version` chỉ sau khi toàn bộ lớp kiểm tra đạt.
+- `review_version` phải là `review_v1.3.1_contract_audit_repair`.
+- `semantic_contract.issues` nêu rule cứng làm câu bị chặn.
+- `semantic_audit` chứa verdict, issues và checks của LLM.
+- `stages.repair` ghi số vòng thử, lý do ban đầu và có duyệt được sau sửa hay không.
+- `approved_WRONG` là lỗi chặn phát hành. Không bật duyệt tự động hàng loạt nếu còn trường hợp đó.
+- `needs_human_but_all_samples_correct` gợi ý rule/audit đang chặn một lời giải chạy khớp đáp án; cần xem từng lý do, không nới lỏng toàn bộ fail-closed.
 
-| Trạng thái | Khi nào |
-|---|---|
-| `approved` | Mọi bước đạt → có test case |
-| `rejected` | Lộ đáp án; bảng khai báo sai; reference không ổn định; hoặc không có lời giải hợp lệ nếu người quản trị đặt `REVIEW_ZERO_VALID_ACTION=rejected`. Mặc định mới là `needs_human` vì Model B không giải được chưa chứng minh đề sai. |
-| `needs_human` | Chỉ một phần lời giải hợp lệ; các lần giải bất đồng; thiếu/sai ORDER BY; sai hợp đồng cột; thứ tự không xác định; alias subquery bị che khuất; audit ngữ nghĩa báo lỗi/không chắc chắn; kết quả rỗng/quá lớn; skill/độ khó lệch; `tables_mismatch`; `hardcoded_id_literal`; `unstated_string_literal`; nghi trùng |
+Trước đây, tài liệu này ưu tiên rà ENT-020, ENT-024, ENT-027, ENT-031, ENT-032 và ENT-033. Calibration thực tế mới nhất được cung cấp ngày 2026-10-17 đã ghi nhận `approved_WRONG = 1` ở ENT-017 (3 lời giải đều sai nhưng verdict vẫn `pass`), `approved_correct = 10`, `needs_human = 8`, và `needs_human_but_all_samples_correct = 1`. Vì vậy **không dùng kết quả này để tuyên bố Model B đã an toàn**; ENT-017 là lỗi chặn phát hành cho chế độ duyệt tự động. Xem `test_report.md` để biết giới hạn của bằng chứng hiện có.
 
-Nguyên tắc **fail-closed**: thiếu bằng chứng thì không bao giờ `approved`.
+## Giới hạn cần hiểu rõ
 
-## 3b. Cấu hình bổ sung (trong `ai/.env`)
+- Calibration chỉ so với reference SQL trên các dataset được cấu hình. Một dataset không đủ để chứng minh lời giải tổng quát; cấu hình `REVIEW_VARIANT_DBS` để kiểm tra dataset cùng schema khác dữ liệu.
+- LLM có thể sinh cùng một lỗi nhiều lần hoặc auditor có thể đánh giá sai. Nhiều mẫu/khác model làm tăng bằng chứng nhưng không bảo đảm đúng.
+- Rule theo văn bản chỉ chặn các điều kiện mà nó nhận diện rõ ràng. Những yêu cầu diễn đạt khác hoặc metadata thiếu vẫn có thể cần người kiểm tra.
+- Vòng repair sinh lại toàn bộ `k` mẫu; nó không bỏ qua hard rule và không duyệt chỉ vì auditor nói `pass`.
+- Calibration gần nhất có `approved_WRONG` ở ENT-017. Phải điều tra và sửa trước khi coi pipeline đủ an toàn để duyệt tự động.
+- Không có `approved_WRONG` trong một tập 20 câu sau khi sửa cũng không chứng minh tỷ lệ lỗi thực tế bằng 0. Cần tập holdout không dùng để chỉnh rule và dataset biến thể trước khi phát hành.
 
-| Khóa | Ý nghĩa |
-|---|---|
-| `REVIEW_FEWSHOT=2` | Số ví dụ đã giải đưa vào prompt Model B (0 = tắt). Lấy từ `core.source_questions`, loại câu cha của draft |
-| `REVIEW_MODEL_NAME=modelX,modelY` | **Hai (hoặc nhiều) model** cùng giải. Các mẫu chia liên tiếp cho các model (k=3, 2 model → X, X, Y) và **phải đồng thuận chung**. Cần `REVIEW_SAMPLES` ≥ số model. Chọn hai model khác họ để giảm duyệt nhầm. Hai model nặng có thể phải nạp/đổi liên tục trong RAM nên chậm hơn |
-| `REVIEW_SEMANTIC_AUDIT=true` | Bật semantic audit riêng. Nếu tắt, pipeline vẫn fail-closed: không tự động duyệt khi thiếu audit. |
-| `REVIEW_AUDIT_MODEL_NAME=modelY` | Model dùng cho semantic audit; để trống thì mặc định dùng model B cuối cùng trong `REVIEW_MODEL_NAME`. Chọn model khác nếu máy đủ tài nguyên, nhưng model khác cũng không bảo đảm audit đúng tuyệt đối. |
-| `REVIEW_AUDIT_NUM_PREDICT=600` | Giới hạn đầu ra của semantic audit; nếu output bị cắt, câu chuyển `needs_human`. |
+## Khuyến nghị khi đổi model
 
-Semantic audit cần ít nhất 5 mục kiểm tra có `requirement`, `status=pass` và `finding` không rỗng. Nếu Qwen trả checklist quá ngắn, hệ thống chủ động chặn tự động duyệt thay vì bỏ qua.
+Đổi model không yêu cầu migration database. Tải model bằng `ollama pull <tag>` rồi cập nhật `MODEL_NAME`, `REVIEW_MODEL_NAME` hoặc `REVIEW_AUDIT_MODEL_NAME` trong file `ai/.env` cục bộ. Xác nhận tag bằng `ollama list`, chạy `python ai/review.py --check`, rồi chạy calibration trên cùng tập và cùng `--samples` để so sánh. Chỉ đổi một vai trò mỗi lần để biết thay đổi nào tạo khác biệt. Không sửa `.env.example` như cách cấu hình máy cá nhân, và không commit `ai/.env`.
 
-## 4. Dữ liệu được ghi ở đâu
-
-- `draft.question_drafts.status` (+ `compare_mode` khi `approved`)
-- `draft.self_solve_runs`: mỗi lời giải của Model B, đánh dấu `is_selected`
-- `draft.test_cases`: reference SQL + `expected_columns` + `expected_rows` + `result_hash` + `dataset_ref`/`dataset_version`
-- `draft.review_logs`: từng giai đoạn (`code_check`, `self_solve`, `test_case`, `decision`); review lại thì log được **thêm**, còn `self_solve_runs`/`test_cases` được **thay**
-
-Chuẩn hóa `expected_rows`: số → chuỗi chuẩn (`1.50` → `"1.5"`, `3` và `3.00` giống nhau), ngày → ISO, `NULL` giữ nguyên.
-Bộ chấm bài sau này nên dùng cùng quy tắc (hàm `norm_value` trong `review.py`).
-
-Mỗi draft được ghi trong **một transaction**; nếu bị tắt giữa chừng, draft ở `reviewing` và `--reset-stuck` trả về `pending`.
-Lỗi Ollama/DB giữa phiên thì dừng, trả draft đang làm về `pending`, không kết luận gì về đề.
-
-## 5. Giới hạn đã biết (đọc trước khi tin kết quả)
-
-- **Chỉ một dataset thì không bắt được lời giải "đúng nhờ dữ liệu hiện tại"** (ví dụ cố định giá trị). Code có kiểm tra `*_id` hardcode nhưng đó chỉ là heuristic. Muốn chắc hơn: tạo thêm DB cùng schema khác dữ liệu rồi khai `REVIEW_VARIANT_DBS=ten_db1,ten_db2`; code đã hỗ trợ, test case sinh cho từng dataset.
-- Đồng thuận giữa các lần giải của **cùng một model** vẫn có thể sai giống nhau; semantic audit cũng là LLM và có thể bỏ sót lỗi. Đây là lý do cần `--calibrate`.
-- Khi chỉ có một model local, solver và auditor mặc định có thể dùng cùng model nhưng prompt riêng; đây không phải hai đánh giá độc lập hoàn toàn. Có thể đặt `REVIEW_AUDIT_MODEL_NAME` sang model khác nếu tài nguyên đáp ứng.
-- Kiểm tra skill/độ khó là heuristic trên AST, không chứng minh độ khó thực.
-- Các yêu cầu sắp xếp/cột đầu ra không khai báo rõ thường được chuyển `needs_human` thay vì tự suy đoán.
-- Đề vốn mơ hồ (không nói rõ cột kết quả, thứ tự, làm tròn) thường ra `needs_human` — đó là hành vi mong muốn.
-- Mô hình yếu → nhiều `rejected`/`needs_human`. Đây là tín hiệu để đổi model, không phải lỗi code.
-
-## 6. Xử lý sự cố
-
-| Thông báo | Cách xử |
-|---|---|
-| `Chưa chạy migration...` | Làm bước 2 |
-| `Chưa cấu hình ENTERPRISE_DB_USER` | Làm bước 3–4 |
-| `Role chỉ đọc không đạt chuẩn an toàn` | Chạy lại `03_create_readonly_role.sql`; kiểm tra role không có quyền ghi/TEMP/CREATE |
-| `Model B ... chưa cài` | `ollama pull <tên>` |
-| `Ollama không phản hồi/timeout` | `ollama serve`; tăng `OLLAMA_TIMEOUT_SECONDS` nếu model nặng |
-| `Prompt gần/vượt cửa sổ context` | Tăng `OLLAMA_CONTEXT_SIZE` |
-| Draft kẹt `reviewing` | `python ai/review.py --reset-stuck` |
-
-## 7. Kiểm thử
-
-- `python -m unittest discover -s ai -p "test_review.py" -v`: 25 test, không cần DB hay Ollama.
-- Các test cũ `test_model_a.py`, `test_domain_groups.py` cần DB thật và mật khẩu trong `ai/.env`.
-
-
-## v1.2: explicit semantic contract checks
-
-Before calling the LLM semantic auditor, the reviewer now applies conservative checks for explicit question contracts:
-
-- A field explicitly marked `(loại NULL)` must be excluded by the top-level `WHERE`.
-- A question asking for at least N delivered orders must apply the delivered predicate inside the `HAVING` threshold, not merely count all orders.
-- A month explicitly defined as the first day of the month must be cast to PostgreSQL `date`, not left as a timestamp.
-- If `min_hours`, `max_hours`, and `avg_hours` are explicitly required to be rounded to N digits, each metric must be wrapped in the matching `ROUND(..., N)`.
-
-These are conservative targeted checks, not a general proof of SQL equivalence. Any violation is sent to `needs_human` before the LLM audit can approve. Continue to run calibration and inspect false approvals on a holdout set.
+Không chỉ đo tỷ lệ `approved_correct`: bắt buộc theo dõi `approved_WRONG` (false acceptance), `needs_human_but_all_samples_correct` (false rejection/overblocking), thời gian chạy, số lỗi không giải được và hiệu quả trên tập holdout. Khi còn `approved_WRONG`, không bật duyệt hàng loạt.

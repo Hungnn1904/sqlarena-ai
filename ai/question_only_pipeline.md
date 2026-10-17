@@ -43,9 +43,7 @@ relationship. Original model declarations and added keys are retained in
 _normalization; invalid columns are never renamed and business dependencies are
 never invented. This is not SQL lineage or a semantic repair of the question.
 
-This patch is specific to the project in
-`D:\nam 4\do an\SQL app\New folder\new_design_AI\new_design_AI`.
-It retains the local v2 menus, table selection, source selection and retry flow.
+This documentation describes the repository's current question-only generation flow; run commands from the repository root rather than relying on a developer-specific absolute path.
 
 Model A now returns only questions and metadata, not reference_sql. tables_used
 and required_columns are model-declared and checked against the real schema;
@@ -72,5 +70,10 @@ The startup must show `model_a_v2.1_topic_groups`, not require reference_sql or 
 SELECT-only AI execution login. Existing ENTERPRISE_DB execution credentials may
 remain in .env but are not used to run answers. CATALOG remains read-only.
 --dry-run writes output but never inserts Drafts. Old .env and output files are
-not overwritten. Historical CHANGES_v2.md/test_report.md describe the earlier
-answer-generating pipeline, not this new version.
+not overwritten. `CHANGES_v2.md` and older sections of `test_report.md` contain historical results from the answer-generating pipeline. Use the dated status section in `test_report.md` for the latest observed run.
+
+## Chẩn đoán kết quả sinh đề ngày 2026-10-17
+
+Một lần chạy thực tế với `count=1`, `difficulty=medium`, `skill=S2`, không giới hạn domain, đã thử 3 lần và lưu `0/1`. JSON: `ai/outputs/generation_20261017_102543.json`. Cả ba lần đều bị `topic_relations` từ chối; một số lần còn bị `business_dependencies` do thiếu cột bắt buộc. Đây là hành vi fail-closed đúng hơn là lưu câu không hợp lệ, nhưng cho thấy prompt/retry của Model A chưa giải quyết được FK và metadata.
+
+Cách kiểm tra: mở JSON được in cuối lệnh; đọc `failures[].attempts[]`, `candidate.join_relations`, `candidate.tables_used`, `candidate.required_columns` và `validation.errors`. Xác minh FK từ schema PostgreSQL thật trước khi thay đổi logic. Không sửa bằng cách bỏ guard, bịa thêm FK, hoặc đánh dấu đề là approved. `saved_count=0` không phải bằng chứng database bị lỗi.

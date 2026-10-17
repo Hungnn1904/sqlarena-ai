@@ -8,7 +8,7 @@ for current commands, storage, tests and limitations.
 
 ## Historical Answer-Generating Pipeline
 
-The sections below document the prior version, not the current generation flow.
+The sections below document the prior version, not the current generation flow. For the current Model A behavior and recent run evidence, use `question_only_pipeline.md` and the dated section at the end of `test_report.md`. For current Model B calibration instructions and the latest false-acceptance warning, use `review_pipeline.md`.
 
 ## Run
 
@@ -119,7 +119,9 @@ if needed. Manual extra requirements are passed to the model, not semantically
 proven by a second LLM. Concurrent runs can still race between duplicate checking
 and insertion; prefer one generation session at a time.
 
-## Tests
+## Historical tests
+
+The command below documents an earlier test subset, not a complete current verification. For current test commands and latest observed generation/calibration outcomes, use `README.md` and `test_report.md`.
 
 ```powershell
 python -m unittest discover -s ai -p test_model_a.py -v

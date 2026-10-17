@@ -40,8 +40,9 @@ def scripted(sqls):
 
 
 def passing_audit(_ctx, _sql):
-    groups = ["output columns", "filters and HAVING", "joins and row grain",
-              "NULL/date/rounding edge cases", "ordering and tie-breakers"]
+    groups = ["output columns and aliases", "WHERE/HAVING/aggregate thresholds",
+              "joins, row grain, EXISTS and correlated subqueries",
+              "NULL/date/rounding/unit edge cases", "ordering and tie-breakers"]
     return {"verdict": "pass", "issues": [],
             "checks": [{"requirement": group, "status": "pass", "finding": "unit-test mock"}
                        for group in groups]}
@@ -315,10 +316,6 @@ class Prompt(unittest.TestCase):
         self.assertNotIn("difficulty", prompt.lower().replace("difficulty_", ""))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ExplicitSemanticContracts(unittest.TestCase):
     def test_ent024_wrong_sql_is_blocked_for_null_and_delivered_threshold(self):
         ctx = make_ctx(
@@ -366,3 +363,149 @@ class ExplicitSemanticContracts(unittest.TestCase):
         self.assertIn("required_rounding_missing_min_hours", issues)
         self.assertIn("required_rounding_missing_max_hours", issues)
         self.assertNotIn("required_rounding_missing_avg_hours", issues)
+
+
+class ContractAndRepairV13(unittest.TestCase):
+    def test_audit_labels_must_cover_five_distinct_groups(self):
+        groups = ["output columns and aliases"] * 5
+        checks = [{"requirement": label, "status": "pass", "finding": "looks fine"} for label in groups]
+        # An auditor returning five generic duplicate labels must not satisfy the five-group contract.
+        self.assertEqual({rv.audit_requirement_group(c["requirement"]) for c in checks}, {"output_columns"})
+        self.assertIsNone(rv.audit_requirement_group("all SQL aspects look correct"))
+        canonical = ["output columns and aliases", "WHERE/HAVING/aggregate thresholds",
+                     "joins, row grain, EXISTS and correlated subqueries",
+                     "NULL/date/rounding/unit edge cases", "ordering and tie-breakers"]
+        self.assertEqual({rv.audit_requirement_group(label) for label in canonical},
+                         {"output_columns", "filters_aggregates", "joins_grain_subqueries", "edge_cases", "ordering"})
+
+    def test_semantic_auditor_rejects_duplicate_group_labels(self):
+        audit = {"verdict": "pass", "issues": [], "checks": [
+            {"requirement": "output columns and aliases", "status": "pass", "finding": "All columns seem correct."}
+            for _ in range(5)
+        ]}
+        config = {"REVIEW_SEMANTIC_AUDIT": True, "REVIEW_AUDIT_MODEL_NAME": "test-auditor",
+                  "OLLAMA_CONTEXT_SIZE": 4096, "REVIEW_AUDIT_NUM_PREDICT": 600,
+                  "REVIEW_OLLAMA_HOST": "http://localhost:11434", "REVIEW_THINK": None}
+        ctx = make_ctx()
+        with mock.patch.object(rv.arena, "ollama_request", return_value={"response": __import__("json").dumps(audit)}):
+            result = rv.call_semantic_auditor(config, ctx, Q)
+        self.assertEqual(result["verdict"], "needs_human")
+        self.assertIn("audit_group_filters_aggregates_missing", result["issues"])
+        self.assertIn("audit_group_ordering_missing", result["issues"])
+
+    def test_explicit_no_order_overrides_stale_metadata(self):
+        question = "Tính số yêu cầu và thời gian xử lý.\nSắp xếp: Một dòng nên không có yêu cầu thứ tự."
+        ctx = {"question": question, "ordering_required": True, "expected_order_by": "refund_id tăng"}
+        self.assertTrue(rv.explicit_no_order_requested(question))
+        self.assertFalse(rv.ordering_required(ctx))
+        self.assertEqual(rv.expected_order_specs_full(ctx), [])
+        self.assertEqual(rv.decide_mode({"SelectStmt": {"sortClause": []}}, question), "unordered")
+
+    def test_inline_question_order_contract_is_recognized(self):
+        question = "Liệt kê các status khác nhau. Sắp xếp: status tăng."
+        ctx = {"question": question, "ordering_required": False, "expected_order_by": "other_col giảm"}
+        self.assertEqual(rv.expected_order_specs_full(ctx), [("status", "asc", "default")])
+        self.assertTrue(rv.ordering_required(ctx))
+
+    def test_question_order_contract_precedes_stale_metadata(self):
+        ctx = {"question": "Tìm supplier.\nSắp xếp: supplier_id tăng, supplier_name giảm NULLS LAST.",
+               "expected_order_by": "supplier_name tăng"}
+        self.assertEqual(rv.expected_order_specs_full(ctx),
+                         [("supplier_id", "asc", "default"), ("supplier_name", "desc", "last")])
+
+    def test_query_contract_surfaces_question_and_logic_signature(self):
+        ctx = make_ctx(
+            question="Tính tổng theo status.\nCột kết quả theo thứ tự: status, total.\nSắp xếp: status tăng.",
+            expected_output_columns=["status", "total"], output_grain="one row per status",
+            logic_signature={"analysis_goal": "sum amount", "filter_pattern": "none",
+                             "aggregation_pattern": "SUM by status", "output_grain": "one row per status"})
+        contract = rv.build_query_contract(ctx)
+        self.assertEqual(contract["required_output_columns"], ["status", "total"])
+        self.assertEqual(contract["output_grain"], "one row per status")
+        self.assertEqual(contract["ordering"]["keys"][0]["column"], "status")
+        self.assertEqual(contract["aggregation_pattern"], "SUM by status")
+        self.assertEqual(contract["source_of_truth"], "question_text")
+
+    def test_repair_loop_reruns_all_checks_and_tracks_approval(self):
+        failed = {"draft_id": 5, "status": "needs_human", "reasons": ["semantic_audit_flagged"],
+                  "reference_sql": "SELECT status FROM orders", "samples": [], "testcases": [], "notes": [],
+                  "stages": {"semantic_audit": {"passed": False, "issues": ["aggregate threshold missing"]}}}
+        passed = {"draft_id": 5, "status": "approved", "reasons": [], "reference_sql": "SELECT status FROM orders",
+                  "samples": [], "testcases": [{"dataset_ref": "base"}], "notes": [], "stages": {}}
+        with mock.patch.object(rv, "_review_draft_once", side_effect=[failed, passed]) as run_once:
+            result = rv.review_draft(make_ctx(), [], lambda *_: None, 3, 0, auditor=passing_audit, repair_rounds=1)
+        self.assertEqual(result["status"], "approved")
+        self.assertEqual(result["stages"]["repair"]["attempted"], 1)
+        self.assertTrue(result["stages"]["repair"]["approved_after_repair"])
+        self.assertEqual(run_once.call_count, 2)
+        self.assertIn("feedback", run_once.call_args.kwargs)
+
+    def test_repair_loop_does_not_repeat_precheck_rejection(self):
+        rejected = {"draft_id": 5, "status": "rejected", "reasons": ["answer_in_question"],
+                    "samples": [], "testcases": [], "notes": [], "stages": {"pre": {"passed": False}}}
+        with mock.patch.object(rv, "_review_draft_once", return_value=rejected) as run_once:
+            result = rv.review_draft(make_ctx(), [], lambda *_: None, 3, 0, repair_rounds=2)
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(run_once.call_count, 1)
+        self.assertEqual(result["stages"]["repair"]["attempted"], 0)
+
+    def test_draft_context_reads_output_grain_from_logic_signature(self):
+        row = {
+            "draft_id": 9, "question": "Tìm supplier.\nCột kết quả theo thứ tự: supplier_id.\nSắp xếp: supplier_id tăng.",
+            "difficulty": "easy", "skills": ["S1"], "parent_ids": [], "schema_text": "",
+            "schema_context": {"tables_used": ["suppliers"], "tables": [{"table": "suppliers",
+                "columns": [{"name": "supplier_id", "type": "integer"}], "primary_key": ["supplier_id"]}],
+                "fk_relations": [], "business_rules": []},
+            "validation_report": {"candidate_metadata": {"tables_used": ["suppliers"],
+                "output_columns": ["supplier_id"], "logic_signature": {"output_grain": "one row per supplier",
+                "analysis_goal": "list suppliers", "filter_pattern": "none", "aggregation_pattern": "none"}}}
+        }
+        ctx = rv.draft_context(row)
+        self.assertEqual(ctx["output_grain"], "one row per supplier")
+        self.assertEqual(ctx["query_contract"]["output_grain"], "one row per supplier")
+
+    def test_one_to_many_join_is_flagged_for_single_supplier_grain(self):
+        # Existing Model A schema does not require central_table in logic_signature/query_contract.
+        # The guard should infer suppliers from the selected outer alias and child->parent FK.
+        ctx = {
+            "question": "Tìm nhà cung cấp đang hoạt động.",
+            "output_grain": "per supplier",
+            "logic_signature": {"grain": "per supplier"},
+            "fks": ["products(supplier_id) -> suppliers(supplier_id)"],
+            "query_contract": {"output_grain": "per supplier"},
+        }
+        tree = {"SelectStmt": {
+            "fromClause": [{"JoinExpr": {
+                "larg": {"RangeVar": {"relname": "suppliers", "alias": {"aliasname": "s"}}},
+                "rarg": {"RangeVar": {"relname": "products", "alias": {"aliasname": "p"}}},
+            }}],
+            "targetList": [
+                {"ResTarget": {"val": {"ColumnRef": {"fields": [{"String": {"sval": "s"}}, {"String": {"sval": "supplier_id"}}]}}}},
+                {"ResTarget": {"val": {"ColumnRef": {"fields": [{"String": {"sval": "s"}}, {"String": {"sval": "supplier_name"}}]}}}},
+            ],
+            "distinctClause": [], "groupClause": [],
+        }}
+        info = {"features": {"joins": 1}}
+        self.assertEqual(rv._direct_from_relations(tree), [("suppliers", "s"), ("products", "p")])
+        self.assertIn("one_to_many_join_may_duplicate_output_grain",
+                      rv.one_to_many_join_grain_issues(ctx, tree, info))
+        tree["SelectStmt"]["distinctClause"] = [{}]
+        self.assertEqual(rv.one_to_many_join_grain_issues(ctx, tree, info), [])
+
+    def test_contract_null_filter_and_threshold_detection_ent024(self):
+        ctx = make_ctx(
+            question=("Theo employee_id được gán trên đơn (loại NULL), đếm toàn bộ đơn, "
+                      "số đơn delivered và tổng total_amount chỉ của đơn delivered. "
+                      "Giữ người có ít nhất 5 đơn delivered."),
+            expected_output_columns=["employee_id", "assigned_orders", "delivered_orders", "delivered_order_value"])
+        wrong = ("SELECT employee_id, COUNT(order_id) AS assigned_orders, "
+                 "SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS delivered_orders, "
+                 "SUM(CASE WHEN status='delivered' THEN total_amount ELSE 0 END) AS delivered_order_value "
+                 "FROM orders GROUP BY employee_id HAVING COUNT(order_id)>=5 ORDER BY employee_id")
+        issues = rv.explicit_semantic_contract_issues(ctx, wrong)
+        self.assertIn("explicit_null_exclusion_missing", issues)
+        self.assertIn("conditional_having_threshold_missing_delivered_filter", issues)
+
+
+if __name__ == "__main__":
+    unittest.main()

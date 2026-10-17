@@ -75,3 +75,40 @@ claim that the answer or reasoning difficulty has been formally reviewed.
 Dependencies available during final tests: psycopg 3.3.6, pglast 8.5,
 scikit-learn 1.9.1, and python-dotenv. The production entrypoint and validator
 are the only two implementation modules; the third Python file is tests.
+
+
+---
+
+# Trạng thái xác minh mới nhất — 2026-10-17
+
+Phần trên là báo cáo lịch sử của Model A answer-generating pipeline ngày 2026-10-11; không dùng riêng phần đó để mô tả hành vi hiện tại. Tài liệu này được bổ sung các lần chạy mới nhất có log trong repository.
+
+## Model A — sinh câu hỏi, không sinh đáp án
+
+- Prompt version trong log: `model_a_v2.1_topic_groups`. Model A chỉ tạo câu hỏi/metadata; không tạo reference SQL và không thực thi đáp án.
+- Chạy 1 câu `medium`, kỹ năng `S2`, domain không giới hạn: thử 3 lần, `saved_count = 0`. JSON: `outputs/generation_20261017_102543.json`.
+- Cả ba candidate đều bị `topic_relations` từ chối vì `join_relations` không khớp quan hệ FK thật giữa các bảng được khai báo. Một số lần còn bị `business_dependencies` vì câu hỏi dùng `orders.status` hoặc `customer_addresses.is_default` nhưng metadata không khai báo đúng cột.
+- `protected_data_unchanged = true`; fingerprint trước/sau trong JSON không thay đổi. Lần chạy này không lưu draft.
+
+**Đánh giá:** validator đã fail-closed và ngăn đề lỗi được lưu, nhưng retry chưa khắc phục được lỗi JOIN/metadata. Chưa có bằng chứng cho thấy Model A hiện tại sinh ổn định; cần sửa prompt/retry hoặc context chọn bảng, không nên nới lỏng validator.
+
+## Model B — calibration
+
+Lệnh đã chạy trên máy người dùng:
+
+```powershell
+python ai/review.py --calibrate --skip 15 --limit 20 --samples 3
+```
+
+- File JSON: `outputs/calibration_20261017_101930.json`.
+- Model B: `qwen2.5-coder:7b`; semantic auditor: `llama3:latest`; 3 mẫu mỗi câu; 2 few-shot examples.
+- Kết quả: `approved_correct = 10`, `approved_WRONG = 1`, `needs_human = 8`, `needs_human_but_all_samples_correct = 1`.
+- ENT-017 là false acceptance: cả 3 mẫu dùng `SUM(total_amount + shipping_fee)` trong khi reference dùng `SUM(total_amount)`. JSON cho thấy `semantic_contract.passed = true` và `semantic_audit.verdict = pass` dù các mẫu không đúng theo reference/dataset calibration.
+
+**Đánh giá:** đây là lỗi nghiêm trọng. Không nên dùng Model B để duyệt tự động hàng loạt cho tới khi đã điều tra logic audit/contract, thêm regression test cho ENT-017, chạy lại calibration và kiểm tra một tập holdout. Đổi sang model lớn hơn có thể đáng thử nhưng không thay thế regression test.
+
+## Điều chưa được chứng minh
+
+- Chưa có bằng chứng từ báo cáo này rằng toàn bộ unit test của snapshot ngày 2026-10-17 đã được chạy thành công; hãy chạy lại các lệnh kiểm thử trong README trên đúng source hiện tại.
+- Calibration là đánh giá trên câu nguồn có đáp án, không ghi database và không chứng minh khả năng tổng quát trên mọi dataset.
+- Lần sinh đề thất bại không chứng minh PostgreSQL bị lỗi; JSON ghi fingerprint dữ liệu không đổi.

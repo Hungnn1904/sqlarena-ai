@@ -6,6 +6,8 @@ SQLArena AI là pipeline Python dùng LLM để **sinh câu hỏi SQL (Model A)*
 
 ## 1. Kiến trúc nhanh
 
+Gói source dùng để chia sẻ không nên chứa `.git/`, `ai/.env`, `ai/outputs/`, `.venv/` hoặc `__pycache__/`. Các file output và cấu hình cá nhân được tạo lại trên máy chạy; không cần để người khác cài dự án.
+
 - `enterprise_db`: dataset nghiệp vụ PostgreSQL để làm ngữ cảnh cho câu hỏi; pipeline kết nối đọc.
 - `sqlarena_db`: dữ liệu lõi trong schema `core`, draft và trạng thái kiểm duyệt trong schema `draft`.
 - `ai/main.py`: Model A tạo đề và kiểm tra sơ bộ.
@@ -22,7 +24,8 @@ SQLArena AI là pipeline Python dùng LLM để **sinh câu hỏi SQL (Model A)*
 - PostgreSQL và pgAdmin 4; PostgreSQL server phải đang chạy, mặc định cổng `5432`.
 - Python **3.11–3.13 khuyến nghị**. Dùng phiên bản Python được các dependency hỗ trợ; nếu gặp lỗi build package, không nên mặc định dùng bản Python mới nhất.
 - Ollama cho Windows, có thể truy cập tại `http://localhost:11434`.
-- Dung lượng model: Model A mặc định `llama3`; Model B mặc định `qwen2.5-coder:7b`. Model B 7B cần RAM/VRAM đáng kể. Nếu máy yếu, chọn model nhỏ hơn trong `.env` và chấp nhận chất lượng review có thể giảm.
+- Mặc định trong `.env.example`: Model A `llama3`, Model B `qwen2.5-coder:7b`, semantic auditor `llama3:latest`. Tên tag thực tế phải khớp `ollama list`.
+- Model cần RAM/VRAM tùy kích thước, quantization, context và các ứng dụng đang chạy. Với RAM 16 GB/GTX 1650 4 GB, ưu tiên chạy tuần tự và thử từng model trước khi đổi cấu hình cả pipeline.
 
 ## 3. Clone và tạo môi trường Python
 
@@ -86,17 +89,31 @@ Mở `ai/.env` và sửa các trường sau cho khớp máy của bạn:
 
 Điền password vào `ARENA_DB_PASSWORD`, `CATALOG_DB_PASSWORD` và `ENTERPRISE_DB_PASSWORD` nếu tài khoản yêu cầu. Nếu đã chạy `03_create_readonly_role.sql`, đặt `CATALOG_DB_USER` và `ENTERPRISE_DB_USER` là `sqlarena_ai_ro`; chỉ `ARENA_DB_USER` cần quyền ghi vào `sqlarena_db`. Không commit, gửi hoặc đăng `ai/.env`. File `.env.example` chỉ là mẫu; nó không chứa thông tin xác thực. Không dùng tài khoản superuser trong môi trường dùng chung/production.
 
-## 6. Cài và kiểm tra Ollama
+## 6. Cài và kiểm tra Ollama / đổi model
 
-Cài Ollama từ [trang chính thức](https://ollama.com/download/windows), sau đó trong PowerShell:
+Cài Ollama từ [trang chính thức](https://ollama.com/download/windows). Mặc định của dự án có thể tải bằng:
 
 ```powershell
 ollama pull llama3
 ollama pull qwen2.5-coder:7b
+ollama pull llama3:latest
 ollama list
+ollama run llama3 "Return JSON only: {\"ok\":true}"
 ```
 
-Giữ Ollama đang chạy. Nếu dùng model khác, đổi tên tương ứng trong `ai/.env`. Model A và Model B nên khác nhau để giảm nguy cơ cùng mắc một lỗi.
+Một số tag có thể cùng trỏ tới một model đã tải; `ollama list` là nguồn xác nhận tên model local. Không cần tải `llama3:latest` lần nữa nếu Ollama đã báo tag này tồn tại.
+
+Để thử model khác, tải tag được Ollama hỗ trợ rồi sửa `ai/.env` (không sửa `.env.example` để lưu cấu hình máy cá nhân):
+
+```dotenv
+MODEL_NAME=<tag-model-a-da-pull>
+REVIEW_MODEL_NAME=<tag-model-b-da-pull>
+REVIEW_AUDIT_MODEL_NAME=<tag-semantic-auditor-da-pull>
+```
+
+Thay dấu ngoặc nhọn bằng tên tag thật, không giữ nguyên placeholder. `REVIEW_MODEL_NAME` và `REVIEW_AUDIT_MODEL_NAME` là hai vai trò riêng; kiểm tra cả hai. Nên thử từng model trên cùng một bộ câu, giữ lại kết quả JSON để so sánh trước/sau. Model lớn hơn không bảo đảm chính xác hơn, và có thể chạy rất chậm hoặc hết RAM trên máy ít bộ nhớ.
+
+**Cảnh báo chất lượng hiện tại:** calibration 20 câu ngày 2026-10-17 ghi nhận `approved_WRONG = 1` (ENT-017). Đây là lỗi duyệt nhầm nghiêm trọng; chưa nên coi pipeline Model B đủ an toàn để duyệt hàng loạt chỉ vì đổi model. Xem [ai/review_pipeline.md](ai/review_pipeline.md) và [ai/test_report.md](ai/test_report.md).
 
 ## 7. Kiểm tra và chạy pipeline
 
@@ -136,15 +153,39 @@ python ai/review.py --draft-id 123
 
 Thay `123` bằng `draft_id` thật. Để xem các tuỳ chọn, chạy `python ai/review.py --help`. Đọc [`ai/review_pipeline.md`](ai/review_pipeline.md) trước khi chạy review hàng loạt; bước này có thể cập nhật trạng thái draft và ghi log/test cases vào database.
 
-## 8. Kiểm thử
+## 8. Kiểm thử theo từng tầng
 
-Từ thư mục gốc, sau khi cài dependency:
+Chạy từ thư mục gốc repository. Trước hết kiểm tra cú pháp và dependency:
 
 ```powershell
-python -m unittest discover -s ai -p "test_*.py"
+python --version
+python -m pip check
+python -m py_compile ai/main.py ai/review.py ai/validator.py ai/context_policy.py
 ```
 
-Một số test có thể kiểm tra logic thuần, trong khi kiểm tra tích hợp cần database/model hoặc cấu hình phù hợp. Nếu test cần dịch vụ ngoài, đọc đầu file test và tài liệu pipeline trước khi chạy; không xem test pass là thay thế cho kiểm thử toàn bộ database.
+Chạy test offline/unit:
+
+```powershell
+python -m unittest discover -s ai -p "test_*.py" -v
+```
+
+Nếu đang điều tra riêng một pipeline:
+
+```powershell
+python -m unittest discover -s ai -p "test_question_only.py" -v
+python -m unittest discover -s ai -p "test_review.py" -v
+```
+
+Sau đó kiểm tra dịch vụ thật:
+
+```powershell
+python ai/main.py --check
+python ai/review.py --check
+```
+
+Cuối cùng mới chạy `python ai/main.py --dry-run` để kiểm tra sinh đề mà không ghi draft, rồi chạy một câu thật nếu kết quả đã được xem xét. Calibration Model B dùng `python ai/review.py --calibrate --skip 15 --limit 20 --samples 3`; lệnh này đọc bộ câu nguồn có đáp án, xuất JSON vào `ai/outputs/` và không ghi database. Xem mục calibration trong tài liệu Model B trước khi chạy.
+
+Test pass chỉ chứng minh các trường hợp được test đã qua; không chứng minh LLM luôn sinh đúng, semantic auditor không bao giờ sai, hoặc database mới đã được khởi tạo chính xác.
 
 ## 9. Dữ liệu và an toàn
 
@@ -163,6 +204,9 @@ Một số test có thể kiểm tra logic thuần, trong khi kiểm tra tích h
 | `password authentication failed` | Kiểm tra user/password trong `ai/.env`; không sửa bằng cách commit password. |
 | Thiếu bảng/schema hoặc số câu nguồn không đúng | Xác nhận đã chạy đúng SQL trên đúng database theo đúng thứ tự; kiểm tra database đích trước khi chạy lại. |
 | `Ollama` không kết nối được | Mở Ollama, kiểm tra `http://localhost:11434`, `ollama list`; không nhầm tên model với model đã tải. |
+| Sinh đề `0/N`, lỗi `topic_relations` | Model A khai báo JOIN không khớp FK thật. Đọc JSON mới nhất trong `ai/outputs/`, kiểm tra `checks.topic_relations`; không nới lỏng validator để cho đề lọt qua. |
+| Lỗi `business_dependencies` | Nội dung câu hỏi dùng điều kiện nghiệp vụ nhưng thiếu cột trong `required_columns`/`tables_used`. Kiểm tra câu hỏi và metadata trong JSON; nếu retry vẫn lặp, dừng và sửa prompt/logic thay vì tăng số lần retry vô hạn. |
+| Calibration có `approved_WRONG` | Đây là release blocker cho duyệt tự động. Mở JSON calibration, đối chiếu SQL mẫu với `reference_sql`, sửa hard guard/auditor rồi chạy lại cùng tập và tập holdout. Không coi số mẫu đúng là bằng chứng đủ để bỏ qua lỗi này. |
 | Không đủ RAM hoặc model chạy rất chậm | Thử model nhỏ hơn và giảm context; cấu hình model phải tồn tại trong Ollama. |
 | `Rules` không tìm thấy | Chạy lệnh ở thư mục gốc repository; kiểm tra `RULES_PATH` trong `ai/.env`. |
 | Sinh được JSON nhưng không có draft lưu | Dùng `--dry-run` sẽ không ghi DB; nếu không dùng dry-run, xem `saved_count`, lỗi kết nối và bảng `draft.question_drafts`. |

@@ -24,7 +24,7 @@ import main as arena
 from validator import SAFE_FUNCTIONS, SQLSchema, parse_select, strings, verify_readonly, walk
 
 HERE = Path(__file__).resolve().parent
-REVIEW_VERSION = "review_v1.2_explicit_semantic_contracts"
+REVIEW_VERSION = "review_v1.3.1_contract_audit_repair"
 STATUSES = ("approved", "needs_human", "rejected")
 SQL_ERRORS = (ValueError, TypeError, KeyError, parser.ParseError)
 ORDER_WORDS = re.compile(r"(sắp xếp|xếp theo|thứ tự|giảm dần|tăng dần|từ cao|từ thấp|xếp hạng|top\s*\d|"
@@ -93,6 +93,9 @@ def load_review_config(env=None):
     config["REVIEW_SEMANTIC_AUDIT"] = audit_enabled == "true"
     config["REVIEW_AUDIT_MODEL_NAME"] = (config.get("REVIEW_AUDIT_MODEL_NAME") or config["REVIEW_MODELS"][-1]).strip()
     number("REVIEW_AUDIT_NUM_PREDICT", 600, int, 128)
+    number("REVIEW_REPAIR_ROUNDS", 2, int, 0)
+    if config["REVIEW_REPAIR_ROUNDS"] > 2:
+        raise ValueError("REVIEW_REPAIR_ROUNDS toi da la 2 de tranh lap khong can thiet.")
     return config
 
 
@@ -199,6 +202,8 @@ def order_keys(tree):
 
 
 def ordering_requested(question):
+    if explicit_no_order_requested(question):
+        return False
     return bool(ORDER_WORDS.search(unicodedata.normalize("NFC", question or "")))
 
 
@@ -223,45 +228,110 @@ def normalize_output_columns(value):
     return result
 
 
-def parse_expected_order(text):
-    """Parse SQLArena metadata like 'employee_id tăng, position giảm' into (key, direction)."""
+def explicit_no_order_requested(question):
+    """Detect explicit negation before loose ORDER BY keyword matching.
+
+    Example: ENT-020 says "Sắp xếp: Một dòng nên không có yêu cầu thứ tự".
+    The word "Sắp xếp" alone must not turn that into a required ORDER BY.
+    """
+    text = unicodedata.normalize("NFC", question or "").casefold()
+    patterns = (
+        r"không\s+có\s+yêu\s+cầu\s+thứ\s+tự",
+        r"không\s+yêu\s+cầu\s+(?:thứ\s+tự|sắp\s+xếp)",
+        r"không\s+cần\s+sắp\s+xếp",
+        r"không\s+đặt\s+thứ\s+tự",
+        r"không\s+sắp\s+xếp(?:\s+theo)?",
+        r"one\s+row[^\n]{0,60}no\s+ordering\s+required",
+    )
+    # Negation is authoritative only when it occurs in the dedicated ordering line or
+    # in a short sentence explicitly about ordering (avoid negating unrelated prose).
+    for line in text.splitlines():
+        if re.search(r"sắp\s+xếp|order\s+by|thứ\s+tự|ordering", line, re.I):
+            if any(re.search(pattern, line, re.I) for pattern in patterns):
+                return True
+    return False
+
+
+def parse_expected_order_full(text):
+    """Parse `key tăng, other giảm NULLS LAST` into (key, direction, nulls)."""
     if not isinstance(text, str) or not text.strip():
         return []
-    pieces = [p.strip().strip(".") for p in text.split(",") if p.strip()]
     specs = []
-    pattern = re.compile(r"^([A-Za-z_][A-Za-z0-9_$.]*)\s+(tăng(?:\s+dần)?|giảm(?:\s+dần)?|asc|desc)\b", re.I)
-    for piece in pieces:
+    pattern = re.compile(
+        r"^([A-Za-z_][A-Za-z0-9_$.]*)\s+(tăng(?:\s+dần)?|giảm(?:\s+dần)?|asc|desc)"
+        r"(?:\s+NULLS\s+(FIRST|LAST))?$", re.I)
+    for piece in [part.strip().strip(".") for part in text.split(",") if part.strip()]:
         found = pattern.match(piece)
         if not found:
             return []
-        key, direction = found.groups()
-        specs.append((key.split(".")[-1].lower(), "desc" if direction.lower().startswith(("giảm", "desc")) else "asc"))
+        key, direction, nulls = found.groups()
+        specs.append((key.split(".")[-1].lower(),
+                      "desc" if direction.lower().startswith(("giảm", "desc")) else "asc",
+                      (nulls or "default").lower()))
     return specs
 
 
-def expected_order_specs(ctx):
+def parse_expected_order(text):
+    """Backwards-compatible pair form used by older callers/tests."""
+    return [(key, direction) for key, direction, _nulls in parse_expected_order_full(text)]
+
+
+def expected_order_specs_full(ctx):
+    question = ctx.get("question") or ""
+    if explicit_no_order_requested(question):
+        return []
+    # Parse the actual question line first. It is authoritative over model-generated metadata.
+    # The ordering contract can follow introductory prose on the same line, e.g.
+    # "Liệt kê các status khác nhau. Sắp xếp: status tăng.". Do not require
+    # the header to start a new line; explicit_no_order_requested() handles negation first.
+    match = re.search(r"(?i)\bSắp\s+xếp(?:\s+theo)?\s*:\s*([^\n]+)", question)
+    from_question = parse_expected_order_full(match.group(1)) if match else []
+    if from_question:
+        return from_question
     metadata_order = ctx.get("expected_order_by")
-    if metadata_order:
-        parsed = parse_expected_order(metadata_order)
+    if isinstance(metadata_order, list):
+        result = []
+        for item in metadata_order:
+            if not isinstance(item, dict) or not item.get("column"):
+                return []
+            direction = str(item.get("direction") or "asc").lower()
+            nulls = str(item.get("nulls") or "default").lower()
+            if direction not in ("asc", "desc") or nulls not in ("default", "first", "last"):
+                return []
+            result.append((str(item["column"]).split(".")[-1].lower(), direction, nulls))
+        if result:
+            return result
+    if isinstance(metadata_order, str) and metadata_order.strip():
+        parsed = parse_expected_order_full(metadata_order)
         if parsed:
             return parsed
-    question = ctx.get("question") or ""
-    match = re.search(r"(?i)\bSắp xếp(?:\s+theo)?\s*:?\s*([^\n]+)", question)
-    return parse_expected_order(match.group(1)) if match else []
+    return []
+
+
+def expected_order_specs(ctx):
+    """Backwards-compatible pair form used by tests and older code."""
+    return [(key, direction) for key, direction, _nulls in expected_order_specs_full(ctx)]
 
 
 def ordering_required(ctx):
-    # Explicit metadata False must override loose keyword matches such as 'thứ tự lịch sử'.
-    if ctx.get("ordering_required") is not None:
-        return bool(ctx["ordering_required"])
-    if expected_order_specs(ctx):
-        return True
     question = ctx.get("question") or ""
-    return bool(re.search(r"(?i)\bSắp xếp(?:\s+theo)?\s*:?", question)
-                or re.search(r"(?i)\b(?:order\s+by|tăng dần|giảm dần|từ cao xuống thấp|từ thấp lên cao)\b", question))
+    # The explicit natural-language negation overrides stale/over-broad metadata.
+    if explicit_no_order_requested(question):
+        return False
+    if expected_order_specs_full({**ctx, "ordering_required": None}):
+        return True
+    metadata_value = ctx.get("ordering_required")
+    if isinstance(metadata_value, bool):
+        return metadata_value
+    if isinstance(metadata_value, str):
+        normalized = metadata_value.strip().lower()
+        if normalized in {"false", "0", "no", "none", ""}:
+            return False
+        if normalized in {"true", "1", "yes"}:
+            return True
+    return bool(re.search(r"(?i)\b(?:order\s+by|tăng dần|giảm dần|từ cao xuống thấp|từ thấp lên cao)\b", question))
 
-
-def actual_order_specs(tree):
+def actual_order_specs_full(tree):
     query = tree.get("SelectStmt", {})
     specs = []
     for item in query.get("sortClause") or []:
@@ -274,8 +344,18 @@ def actual_order_specs(tree):
             direction = "desc" if "DESC" in raw_dir.upper() else "asc"
         else:
             direction = {2: "desc"}.get(raw_dir, "asc")  # PostgreSQL default is ASC.
-        specs.append((key, direction))
+        raw_nulls = sort.get("sortby_nulls", 0)
+        if isinstance(raw_nulls, str):
+            nulls = "last" if "LAST" in raw_nulls.upper() else ("first" if "FIRST" in raw_nulls.upper() else "default")
+        else:
+            nulls = {1: "first", 2: "last"}.get(raw_nulls, "default")
+        specs.append((key, direction, nulls))
     return specs
+
+
+def actual_order_specs(tree):
+    """Backwards-compatible pair form."""
+    return [(key, direction) for key, direction, _nulls in actual_order_specs_full(tree)]
 
 
 def decide_mode(tree, question):
@@ -541,6 +621,214 @@ def migration_gaps(conn):
     return gaps
 
 
+# --------------------------------------------------------------------------- normalized query contract
+
+def _question_lines(question):
+    return [line.strip() for line in unicodedata.normalize("NFC", question or "").splitlines() if line.strip()]
+
+
+def build_query_contract(ctx):
+    """Create a review-time structured contract without changing the database schema.
+
+    The question text is authoritative. Metadata is surfaced as helpful structure, not trusted
+    as proof: when it conflicts with the question, semantic audit must flag it for a human.
+    """
+    lines = _question_lines(ctx.get("question", ""))
+    question = ctx.get("question", "")
+    signature = ctx.get("logic_signature") if isinstance(ctx.get("logic_signature"), dict) else {}
+    supplied = ctx.get("metadata_query_contract") if isinstance(ctx.get("metadata_query_contract"), dict) else {}
+    ordering = ordering_required({**ctx, "question": question})
+    order_specs = expected_order_specs_full({**ctx, "question": question}) if ordering else []
+    clauses = {
+        "filter_pattern": signature.get("filter_pattern") or "",
+        "aggregation_pattern": signature.get("aggregation_pattern") or "",
+        "analysis_goal": signature.get("analysis_goal") or "",
+    }
+    edge_lines = [line for line in lines if re.match(r"(?i)^quy tắc biên\s*:", line)]
+    time_lines = [line for line in lines if re.match(r"(?i)^thời gian\s*:", line)]
+    unit_lines = [line for line in lines if re.search(r"(?i)làm tròn|chữ số|đơn vị|triệu đồng|VND|phần trăm|%", line)]
+    return {
+        "contract_version": "1.0",
+        "source_of_truth": "question_text",
+        "question_lines": lines,
+        "required_output_columns": ctx.get("expected_output_columns") or expected_columns_from_text(question),
+        "output_grain": ctx.get("output_grain") or signature.get("output_grain") or signature.get("grain") or "",
+        "central_table": (signature.get("central_table") or supplied.get("central_table") or ""),
+        "table_roles": ctx.get("table_roles") or {},
+        "join_relations": ctx.get("join_relations") or [],
+        "analysis_goal": clauses["analysis_goal"],
+        "filter_pattern": clauses["filter_pattern"],
+        "aggregation_pattern": clauses["aggregation_pattern"],
+        "edge_cases": ctx.get("edge_cases") or edge_lines,
+        "date_time_requirements": time_lines,
+        "rounding_and_unit_requirements": unit_lines,
+        "ordering": {
+            "required": bool(ordering),
+            "keys": [{"column": key, "direction": direction, "nulls": nulls}
+                     for key, direction, nulls in order_specs],
+            "source_line": next((line for line in lines if re.match(r"(?i)^sắp\s+xếp\s*:", line)), ""),
+        },
+        "additional_contract_metadata": supplied,
+        "metadata_consistency_warning": (
+            "Metadata is model-authored and may be incomplete; if it conflicts with the question, do not auto-approve."
+        ),
+    }
+
+
+def order_specs_match(actual, expected):
+    """Require the requested sort as a prefix; allow extra deterministic tie-breakers."""
+    if len(actual) < len(expected):
+        return False
+    for (ak, ad, an), (ek, ed, en) in zip(actual[:len(expected)], expected):
+        if ak != ek or ad != ed:
+            return False
+        if en != "default":
+            effective_actual_nulls = an
+            if an == "default":
+                # PostgreSQL defaults: ASC NULLS LAST, DESC NULLS FIRST.
+                effective_actual_nulls = "last" if ad == "asc" else "first"
+            if effective_actual_nulls != en:
+                return False
+    return True
+
+
+def _split_top_level_commas(text):
+    parts, start, depth = [], 0, 0
+    single = double = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if single:
+            if ch == "'":
+                if i + 1 < len(text) and text[i + 1] == "'":
+                    i += 2
+                    continue
+                single = False
+        elif double:
+            if ch == '"':
+                if i + 1 < len(text) and text[i + 1] == '"':
+                    i += 2
+                    continue
+                double = False
+        elif ch == "'":
+            single = True
+        elif ch == '"':
+            double = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            parts.append(text[start:i].strip())
+            start = i + 1
+        i += 1
+    tail = text[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _split_top_level_keyword(text, keyword):
+    """Split on a SQL keyword only outside parentheses and quoted literals."""
+    parts, start, depth = [], 0, 0
+    single = double = False
+    upper = (text or "").upper()
+    target = keyword.upper()
+    i = 0
+    while i < len(text or ""):
+        ch = text[i]
+        if single:
+            if ch == "'":
+                if i + 1 < len(text) and text[i + 1] == "'":
+                    i += 2
+                    continue
+                single = False
+        elif double:
+            if ch == '"':
+                if i + 1 < len(text) and text[i + 1] == '"':
+                    i += 2
+                    continue
+                double = False
+        elif ch == "'":
+            single = True
+        elif ch == '"':
+            double = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0 and upper.startswith(target, i):
+            before = upper[i - 1] if i else " "
+            after_i = i + len(target)
+            after = upper[after_i] if after_i < len(upper) else " "
+            if not (before.isalnum() or before == "_") and not (after.isalnum() or after == "_"):
+                parts.append(text[start:i].strip())
+                start = after_i
+                i = after_i
+                continue
+        i += 1
+    parts.append((text or "")[start:].strip())
+    return [part for part in parts if part]
+
+
+def _top_level_select_expressions(sql):
+    body = _top_level_clause_body(sql, "SELECT", ("FROM",))
+    expressions = {}
+    for expression in _split_top_level_commas(body):
+        alias = re.search(r"(?is)\s+AS\s+([a-z_][a-z0-9_$]*)\s*$", expression)
+        if alias:
+            expressions[alias.group(1).lower()] = expression[:alias.start()].strip()
+        else:
+            bare = re.search(r"(?is)\s+([a-z_][a-z0-9_$]*)\s*$", expression)
+            if bare and ")" in expression:
+                expressions[bare.group(1).lower()] = expression[:bare.start()].strip()
+            else:
+                ref = re.search(r"(?is)(?:[a-z_][a-z0-9_$]*\.)?([a-z_][a-z0-9_$]*)\s*$", expression)
+                if ref:
+                    expressions[ref.group(1).lower()] = expression
+    return expressions
+
+
+def _outer_function_args(expression, function_name):
+    """Return top-level arguments only when the expression is exactly FUNCTION(...)."""
+    match = re.match(rf"(?is)^\s*{re.escape(function_name)}\s*\(", expression or "")
+    if not match:
+        return []
+    open_paren = expression.find("(", match.start())
+    depth, single, double = 0, False, False
+    close_at = None
+    i = open_paren
+    while i < len(expression):
+        ch = expression[i]
+        if single:
+            if ch == "'":
+                if i + 1 < len(expression) and expression[i + 1] == "'":
+                    i += 2
+                    continue
+                single = False
+        elif double:
+            if ch == '"':
+                if i + 1 < len(expression) and expression[i + 1] == '"':
+                    i += 2
+                    continue
+                double = False
+        elif ch == "'":
+            single = True
+        elif ch == '"':
+            double = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                close_at = i
+                break
+        i += 1
+    if close_at is None or expression[close_at + 1:].strip():
+        return []
+    return _split_top_level_commas(expression[open_paren + 1:close_at])
+
+
 # --------------------------------------------------------------------------- draft context
 
 def draft_context(row):
@@ -562,9 +850,12 @@ def draft_context(row):
     expected_columns = meta_columns or expected_columns_from_text(question)
     ordering_meta = meta.get("ordering_required") if "ordering_required" in meta else None
     order_by = meta.get("order_by") or ""
-    output_grain = meta.get("output_grain") or (meta.get("logic_signature") or {}).get("grain") or ""
-    edge_cases = meta.get("edge_cases") or (meta.get("logic_signature") or {}).get("edge_cases") or ""
-    return {"draft_id": row["draft_id"], "question": question, "difficulty": row["difficulty"],
+    logic_signature = meta.get("logic_signature") or vr.get("logic_signature") or {}
+    output_grain = meta.get("output_grain") or logic_signature.get("output_grain") or logic_signature.get("grain") or ""
+    edge_cases = meta.get("edge_cases") or logic_signature.get("edge_cases") or ""
+    table_roles = meta.get("table_roles") if isinstance(meta.get("table_roles"), dict) else {}
+    join_relations = meta.get("join_relations") if isinstance(meta.get("join_relations"), list) else []
+    ctx = {"draft_id": row["draft_id"], "question": question, "difficulty": row["difficulty"],
             "parent_ids": [p for p in parents if isinstance(p, str)], "examples": [],
             "skill": meta.get("primary_skill_group") or (skills[0] if skills else None),
             "tables_used": tables_used, "schema": schema, "fks": fks, "checks": checks, "rules": rules,
@@ -572,7 +863,11 @@ def draft_context(row):
             "all_checks": [c for t in tables_used if t in defs for c in defs[t].get("checks", [])],
             "expected_output_columns": expected_columns, "ordering_required": ordering_meta,
             "expected_order_by": order_by, "output_grain": output_grain, "edge_cases": edge_cases,
+            "logic_signature": logic_signature, "metadata_query_contract": meta.get("query_contract") or {},
+            "table_roles": table_roles, "join_relations": join_relations,
             "schema_text": row.get("schema_text") or "", "duplicate": vr.get("duplicate") or {}}
+    ctx["query_contract"] = build_query_contract(ctx)
+    return ctx
 
 
 # --------------------------------------------------------------------------- Model B
@@ -590,6 +885,10 @@ def build_solver_prompt(ctx, feedback=None):
             f"- {t}: {c}" for t, cs in ctx["checks"].items() for c in cs))
     if ctx["rules"]:
         parts.append("DATASET BUSINESS RULES:\n" + "\n".join("- " + r for r in ctx["rules"]))
+    if ctx.get("question"):
+        contract = ctx.get("query_contract") or build_query_contract(ctx)
+        parts.append("NORMALIZED QUESTION CONTRACT (derived from the question and available metadata; the wording of the question remains authoritative):\n" +
+                     json.dumps(contract, ensure_ascii=False, indent=2))
     parts.append("SQL RULES:\n" + "\n".join("- " + r for r in (
         "Exactly one PostgreSQL SELECT statement (WITH ... SELECT allowed). No DDL/DML.",
         "Use only the allowed tables and only columns that exist in them. Give every output column an alias.",
@@ -655,12 +954,7 @@ def auditor_format():
 def semantic_audit_prompt(ctx, sql):
     """Build a separate audit prompt; it does not receive the model's sample consensus or answer SQL."""
     contract = {
-        "question": ctx.get("question", ""),
-        "required_output_columns": ctx.get("expected_output_columns") or expected_columns_from_text(ctx.get("question", "")),
-        "ordering_required": ordering_required(ctx),
-        "required_order_by": ctx.get("expected_order_by") or None,
-        "output_grain": ctx.get("output_grain") or None,
-        "edge_cases": ctx.get("edge_cases") or None,
+        "query_contract": ctx.get("query_contract") or build_query_contract(ctx),
         "allowed_tables_and_columns": ctx.get("schema", {}),
         "foreign_keys": ctx.get("fks", []),
         "business_rules": ctx.get("rules", []),
@@ -669,18 +963,65 @@ def semantic_audit_prompt(ctx, sql):
     }
     return ("You are a separate PostgreSQL SQL SEMANTIC AUDITOR. Do not write or repair SQL. "
             "Judge whether candidate_sql implements the Vietnamese question, not whether it parses or executes. "
-            "Read the SQL literally and audit each requirement. Pay special attention to: every WHERE/HAVING "
-            "predicate and threshold; aggregate filters versus total-row counts; NULL handling; joins that can "
+            "Treat question_lines in query_contract as the authoritative requirements. Treat the other metadata as a "
+            "navigation aid only; if it conflicts with question_lines, report needs_human. For every explicit business "
+            "requirement, locate the exact SQL expression that implements it. Pay special attention to a conditional "
+            "threshold such as 'at least 5 delivered orders': HAVING COUNT(*) >= 5 is NOT equivalent to counting only "
+            "delivered orders. A query may run and still be wrong. Read the SQL literally and audit each requirement. "
+            "Pay special attention to: every WHERE/HAVING predicate and threshold; aggregate filters versus total-row counts; NULL handling; joins that can "
             "multiply rows when the requested output grain is one row per entity; EXISTS/NOT EXISTS semantics; "
             "correlated subqueries and alias scope; required output columns/aliases/order; rounding and units; "
             "date/time semantics; and ORDER BY keys/directions/tie-breakers. Do not assume that successful execution "
             "or agreement with another sample means correctness. Return AT LEAST FIVE distinct checks, one for each "
             "of these groups: (1) output columns and aliases, (2) WHERE/HAVING/aggregate thresholds, (3) joins, row "
             "grain, EXISTS and correlated subqueries, (4) NULL/date/rounding/unit edge cases, and (5) ordering and "
-            "tie-breakers. If a group is not applicable, mark it pass only with a concise explanation. If a requirement "
+            "tie-breakers. Each check's requirement field MUST use exactly one of these five labels: "
+            "'output columns and aliases'; 'WHERE/HAVING/aggregate thresholds'; "
+            "'joins, row grain, EXISTS and correlated subqueries'; 'NULL/date/rounding/unit edge cases'; "
+            "'ordering and tie-breakers'. Do not combine groups or repeat a label in place of another group. "
+            "If a group is not applicable, mark it pass only with a concise explanation. If a requirement "
             "is ambiguous, not demonstrably satisfied, or a plausible semantic bug exists, choose needs_human. Use pass "
             "only when all explicit requirements are supported by the SQL. `issues` must be empty for pass. Keep "
             "findings concise and cite the relevant SQL clause.\n\nAUDIT INPUT JSON:\n" + json.dumps(contract, ensure_ascii=False, default=str))
+
+
+def audit_requirement_group(requirement):
+    """Map one auditor check label to exactly one required audit group.
+
+    Do not concatenate all labels and search for keywords: a single vague/duplicated label must
+    not satisfy several independent checks.
+    """
+    label = unicodedata.normalize("NFC", str(requirement or "")).casefold()
+    label = re.sub(r"^\s*\(?[1-5]\)?[.)\-:]\s*", "", label)
+    label = re.sub(r"[^a-z0-9à-ỹ]+", " ", label).strip()
+    aliases = {
+        "output_columns": {
+            "output columns and aliases", "output columns aliases", "required output columns and aliases",
+            "output columns", "columns and aliases",
+        },
+        "filters_aggregates": {
+            "where having aggregate thresholds", "where having aggregation thresholds",
+            "filters and having aggregate thresholds", "filters and aggregate thresholds",
+            "where predicates having and aggregate thresholds",
+        },
+        "joins_grain_subqueries": {
+            "joins row grain exists and correlated subqueries",
+            "joins and row grain exists and correlated subqueries",
+            "joins row grain and subqueries", "joins and row grain", "joins grain exists and subqueries",
+        },
+        "edge_cases": {
+            "null date rounding unit edge cases", "null date rounding units edge cases",
+            "null date rounding and unit edge cases", "null date rounding and units",
+        },
+        "ordering": {
+            "ordering and tie breakers", "ordering tie breakers", "order by and tie breakers",
+            "ordering and tiebreakers",
+        },
+    }
+    for group, labels in aliases.items():
+        if label in labels:
+            return group
+    return None
 
 
 def call_semantic_auditor(config, ctx, sql):
@@ -714,6 +1055,20 @@ def call_semantic_auditor(config, ctx, sql):
     issues = [str(x)[:400] for x in result["issues"] if str(x).strip()]
     if len(result["checks"]) < 5:
         uncertain.append({"finding": "semantic_audit_insufficient_checks"})
+    required_groups = {
+        "output_columns": "audit_group_output_columns_missing",
+        "filters_aggregates": "audit_group_filters_aggregates_missing",
+        "joins_grain_subqueries": "audit_group_joins_grain_subqueries_missing",
+        "edge_cases": "audit_group_edge_cases_missing",
+        "ordering": "audit_group_ordering_missing",
+    }
+    covered_groups = {
+        audit_requirement_group(check.get("requirement"))
+        for check in result["checks"] if isinstance(check, dict)
+    }
+    for group_name, issue in required_groups.items():
+        if group_name not in covered_groups:
+            uncertain.append({"finding": issue})
     if result["verdict"] != "pass" or issues or uncertain:
         result["verdict"] = "needs_human"
         if uncertain:
@@ -731,27 +1086,27 @@ def model_for(index, k, models):
     return models[index * len(models) // k] if models else None
 
 
-def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None, models=None):
+def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None, models=None, feedback=None, seed_offset=0):
     """Moi mau: toi da 1+retries lan goi; chi nhan mau qua guard va chay duoc tren MOI dataset."""
     samples = []
     for index in range(k):
-        feedback, attempts = None, []
+        sample_feedback, attempts = feedback, []
         model = model_for(index, k, models)
         sample = {"index": index, "ok": False, "sql": None, "attempts": attempts, "model": model}
         for attempt in range(retries + 1):
             record = {"attempt": attempt}
             attempts.append(record)
             try:
-                sql, metrics = solver(build_solver_prompt(ctx, feedback), index * 100 + attempt,
+                sql, metrics = solver(build_solver_prompt(ctx, sample_feedback), seed_offset + index * 100 + attempt,
                                       0.0 if index == 0 or (models and model_for(index - 1, k, models) != model) else None, model)
             except SolverOutputError as exc:
-                record["error"] = feedback = f"format: {exc}"
+                record["error"] = sample_feedback = f"format: {exc}"
                 continue
             record["sql"], sample["sql"] = sql, sql
             try:
                 tree, info = guard_sql(sql, ctx["schema"])
             except SQL_ERRORS as exc:
-                record["error"] = feedback = f"guard: {exc}"
+                record["error"] = sample_feedback = f"guard: {exc}"
                 continue
             results = {}
             for ds in datasets:
@@ -759,7 +1114,7 @@ def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None, models
             bad = next(((r, ds) for ds, r in zip(datasets, results.values())
                         if r["status"] != "ok"), None)
             if bad:
-                record["error"] = feedback = f"execution on {bad[1].ref}: {bad[0].get('error')}"
+                record["error"] = sample_feedback = f"execution on {bad[1].ref}: {bad[0].get('error')}"
                 continue
             sample.update(ok=True, tree=tree, info=info, results=results, error=None)
             break
@@ -859,64 +1214,216 @@ def _top_level_clause_body(sql, clause, stop_words=()):
     return sql[start:].strip() if start is not None else ""
 
 
-def explicit_semantic_contract_issues(ctx, sql):
-    """Conservative checks for explicit, machine-detectable requirements in the question.
+def _direct_from_relations(tree):
+    """Return (relation name, alias) pairs from the outer FROM/JOIN only.
 
-    These checks do not try to prove arbitrary SQL correctness. They block a few common,
-    high-impact mismatches where the question states an exact contract.
+    Deliberately stops at subqueries so an EXISTS against a child table is not mistaken for
+    a row-multiplying outer join.
+    """
+    query = tree.get("SelectStmt", tree if isinstance(tree, dict) else {})
+    found = []
+
+    def visit(node):
+        if not isinstance(node, dict):
+            return
+        if "RangeVar" in node:
+            rel = node["RangeVar"]
+            name = str(rel.get("relname") or "").lower()
+            alias = str((rel.get("alias") or {}).get("aliasname") or rel.get("relname") or "").lower()
+            if name:
+                found.append((name, alias))
+            return
+        if "JoinExpr" in node:
+            join = node["JoinExpr"]
+            visit(join.get("larg"))
+            visit(join.get("rarg"))
+            return
+        # RangeSubselect and RangeFunction are not base table relations for this test.
+
+    for node in query.get("fromClause") or []:
+        visit(node)
+    return found
+
+
+def one_to_many_join_grain_issues(ctx, tree, info):
+    """Flag a risky direct many-side join when output grain is a single parent entity.
+
+    Prefer explicit central-table metadata. If absent (as with existing Model A metadata), infer
+    the parent conservatively from (a) an entity-grain contract, (b) selected source aliases, and
+    (c) the existing child->parent foreign-key list. DISTINCT or parent-grain GROUP BY is accepted.
+    This is a review guard, not a proof that every one-to-many join is wrong.
+    """
+    query = tree.get("SelectStmt", tree if isinstance(tree, dict) else {})
+    if not (query.get("fromClause") and info.get("features", {}).get("joins", 0)):
+        return []
+    if query.get("distinctClause"):
+        return []
+
+    signature = ctx.get("logic_signature") if isinstance(ctx.get("logic_signature"), dict) else {}
+    contract = ctx.get("query_contract") if isinstance(ctx.get("query_contract"), dict) else {}
+    grain = str(ctx.get("output_grain") or contract.get("output_grain") or signature.get("output_grain") or signature.get("grain") or "").strip().casefold()
+    if not grain:
+        return []
+    # A singular entity grain can be described in several ways by Model A.
+    singular_grain = bool(re.search(
+        r"^(?:một\s+.+|mỗi\s+.+|one\s+row\s+per\s+.+|one\s+.+|per\s+.+|danh\s+sách\s+(?:các\s+)?[\wÀ-ỹ]+)",
+        grain, re.I))
+    # Do not treat multidimensional/time-bucket grains as one-parent output.
+    compound_or_time_grain = bool(re.search(
+        r"\b(?:và|and|per month|per week|per quarter|per year|theo tháng|theo tuần|theo quý|theo năm)\b",
+        grain, re.I))
+    if not singular_grain or compound_or_time_grain:
+        return []
+
+    relations = _direct_from_relations(tree)
+    tables = {table for table, _alias in relations}
+    if not relations:
+        return []
+    aliases = {alias: table for table, alias in relations}
+
+    # Gather aliases represented in the outer SELECT list. Nested subqueries must not affect the
+    # inferred output grain.
+    target_list = query.get("targetList") or []
+    projected_aliases = set()
+
+    def collect_refs(node):
+        if isinstance(node, dict):
+            if "SelectStmt" in node:
+                return
+            if "ColumnRef" in node:
+                fields = [f["String"]["sval"].lower() for f in node["ColumnRef"].get("fields", []) if "String" in f]
+                if len(fields) >= 2:
+                    projected_aliases.add(fields[-2])
+            for value in node.values():
+                collect_refs(value)
+        elif isinstance(node, list):
+            for value in node:
+                collect_refs(value)
+
+    collect_refs(target_list)
+    projected_tables = {aliases[a] for a in projected_aliases if a in aliases}
+
+    central = str(signature.get("central_table") or contract.get("central_table") or "").lower()
+    # Existing candidate_metadata does not require central_table. Infer it only when every
+    # explicitly qualified output field comes from one joined table that is the FK parent.
+    fk_pattern = re.compile(r"^\s*([A-Za-z_][\w]*)\s*\([^)]*\)\s*->\s*([A-Za-z_][\w]*)\s*\(", re.I)
+    fk_edges = []
+    for fk in ctx.get("fks", []) or []:
+        match = fk_pattern.match(str(fk))
+        if match:
+            child, parent = match.group(1).lower(), match.group(2).lower()
+            if child in tables and parent in tables:
+                fk_edges.append((child, parent))
+    if not central and len(projected_tables) == 1:
+        projected_table = next(iter(projected_tables))
+        if any(parent == projected_table for _child, parent in fk_edges):
+            central = projected_table
+    if not central or central not in tables:
+        return []
+
+    child_tables = {child for child, parent in fk_edges if parent == central}
+    if not child_tables:
+        return []
+
+    # If selected fields explicitly come from a child relation, the result may legitimately be
+    # finer than one row per parent; do not flag it as a parent-grain duplication risk.
+    if any(aliases.get(alias) in child_tables for alias in projected_aliases):
+        return []
+
+    # GROUP BY only establishes parent grain when it does not group by child-side fields.
+    def aliases_in(node):
+        found = set()
+        def visit(value):
+            if isinstance(value, dict):
+                if "SelectStmt" in value:
+                    return
+                if "ColumnRef" in value:
+                    fields = [f["String"]["sval"].lower() for f in value["ColumnRef"].get("fields", []) if "String" in f]
+                    if len(fields) >= 2:
+                        found.add(fields[-2])
+                for sub in value.values():
+                    visit(sub)
+            elif isinstance(value, list):
+                for sub in value:
+                    visit(sub)
+        visit(node)
+        return found
+
+    group_aliases = aliases_in(query.get("groupClause") or [])
+    if query.get("groupClause") and not any(aliases.get(alias) in child_tables for alias in group_aliases):
+        return []
+
+    return ["one_to_many_join_may_duplicate_output_grain"]
+
+
+def explicit_semantic_contract_issues(ctx, sql):
+    """Block high-impact mismatches that are explicit in SQLArena's question format.
+
+    These are deterministic guardrails, not an attempt to prove arbitrary SQL semantics.
+    Unknown patterns are left to the auditor/human instead of being guessed as correct.
     """
     question = unicodedata.normalize("NFC", ctx.get("question") or "")
-    q_lower = question.lower()
+    q_lower = question.casefold()
     sql_text = sql or ""
     issues = []
 
-    # If the question names a column and explicitly says "(loại NULL)", require that
-    # column to be excluded by the top-level WHERE, not merely by a nested subquery.
-    null_match = re.search(
-        r"\b([A-Za-z_][A-Za-z_0-9]*)\s+được\s+gán[^()]*\(\s*loại\s+NULL\s*\)",
+    # Explicit "(loại NULL)" contract tied to a named column, e.g.
+    # "Theo employee_id được gán trên đơn (loại NULL)".
+    null_matches = re.findall(
+        r"\b([A-Za-z_][A-Za-z_0-9]*)\b(?=[^.\n]{0,140}\(\s*loại\s+NULL\s*\))",
         question, re.I)
-    if null_match:
-        col = re.escape(null_match.group(1))
+    if null_matches:
+        # In prose such as "Theo employee_id được gán ...", the last ASCII identifier
+        # before the annotation is the intended column, not the sentence opener "Theo".
+        col = re.escape(null_matches[-1])
         where_body = _top_level_clause_body(sql_text, "WHERE", ("GROUP", "HAVING", "ORDER", "LIMIT", "FETCH"))
         if not re.search(rf"(?i)(?:\b[A-Za-z_][A-Za-z_0-9]*\s*\.\s*)?\b{col}\s+IS\s+NOT\s+NULL\b", where_body):
             issues.append("explicit_null_exclusion_missing")
 
-    # "At least N delivered orders" is a conditional aggregate threshold, not all orders.
+    # A conditional threshold must apply the threshold to a delivered-only aggregate,
+    # not to all rows in the group. Split HAVING's top-level AND predicates so the
+    # delivered condition and numeric threshold must belong to the same predicate.
     threshold = re.search(r"ít nhất\s+(\d+)\s+đơn\s+(?:đã\s+)?delivered\b", q_lower, re.I)
     if threshold:
         n = threshold.group(1)
         having_body = _top_level_clause_body(sql_text, "HAVING", ("ORDER", "LIMIT", "FETCH"))
-        has_delivered_condition = bool(re.search(r"(?i)\bdelivered\b", having_body))
-        has_threshold = bool(re.search(rf"(?:>=\s*{re.escape(n)}\b|\b{re.escape(n)}\s*<=)", having_body))
-        has_aggregate = bool(re.search(r"(?i)\b(?:COUNT|SUM)\s*\(", having_body))
-        if not (has_delivered_condition and has_threshold and has_aggregate):
+        predicates = _split_top_level_keyword(having_body, "AND")
+        matching = False
+        for predicate in predicates:
+            delivered = bool(re.search(r"(?i)\bdelivered\b", predicate))
+            number = bool(re.search(rf"(?:>=\s*{re.escape(n)}\b|\b{re.escape(n)}\s*<=)", predicate))
+            aggregate = bool(re.search(r"(?i)\b(?:COUNT|SUM)\s*\(", predicate))
+            if delivered and number and aggregate:
+                matching = True
+                break
+        if not matching:
             issues.append("conditional_having_threshold_missing_delivered_filter")
 
-    # The question explicitly defines month as a DATE (first day of the month). A raw
-    # date_trunc(...) returns timestamp in PostgreSQL and is a different output contract.
-    if re.search(r"\bmonth\s+là\s+ngày\s+đầu\s+tháng\b", q_lower):
-        has_date_cast = bool(
-            re.search(r"(?is)date_trunc\s*\(\s*'month'\s*,\s*[^)]*\)\s*::\s*date\b", sql_text)
-            or re.search(r"(?is)cast\s*\(\s*date_trunc\s*\(\s*'month'\s*,.*?\)\s+as\s+date\s*\)", sql_text)
-        )
-        if not has_date_cast:
+    # The question says the month value is the first day of the month; SQLArena stores
+    # that contract as a DATE, not a raw PostgreSQL timestamp from date_trunc().
+    if re.search(r"(?i)\bmonth\s+là\s+ngày\s+đầu\s+tháng\b", q_lower):
+        expr = _top_level_select_expressions(sql_text).get("month", "")
+        is_date = bool(re.search(r"(?is)::\s*date\b", expr)
+                        or re.search(r"(?is)\bCAST\s*\(.*?\s+AS\s+DATE\s*\)", expr))
+        if not is_date:
             issues.append("month_output_must_be_date")
 
-    # For explicitly rounded min/max/avg hour columns, require each output metric to be
-    # wrapped in ROUND(metric(...), N), rather than relying on this dataset's current values.
-    rounding = re.search(r"làm tròn[^.\n]*?\b(\d+)\s+chữ số\b", q_lower, re.I)
-    expected = {str(c).lower() for c in (ctx.get("expected_output_columns") or [])}
+    # If output says these hour measures are rounded, verify each aliased expression
+    # has ROUND(expression, requested_precision) at the outermost expression level.
+    rounding = re.search(r"(?i)làm\s+tròn[^.\n]*?\b(\d+)\s+chữ\s+số\b", question)
+    expected = {str(c).lower() for c in (ctx.get("expected_output_columns") or expected_columns_from_text(question))}
     if rounding and {"min_hours", "max_hours", "avg_hours"}.issubset(expected):
-        precision = re.escape(rounding.group(1))
+        precision = rounding.group(1)
+        expressions = _top_level_select_expressions(sql_text)
         for fn, alias in (("MIN", "min_hours"), ("MAX", "max_hours"), ("AVG", "avg_hours")):
-            pattern = rf"(?is)\bROUND\s*\(\s*{fn}\s*\(.*\)\s*,\s*{precision}\s*\)\s+(?:AS\s+)?\b{alias}\b"
-            if not re.search(pattern, sql_text):
+            outer_args = _outer_function_args(expressions.get(alias, ""), "ROUND")
+            if len(outer_args) != 2 or not re.fullmatch(rf"\s*{re.escape(precision)}\s*", outer_args[1]):
                 issues.append(f"required_rounding_missing_{alias}")
 
     return list(dict.fromkeys(issues))
 
-
-def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_human", log=lambda *_: None, models=None, auditor=None):
+def _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action="needs_human", log=lambda *_: None,
+                       models=None, auditor=None, feedback=None, seed_offset=0):
     """Tra ve dict ket qua; khong ghi DB. Fail-closed: thieu bang chung -> khong approved."""
     out = {"draft_id": ctx["draft_id"], "status": None, "reasons": [], "mode": None, "reference_sql": None,
            "samples": [], "testcases": [], "stages": {}, "notes": []}
@@ -926,7 +1433,8 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_hum
         out.update(status="rejected", reasons=pre)
         return out
 
-    samples = solve_samples(ctx, datasets, solver, k, retries, log, models)
+    samples = solve_samples(ctx, datasets, solver, k, retries, log, models,
+                            feedback=feedback, seed_offset=seed_offset)
     out["samples"] = samples
     valid = [s for s in samples if s["ok"]]
     out["stages"]["solve"] = {"passed": len(valid) == k, "valid": len(valid), "k": k}
@@ -946,9 +1454,9 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_hum
             out["stages"]["ordering_contract"] = {"passed": False, "missing_samples": missing_order}
             out.update(status="needs_human", reasons=["required_order_by_missing"])
             return out
-        required_specs = expected_order_specs(ctx)
+        required_specs = expected_order_specs_full(ctx)
         if required_specs:
-            wrong_order = [s["index"] for s in valid if actual_order_specs(s["tree"]) != required_specs]
+            wrong_order = [s["index"] for s in valid if not order_specs_match(actual_order_specs_full(s["tree"]), required_specs)]
             if wrong_order:
                 out["stages"]["ordering_contract"] = {"passed": False, "required": required_specs,
                                                          "mismatched_samples": wrong_order}
@@ -1020,6 +1528,9 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_hum
     if len(datasets) == 1:
         out["notes"].append("Chi co 1 dataset: chua bat duoc dap an dung rieng cho du lieu hien co (hardcode gia tri).")
     contract_issues = explicit_semantic_contract_issues(ctx, selected["sql"])
+    grain_issues = one_to_many_join_grain_issues(ctx, selected["tree"], selected["info"])
+    contract_issues.extend(grain_issues)
+    contract_issues = list(dict.fromkeys(contract_issues))
     out["stages"]["semantic_contract"] = {"passed": not contract_issues, "issues": contract_issues}
     reasons_human.extend(contract_issues)
     out["stages"]["post"] = {"passed": not (reasons_reject or reasons_human),
@@ -1066,6 +1577,87 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_hum
                                  "result_hash": result_hash(res["rows"], mode)})
     out.update(status="approved", reasons=[])
     return out
+
+
+# --------------------------------------------------------------------------- bounded repair loop
+
+_REPAIRABLE_REASONS = {
+    "no_valid_solution", "insufficient_valid_solutions", "consensus_disagreement", "order_disagreement",
+    "required_order_by_missing", "order_by_contract_mismatch", "order_tiebreaker_missing",
+    "output_columns_mismatch", "subquery_alias_shadowing",
+    "explicit_null_exclusion_missing", "conditional_having_threshold_missing_delivered_filter",
+    "one_to_many_join_may_duplicate_output_grain", "month_output_must_be_date", "required_rounding_missing_min_hours", "required_rounding_missing_max_hours",
+    "required_rounding_missing_avg_hours", "semantic_audit_flagged", "skill_s1_has_forbidden_features",
+    "skill_s2_no_join", "skill_s3_no_aggregate", "skill_s4_no_subquery", "skill_s5_no_cte_or_window",
+    "skill_s6_no_recursion_or_layers", "difficulty_easy_exceeded", "tables_mismatch",
+    "hardcoded_id_literal", "unstated_string_literal",
+}
+
+
+def _repair_feedback(result):
+    """Create bounded, actionable feedback; never include the source reference answer."""
+    issues = list(result.get("reasons") or [])
+    stages = result.get("stages") or {}
+    for stage_name in ("ordering_contract", "semantic_contract", "post", "semantic_audit", "consensus", "solve"):
+        stage = stages.get(stage_name)
+        if not isinstance(stage, dict):
+            continue
+        for key in ("reasons", "issues", "mismatches"):
+            value = stage.get(key)
+            if value:
+                issues.append(f"{stage_name}.{key}: {json.dumps(value, ensure_ascii=False, default=str)[:900]}")
+    sql = result.get("reference_sql")
+    if not sql:
+        sql = next((sample.get("sql") for sample in result.get("samples", []) if sample.get("sql")), None)
+    text = [
+        "This is a repair attempt after deterministic checks or semantic audit found issues.",
+        "Rewrite the SQL from the question and contract, rather than preserving the old logic.",
+        "Fix every listed issue. Do not relax the requirement, invent conditions, or return an explanation.",
+        "The question text is authoritative. If a condition is unclear, produce the most literal SQL solution.",
+        "Issues to fix:",
+        *[f"- {issue}" for issue in list(dict.fromkeys(issues))[:20]],
+    ]
+    if sql:
+        text.extend(["Previous candidate SQL (may be wrong):", sql[:3500]])
+    return "\n".join(text)[:6500]
+
+
+def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_human", log=lambda *_: None,
+                 models=None, auditor=None, repair_rounds=0):
+    """Run the review and, if configured, retry a failed candidate at most N times.
+
+    Every repair round regenerates k candidates and re-runs *all* guards, executions,
+    consensus, contracts and semantic audit. A successful audit never overrides a hard-rule failure.
+    """
+    maximum = max(0, min(int(repair_rounds or 0), 2))
+    result = _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action, log, models, auditor)
+    history = []
+    for repair_index in range(maximum):
+        reasons = set(result.get("reasons") or [])
+        # Only repeat candidate-generation failures; structural question errors should remain human/rejected.
+        retryable_status = result.get("status") == "needs_human" or (
+            result.get("status") == "rejected" and reasons == {"no_valid_solution"})
+        if not retryable_status or not (reasons & _REPAIRABLE_REASONS):
+            break
+        feedback = _repair_feedback(result)
+        history.append({"round": repair_index + 1, "prior_status": result.get("status"),
+                        "prior_reasons": sorted(reasons), "feedback": feedback[:1800]})
+        repaired = _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action, log, models, auditor,
+                                      feedback=feedback, seed_offset=(repair_index + 1) * 10000)
+        result = repaired
+        if result.get("status") == "approved":
+            history[-1]["outcome"] = "approved_after_repair"
+            break
+        history[-1]["outcome"] = result.get("status")
+    if history:
+        result.setdefault("stages", {})["repair"] = {"attempted": len(history), "limit": maximum, "history": history,
+                                                      "approved_after_repair": result.get("status") == "approved"}
+        result.setdefault("notes", []).append({"repair_rounds": len(history),
+                                               "approved_after_repair": result.get("status") == "approved"})
+    else:
+        result.setdefault("stages", {})["repair"] = {"attempted": 0, "limit": maximum, "history": [],
+                                                      "approved_after_repair": False}
+    return result
 
 
 # --------------------------------------------------------------------------- persistence
@@ -1127,6 +1719,11 @@ def persist(config, result, datasets):
             log("checklist", audit_stage["passed"], audit_stage.get("issues", []),
                 {"phase": "semantic_audit", "verdict": audit_stage.get("verdict"),
                  "issues": audit_stage.get("issues", []), "checks": audit_stage.get("checks", [])})
+        repair_stage = stages.get("repair") or {}
+        if repair_stage.get("attempted"):
+            log("code_check", bool(repair_stage.get("approved_after_repair")),
+                [] if repair_stage.get("approved_after_repair") else ["repair_did_not_reach_approval"],
+                {"phase": "repair", **repair_stage})
         if result["testcases"]:
             for t in result["testcases"]:
                 conn.execute("INSERT INTO draft.test_cases (draft_id, dataset_ref, dataset_version, compare_mode, reference_sql, "
@@ -1287,7 +1884,8 @@ def cmd_review(config, options):
                 result = review_draft(ctx, datasets, solver, k, config["REVIEW_SAMPLE_RETRIES"],
                                       config["REVIEW_ZERO_VALID_ACTION"],
                                       log=lambda i, s: print(f"  mẫu {i + 1}/{k}: {'OK' if s['ok'] else 'LỖI - ' + str(s.get('error'))[:110]}"),
-                                      models=config["REVIEW_MODELS"], auditor=auditor)
+                                      models=config["REVIEW_MODELS"], auditor=auditor,
+                                      repair_rounds=config["REVIEW_REPAIR_ROUNDS"])
                 if not options.dry_run:
                     persist(config, result, datasets)
             except BaseException:
@@ -1337,7 +1935,9 @@ def source_to_row(src, world):
                                                          "ordering_required": src["metadata"].get("ordering_required"),
                                                          "order_by": src["metadata"].get("order_by", ""),
                                                          "output_grain": src["metadata"].get("output_grain", ""),
-                                                         "edge_cases": src["metadata"].get("edge_cases", "")},
+                                                         "logic_signature": src["metadata"].get("logic_signature", {}),
+                                                         "edge_cases": src["metadata"].get("edge_cases", ""),
+                                                         "query_contract": src["metadata"].get("query_contract", {})},
                                  "duplicate": {}}}
 
 
@@ -1364,9 +1964,10 @@ def cmd_calibrate(config, options):
         ctx = draft_context(source_to_row(src, world))
         ctx["examples"] = pick_examples(pool, ctx, config["REVIEW_FEWSHOT"], evaluated)
         truths = {ds.ref: ds.run(src["reference_sql"]) for ds in datasets}
-        mode = "ordered" if src["metadata"].get("ordering_required") else "unordered"
+        mode = "ordered" if ordering_required(ctx) else "unordered"
         out = review_draft(ctx, datasets, solver, k, config["REVIEW_SAMPLE_RETRIES"], config["REVIEW_ZERO_VALID_ACTION"],
-                           models=config["REVIEW_MODELS"], auditor=auditor)
+                           models=config["REVIEW_MODELS"], auditor=auditor,
+                           repair_rounds=config["REVIEW_REPAIR_ROUNDS"])
         valid = [s for s in out["samples"] if s["ok"]]
         right = [s for s in valid if all(same_result(truths[ds.ref], s["results"][ds.ref], mode) for ds in datasets)]
         if out["status"] == "approved":
@@ -1383,6 +1984,7 @@ def cmd_calibrate(config, options):
                        "mode_differs": bool(out["mode"] and out["mode"] != mode), "notes": out["notes"],
                        "semantic_contract": out["stages"].get("semantic_contract"),
                        "semantic_audit": out["stages"].get("semantic_audit"),
+                       "repair": out["stages"].get("repair"),
                        "sqls": [s["sql"] for s in out["samples"]], "reference_sql": src["reference_sql"]})
         print(f"  {src['question_id']} [{src['difficulty']}/{src['primary_skill_group']}] {outcome} "
               f"(đúng {len(right)}/{k}) {', '.join(out['reasons'])}")
