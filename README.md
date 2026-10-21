@@ -4,6 +4,8 @@ SQLArena AI là pipeline Python dùng LLM để **sinh câu hỏi SQL (Model A)*
 
 > Hướng dẫn này dành cho người clone repo mới trên Windows + PowerShell + pgAdmin 4. Nếu bạn đã có database chứa dữ liệu, hãy đọc phần an toàn dữ liệu trước khi chạy SQL.
 
+> **Backend (job sinh đề, kiểm duyệt, bộ đề tuần, API câu hỏi):** xem [`backend/README.md`](backend/README.md). Tài liệu: [`docs/API.md`](docs/API.md), [`docs/WEEKLY_SETS.md`](docs/WEEKLY_SETS.md), [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md), [`CHANGELOG.md`](CHANGELOG.md). Thư mục `ai/` giữ nguyên là engine mà backend gọi; sự cố của pipeline AI xem [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
+
 ## 1. Kiến trúc nhanh
 
 Gói source dùng để chia sẻ không nên chứa `.git/`, `ai/.env`, `ai/outputs/`, `.venv/` hoặc `__pycache__/`. Các file output và cấu hình cá nhân được tạo lại trên máy chạy; không cần để người khác cài dự án.
