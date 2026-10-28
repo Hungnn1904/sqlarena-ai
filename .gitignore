@@ -1,4 +1,4 @@
-﻿# Secrets
+# Secrets
 .env
 *.env
 !.env.example
@@ -19,3 +19,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Node / Next.js / Tooling
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+.ponytail/
+.serena/
+graphify-out/

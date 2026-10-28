@@ -1,0 +1,264 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-cyan: var(--cyan);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-rose: var(--rose);
+  --color-purple: var(--purple);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+
+  --font-sans: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+:root {
+  --background: #080c14;
+  --foreground: #e2eaf6;
+  --card: #0d1320;
+  --card-foreground: #e2eaf6;
+  --popover: #0d1320;
+  --popover-foreground: #e2eaf6;
+  --primary: #00d4ff;
+  --primary-foreground: #080c14;
+  --secondary: #111827;
+  --secondary-foreground: #e2eaf6;
+  --muted: #111827;
+  --muted-foreground: #5a7298;
+  --accent: #1e2d45;
+  --accent-foreground: #e2eaf6;
+  --destructive: #ff4d6d;
+  --destructive-foreground: #ffffff;
+  --border: #1e2d45;
+  --input: #1e2d45;
+  --ring: #00d4ff;
+  --cyan: #00d4ff;
+  --green: #00e5a0;
+  --amber: #ffb830;
+  --rose: #ff4d6d;
+  --purple: #a78bfa;
+  --surface: #0d1320;
+  --surface2: #111827;
+
+  /* Glow / dim aliases */
+  --cyan-dim: rgba(0,212,255,0.12);
+  --cyan-glow: rgba(0,212,255,0.25);
+  --green-dim: rgba(0,229,160,0.1);
+  --amber-dim: rgba(255,184,48,0.1);
+  --rose-dim: rgba(255,77,109,0.1);
+  --purple-dim: rgba(167,139,250,0.1);
+}
+
+.dark {
+  --background: #080c14;
+  --foreground: #e2eaf6;
+  --card: #0d1320;
+  --card-foreground: #e2eaf6;
+  --popover: #0d1320;
+  --popover-foreground: #e2eaf6;
+  --primary: #00d4ff;
+  --primary-foreground: #080c14;
+  --secondary: #111827;
+  --secondary-foreground: #e2eaf6;
+  --muted: #111827;
+  --muted-foreground: #5a7298;
+  --accent: #1e2d45;
+  --accent-foreground: #e2eaf6;
+  --destructive: #ff4d6d;
+  --destructive-foreground: #ffffff;
+  --border: #1e2d45;
+  --input: #1e2d45;
+  --ring: #00d4ff;
+}
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #00d4ff #0d1320;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* ── GRID BACKGROUND ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── CUSTOM SCROLLBAR (dark, thin, cyan thumb) ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1320;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00d4ff;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00b8e6;
+}
+
+/* ── RANGE INPUT STYLING ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  background: #1e2d45;
+  height: 4px;
+  border-radius: 2px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5px;
+  background: #00d4ff;
+  height: 14px;
+  width: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(0,212,255,0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(0,212,255,0.6);
+}
+
+input[type="range"]::-moz-range-track {
+  background: #1e2d45;
+  height: 4px;
+  border-radius: 2px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  background: #00d4ff;
+  height: 14px;
+  width: 14px;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(0,212,255,0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(0,212,255,0.6);
+}
+
+/* ── GLOW EFFECTS ── */
+.glow-cyan {
+  box-shadow: 0 0 12px var(--cyan-glow);
+}
+.glow-green {
+  box-shadow: 0 0 12px rgba(0,229,160,0.25);
+}
+.glow-amber {
+  box-shadow: 0 0 12px rgba(255,184,48,0.25);
+}
+.glow-rose {
+  box-shadow: 0 0 12px rgba(255,77,109,0.25);
+}
+.glow-purple {
+  box-shadow: 0 0 12px rgba(167,139,250,0.25);
+}
+
+/* ── BACKDROP BLUR UTILITIES ── */
+.backdrop-blur-xs {
+  backdrop-filter: blur(2px);
+}
+
+/* ── SELECTION ── */
+::selection {
+  background: rgba(0, 212, 255, 0.2);
+  color: #e2eaf6;
+}
+
+/* ── SCROLLBAR HIDE UTILITY ── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── PULSE DOT (badge) ── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 2s infinite;
+}
+
+/* ── ENSURE VISIBILITY (override Framer Motion initial opacity:0) ── */
+[style*="opacity:0"],
+[style*="opacity: 0"] {
+  opacity: 1 !important;
+}
+[style*="transform:translateY(10px)"],
+[style*="transform: translateY(10px)"],
+[style*="transform:translateY(-10px)"],
+[style*="transform: translateY(-10px)"],
+[style*="transform:translateY(20px)"],
+[style*="transform: translateY(20px)"],
+[style*="transform:scale(0.9)"],
+[style*="transform: scale(0.9)"] {
+  transform: none !important;
+}

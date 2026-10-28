@@ -240,6 +240,14 @@ DECLARE
           "generated": ""
         },
         {
+          "name": "expected_result",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "identity": "",
+          "generated": ""
+        },
+        {
           "name": "difficulty",
           "type": "character varying(10)",
           "nullable": false,

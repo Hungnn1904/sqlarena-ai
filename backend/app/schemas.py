@@ -64,3 +64,44 @@ class DraftEditBody(BaseModel):
 class RequeueBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     note: str | None = Field(default=None, max_length=500)
+
+
+# ===== Auth, Profile & Submissions (Nguyên + Đạt) =====
+class RegisterBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=5, max_length=255)
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=6, max_length=128)
+    display_name: str | None = Field(default=None, max_length=100)
+
+
+class LoginBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    identifier: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class ProfileUpdateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    display_name: str | None = Field(default=None, max_length=100)
+    bio: str | None = Field(default=None, max_length=1000)
+    avatar_url: str | None = Field(default=None, max_length=500)
+
+
+class PasswordChangeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+class AdminUserUpdateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    role: str | None = Field(default=None, pattern="^(learner|admin)$")
+    status: str | None = Field(default=None, pattern="^(active|locked)$")
+
+
+class SqlRunBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question_id: int
+    sql: str = Field(min_length=1, max_length=20000)
+

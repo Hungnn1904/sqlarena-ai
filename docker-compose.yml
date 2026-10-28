@@ -1,0 +1,93 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: sqlarena-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: sqlarena_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgre:/docker-entrypoint-initdb.d/postgre:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sqlarena-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/sqlarena_app
+      JWT_SECRET: ${JWT_SECRET:-sqlarena-unified-production-secret-key-2026-ptit}
+      ENTERPRISE_DB_HOST: postgres
+      ENTERPRISE_DB_PORT: 5432
+      ENTERPRISE_DB_NAME: enterprise_db
+      ENTERPRISE_DB_USER: sqlarena_ai_ro
+      ENTERPRISE_DB_PASSWORD: ${ENTERPRISE_DB_PASSWORD:-sqlarena_ro}
+      CATALOG_DB_USER: postgres
+      CATALOG_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      ARENA_DB_HOST: postgres
+      ARENA_DB_PORT: 5432
+      ARENA_DB_NAME: sqlarena_db
+      ARENA_DB_USER: postgres
+      ARENA_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "cd backend &&
+             python -m app.cli migrate &&
+             python -m app.cli seed-demo &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sqlarena-worker
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/sqlarena_app
+      JWT_SECRET: ${JWT_SECRET:-sqlarena-unified-production-secret-key-2026-ptit}
+      ENTERPRISE_DB_HOST: postgres
+      ENTERPRISE_DB_PORT: 5432
+      ENTERPRISE_DB_NAME: enterprise_db
+      ENTERPRISE_DB_USER: sqlarena_ai_ro
+      ENTERPRISE_DB_PASSWORD: ${ENTERPRISE_DB_PASSWORD:-sqlarena_ro}
+      CATALOG_DB_USER: postgres
+      CATALOG_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    command: >
+      sh -c "cd backend && python -m app.cli worker"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sqlarena-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

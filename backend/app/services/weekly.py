@@ -249,45 +249,63 @@ def current_set(conn: Connection) -> dict:
     return s
 
 
-def learner_view(conn: Connection) -> dict:
+def learner_view(conn: Connection, user_id: int | None = None) -> dict:
     s = current_set(conn)
     n = q1(conn, "SELECT count(*) AS n FROM live.weekly_set_items WHERE set_id=:s", s=s["set_id"])["n"]
+    solved_n = 0
+    if user_id:
+        solved_n = q1(
+            conn,
+            """SELECT COUNT(DISTINCT sub.question_id) AS n
+               FROM live.submissions sub
+               JOIN live.weekly_set_items i USING (question_id)
+               WHERE i.set_id=:s AND sub.user_id=:u AND sub.submission_status='passed'""",
+            s=s["set_id"],
+            u=user_id,
+        )["n"] or 0
     return {"set_id": s["set_id"], "title": s["title"], "week_start": s["week_start"], "ends_at": ends_at(s["week_start"]),
-            "question_count": n, "solved_count": 0}      # solved_count cần bài nộp (module chấm điểm) — chưa có nguồn dữ liệu
+            "question_count": n, "solved_count": solved_n}
 
 
-def learner_questions(conn: Connection, difficulty, skill_id, solved, search, page: int, size: int) -> dict:
+def learner_questions(conn: Connection, difficulty, skill_id, solved, search, page: int, size: int, user_id: int | None = None) -> dict:
     s = current_set(conn)
-    conds, p = ["i.set_id=:s"], {"s": s["set_id"]}
+    conds, p = ["i.set_id=:s"], {"s": s["set_id"], "u": user_id or 0}
     if difficulty:
         conds.append("qq.difficulty=:d"); p["d"] = difficulty
     if skill_id:
         conds.append("qq.skill_ids @> ARRAY[:k]::int[]"); p["k"] = skill_id
     if search:
         conds.append("qq.title ILIKE :t"); p["t"] = f"%{search}%"
-    if solved is True:                       # chưa có dữ liệu bài nộp: không câu nào được coi là đã giải
-        conds.append("false")
+    if solved is True:
+        conds.append("EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed')")
+    elif solved is False:
+        conds.append("NOT EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed')")
     where = " AND ".join(conds)
     total = q1(conn, f"SELECT count(*) AS n FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE {where}", **p)["n"]
-    rows = q(conn, f"""SELECT i.position, i.is_voided, qq.question_id, qq.title, qq.difficulty, qq.skill_ids
+    rows = q(conn, f"""SELECT i.position, i.is_voided, qq.question_id, qq.title, qq.difficulty, qq.skill_ids,
+                              EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed') AS solved,
+                              (SELECT count(*) FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id) AS attempt_count
                        FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE {where}
                        ORDER BY i.position LIMIT :l OFFSET :o""", l=size, o=(page - 1) * size, **p)
     names = {r["skill_id"]: r["name"] for r in q(conn, "SELECT skill_id, name FROM core.skills")}
     return {"items": [{"question_id": r["question_id"], "position": r["position"], "title": r["title"], "difficulty": r["difficulty"],
-                       "skills": [names[i] for i in r["skill_ids"] if i in names], "solved": False, "is_voided": r["is_voided"]} for r in rows],
+                       "skills": [names[i] for i in r["skill_ids"] if i in names], "solved": bool(r["solved"]), "attempt_count": r["attempt_count"], "is_voided": r["is_voided"]} for r in rows],
             "total": total, "page": page, "page_size": size}
 
 
-def learner_question(conn: Connection, question_id: int) -> dict:
+def learner_question(conn: Connection, question_id: int, user_id: int | None = None) -> dict:
     s = current_set(conn)
-    r = q1(conn, """SELECT qq.question_id, qq.title, qq.question, qq.difficulty, qq.skill_ids, qq.tables_used, qq.schema_text, i.is_voided
-                    FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE i.set_id=:s AND i.question_id=:q""", s=s["set_id"], q=question_id)
+    r = q1(conn, """SELECT qq.question_id, qq.title, qq.question, qq.difficulty, qq.skill_ids, qq.tables_used, qq.schema_text, i.is_voided,
+                           EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed') AS solved,
+                           (SELECT count(*) FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id) AS attempt_count
+                    FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE i.set_id=:s AND i.question_id=:q""",
+           s=s["set_id"], q=question_id, u=user_id or 0)
     if not r:
         raise not_found("Không tìm thấy câu hỏi")          # không thuộc bộ đề đang mở ⇒ 404 (không lộ tồn tại)
     names = {x["skill_id"]: x["name"] for x in q(conn, "SELECT skill_id, name FROM core.skills")}
     return {"question_id": r["question_id"], "title": r["title"], "question": r["question"], "difficulty": r["difficulty"],
             "skills": [names[i] for i in r["skill_ids"] if i in names], "tables_used": r["tables_used"], "schema_text": r["schema_text"],
-            "solved": False, "is_voided": r["is_voided"], "attempt_count": 0}
+            "solved": bool(r["solved"]), "is_voided": r["is_voided"], "attempt_count": r["attempt_count"]}
 
 
 def learner_history(conn: Connection, page: int, size: int) -> dict:

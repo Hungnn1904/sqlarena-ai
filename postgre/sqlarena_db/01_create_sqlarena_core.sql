@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS core.source_questions (
     title text NOT NULL,
     question_text text NOT NULL,
     reference_sql text NOT NULL,
+    expected_result jsonb,
     difficulty character varying(10) NOT NULL,
     primary_skill_group character varying(30) NOT NULL,
     primary_business_domain character varying(100) NOT NULL,
@@ -79,6 +80,10 @@ CREATE INDEX IF NOT EXISTS idx_core_source_questions_difficulty ON core.source_q
 CREATE INDEX IF NOT EXISTS idx_core_source_questions_skill ON core.source_questions (primary_skill_group);
 
 CREATE INDEX IF NOT EXISTS idx_core_source_questions_domain ON core.source_questions (primary_business_domain);
+
+-- Existing sqlarena_db instances also receive the grading result column.
+ALTER TABLE core.source_questions
+    ADD COLUMN IF NOT EXISTS expected_result jsonb;
 
 DO $shape_guard_v2$
 DECLARE
@@ -302,6 +307,14 @@ DECLARE
           "name": "reference_sql",
           "type": "text",
           "nullable": false,
+          "default": null,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "expected_result",
+          "type": "jsonb",
+          "nullable": true,
           "default": null,
           "identity": "",
           "generated": ""

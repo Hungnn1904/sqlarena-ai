@@ -18,7 +18,7 @@ from .config import BACKEND_DIR
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="app.cli")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("migrate"); sub.add_parser("seed"); sub.add_parser("check")
+    sub.add_parser("migrate"); sub.add_parser("seed"); sub.add_parser("seed-demo"); sub.add_parser("check")
     ca = sub.add_parser("create-admin"); ca.add_argument("--email", required=True); ca.add_argument("--username", required=True)
     tk = sub.add_parser("token"); tk.add_argument("--user-id", type=int, required=True)
     wk = sub.add_parser("worker"); wk.add_argument("--once", action="store_true")
@@ -32,6 +32,12 @@ def main(argv=None) -> int:
         from .seed import seed_core
         with begin() as conn:
             print(seed_core(conn))
+        return 0
+    if a.cmd == "seed-demo":
+        from .db import begin
+        from .seed import seed_demo_live
+        with begin() as conn:
+            print(seed_demo_live(conn))
         return 0
     if a.cmd == "create-admin":
         from .db import begin, q1
