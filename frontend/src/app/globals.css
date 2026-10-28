@@ -240,25 +240,107 @@ input[type="range"]::-moz-range-thumb:hover {
 
 /* ── PULSE DOT (badge) ── */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(1.2); }
 }
 .animate-pulse-dot {
-  animation: pulse-dot 2s infinite;
+  animation: pulse-dot 2s ease-in-out infinite;
 }
 
-/* ── ENSURE VISIBILITY (override Framer Motion initial opacity:0) ── */
-[style*="opacity:0"],
-[style*="opacity: 0"] {
-  opacity: 1 !important;
+/* ── DYNAMIC LIGHT & DARK MODE ENGINE (Investor / Studio Grade) ── */
+html.dark body {
+  background-color: #060911;
+  background-image:
+    radial-gradient(at 15% 0%, rgba(14, 165, 233, 0.10) 0px, transparent 45%),
+    radial-gradient(at 85% 5%, rgba(16, 185, 129, 0.08) 0px, transparent 45%);
 }
-[style*="transform:translateY(10px)"],
-[style*="transform: translateY(10px)"],
-[style*="transform:translateY(-10px)"],
-[style*="transform: translateY(-10px)"],
-[style*="transform:translateY(20px)"],
-[style*="transform: translateY(20px)"],
-[style*="transform:scale(0.9)"],
-[style*="transform: scale(0.9)"] {
-  transform: none !important;
+
+html.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --border: #e2e8f0;
+  scrollbar-color: #0284c7 #f1f5f9;
+}
+
+html.light body {
+  background-color: #f4f7fb;
+  color: #0f172a;
+  background-image:
+    radial-gradient(at 12% 0%, rgba(2, 132, 199, 0.09) 0px, transparent 50%),
+    radial-gradient(at 88% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(99, 102, 241, 0.06) 0px, transparent 50%);
+}
+
+html.light body::before {
+  opacity: 0.45;
+  background-image:
+    linear-gradient(#e2e8f0 1px, transparent 1px),
+    linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+}
+
+/* Adaptive surface & typography mapping for Light Mode */
+html.light .bg-\[\#060911\],
+html.light .bg-\[\#070b12\],
+html.light .bg-\[\#080c14\],
+html.light .bg-\[\#0a0f1a\] {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-\[\#090d16\],
+html.light .bg-\[\#090d16\]\/95,
+html.light .bg-\[\#0e1525\] {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+}
+
+html.light .bg-\[\#0d1321\],
+html.light .bg-\[\#0f1624\],
+html.light .bg-\[\#111827\] {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.06);
+}
+
+html.light .bg-\[\#131c2e\],
+html.light .bg-\[\#141f35\],
+html.light .bg-\[\#152036\],
+html.light .bg-\[\#162032\],
+html.light .bg-\[\#162238\] {
+  background-color: #eff6ff !important;
+}
+
+html.light .border-\[\#141d2e\],
+html.light .border-\[\#151d2c\],
+html.light .border-\[\#151f30\],
+html.light .border-\[\#162032\],
+html.light .border-\[\#182235\],
+html.light .border-\[\#192336\],
+html.light .border-\[\#1a2436\],
+html.light .border-\[\#1b2436\],
+html.light .border-\[\#1d283a\],
+html.light .border-\[\#1e2d45\],
+html.light .border-\[\#1f2b42\],
+html.light .border-\[\#22304a\] {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .text-white,
+html.light .text-\[\#e2e8f0\],
+html.light .text-\[\#cbd5e1\] {
+  color: #0f172a !important;
+}
+
+html.light .text-\[\#94a3b8\],
+html.light .text-\[\#8ba3c7\] {
+  color: #475569 !important;
+}
+
+html.light .text-\[\#64748b\],
+html.light .text-\[\#5a7298\] {
+  color: #64748b !important;
+}
+
+html.light .bg-\[\#0284c7\].text-white,
+html.light .bg-emerald-600.text-white {
+  color: #ffffff !important;
 }

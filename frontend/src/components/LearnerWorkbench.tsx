@@ -26,6 +26,7 @@ import {
   runSandboxSql,
   submitGradingSql,
 } from '../lib/api';
+import { useTheme } from './theme-provider';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -67,6 +68,7 @@ export default function LearnerWorkbench({
 }: {
   onSubmissionComplete?: () => void;
 }) {
+  const { theme } = useTheme();
   const [leftMode, setLeftMode] = useState<'problems' | 'schema'>('problems');
   const [weeklyMeta, setWeeklyMeta] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
@@ -544,7 +546,7 @@ export default function LearnerWorkbench({
             <MonacoEditor
               height="260px"
               defaultLanguage="sql"
-              theme="vs-dark"
+              theme={theme === 'light' ? 'light' : 'vs-dark'}
               value={sql}
               onChange={(val) => setSql(val || '')}
               options={{

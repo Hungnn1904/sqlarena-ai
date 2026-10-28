@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import AuthBar from '../components/AuthBar';
+import PitchTourBanner from '../components/PitchTourBanner';
 import LearnerWorkbench from '../components/LearnerWorkbench';
 import { LearnerProgressView, LeaderboardView } from '../components/ProgressAndLeaderboard';
 import AdminPortal from '../components/AdminPortal';
@@ -51,7 +53,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
     status: 'running',
     content: (
       <div className="text-xs text-[#94a3b8] leading-relaxed">
-        Model B độc lập giải lại đề trên Base + Mutant Datasets. Chỉ những đề khớp kết quả thực thi và vượt qua 7 cổng kiểm định mới được tự động duyệt hoặc chuyển sang trạng thái <code className="text-amber-300">needs_human</code> cho Admin.
+        Model B độc lập giải lại đề trên Base + Mutant Datasets. Chỉ những đề khớp kết quả thực thi và vượt qua 7 cổng kiểm định mới được tự động duyệt hoặc chuyển sang trạng thái <code className="text-amber-400">needs_human</code> cho Admin.
       </div>
     ),
   },
@@ -65,7 +67,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
     status: 'completed',
     content: (
       <div className="text-xs text-[#94a3b8] leading-relaxed">
-        Câu hỏi đã duyệt được promote vào <code className="text-emerald-300">live.questions</code> kèm <code className="text-emerald-300">live.test_cases</code>. Học viên làm bài trên Monaco SQL Workbench, chấm điểm tức thì và xếp hạng Tuần/Tháng.
+        Câu hỏi đã duyệt được promote vào <code className="text-emerald-400">live.questions</code> kèm <code className="text-emerald-400">live.test_cases</code>. Học viên làm bài trên Monaco SQL Workbench, chấm điểm tức thì và xếp hạng Tuần/Tháng.
       </div>
     ),
   },
@@ -74,6 +76,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
 export default function HomeClient() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<string>('workbench');
+  const [pitchOpen, setPitchOpen] = useState<boolean>(true);
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
@@ -109,8 +112,23 @@ export default function HomeClient() {
     setUser(null);
   };
 
+  const handlePitchAction = async (targetTab: string, targetRole?: 'learner' | 'admin') => {
+    if (targetRole === 'admin' && user?.role !== 'admin') {
+      try {
+        const res = await loginUser('admin', 'admin123');
+        handleAuthSuccess(res.access_token, res.user);
+      } catch {}
+    } else if (targetRole === 'learner' && user?.role === 'admin') {
+      try {
+        const res = await loginUser('nguyen_ptit', 'demo123');
+        handleAuthSuccess(res.access_token, res.user);
+      } catch {}
+    }
+    setActiveTab(targetTab);
+  };
+
   return (
-    <div className="min-h-screen bg-[#060911] text-[#e2e8f0] flex flex-col">
+    <div className="min-h-screen bg-[#060911] text-[#e2e8f0] flex flex-col transition-colors duration-300">
       <AuthBar
         user={user}
         activeTab={activeTab}
@@ -118,32 +136,48 @@ export default function HomeClient() {
         onAuthSuccess={handleAuthSuccess}
         onLogout={handleLogout}
         onUserUpdated={setUser}
+        pitchOpen={pitchOpen}
+        onTogglePitch={() => setPitchOpen((p) => !p)}
       />
 
-      <main className="flex-1 max-w-[1520px] w-full mx-auto px-5 py-5">
+      <PitchTourBanner
+        open={pitchOpen}
+        onClose={() => setPitchOpen(false)}
+        onSelectStepAction={handlePitchAction}
+      />
+
+      <main className="flex-1 max-w-[1520px] w-full mx-auto px-5 py-5 relative z-10">
         {booting ? (
           <div className="p-12 text-center text-xs font-mono text-[#64748b]">
             Initializing PostgreSQL 17 Enterprise Sandbox & Unified API...
           </div>
         ) : (
-          <>
-            {activeTab === 'workbench' && <LearnerWorkbench />}
-            {activeTab === 'progress' && <LearnerProgressView />}
-            {activeTab === 'leaderboard' && <LeaderboardView />}
-            {activeTab === 'admin' && <AdminPortal isAdmin={user?.role === 'admin'} />}
-            {activeTab === 'pipeline' && (
-              <div className="space-y-8">
-                <PipelineTimeline steps={PIPELINE_STEPS} />
-                <FlowDiagram />
-                <ComparisonTable />
-                <ScheduleGrid />
-              </div>
-            )}
-          </>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+            >
+              {activeTab === 'workbench' && <LearnerWorkbench />}
+              {activeTab === 'progress' && <LearnerProgressView />}
+              {activeTab === 'leaderboard' && <LeaderboardView />}
+              {activeTab === 'admin' && <AdminPortal isAdmin={user?.role === 'admin'} />}
+              {activeTab === 'pipeline' && (
+                <div className="space-y-8">
+                  <PipelineTimeline steps={PIPELINE_STEPS} />
+                  <FlowDiagram />
+                  <ComparisonTable />
+                  <ScheduleGrid />
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         )}
       </main>
 
-      <footer className="border-t border-[#151d2c] bg-[#060911] py-3.5 px-5 text-xs text-[#64748b] font-mono">
+      <footer className="border-t border-[#151d2c] bg-[#060911] py-3.5 px-5 text-xs text-[#64748b] font-mono relative z-10">
         <div className="max-w-[1520px] mx-auto flex flex-wrap items-center justify-between gap-2">
           <span>SQLArena Platform · Design v7 Clean Architecture</span>
           <span>PostgreSQL 17 Read-Only Sandbox · FastAPI · Next.js 16</span>

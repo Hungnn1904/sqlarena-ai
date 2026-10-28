@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   Database,
   Terminal,
@@ -11,8 +12,12 @@ import {
   User,
   LogOut,
   ArrowRightLeft,
+  Sun,
+  Moon,
+  Presentation,
   X,
 } from 'lucide-react';
+import { useTheme } from './theme-provider';
 import {
   UserProfile,
   loginUser,
@@ -28,6 +33,8 @@ interface AuthBarProps {
   onAuthSuccess: (token: string, user: UserProfile) => void;
   onLogout: () => void;
   onUserUpdated: (user: UserProfile) => void;
+  pitchOpen?: boolean;
+  onTogglePitch?: () => void;
 }
 
 export default function AuthBar({
@@ -37,7 +44,10 @@ export default function AuthBar({
   onAuthSuccess,
   onLogout,
   onUserUpdated,
+  pitchOpen,
+  onTogglePitch,
 }: AuthBarProps) {
+  const { theme, toggleTheme } = useTheme();
   const [modal, setModal] = useState<'none' | 'login' | 'register' | 'profile'>('none');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -224,12 +234,19 @@ export default function AuthBar({
                   <button
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
-                    className={`group flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition ${
+                    className={`relative group flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition ${
                       active
-                        ? 'bg-[#152036] text-white border border-[#293b5f]'
-                        : 'text-[#94a3b8] hover:text-white hover:bg-[#111827] border border-transparent'
+                        ? 'text-white'
+                        : 'text-[#94a3b8] hover:text-white hover:bg-[#111827]'
                     }`}
                   >
+                    {active && (
+                      <motion.span
+                        layoutId="activeNavTab"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        className="absolute inset-0 rounded-md bg-[#152036] border border-[#293b5f] -z-10"
+                      />
+                    )}
                     <Icon
                       className={`w-3.5 h-3.5 ${
                         active ? 'text-[#38bdf8]' : 'text-[#64748b] group-hover:text-[#94a3b8]'
@@ -242,8 +259,45 @@ export default function AuthBar({
             </nav>
           </div>
 
-          {/* Right Account Controls */}
-          <div className="flex items-center gap-2.5">
+          {/* Right Account + Pitch + Theme Controls */}
+          <div className="flex items-center gap-2">
+            {onTogglePitch && (
+              <button
+                onClick={onTogglePitch}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition ${
+                  pitchOpen
+                    ? 'bg-[#0284c7] text-white border-[#38bdf8]'
+                    : 'bg-[#111827] hover:bg-[#172033] text-[#cbd5e1] border-[#1f2b42]'
+                }`}
+                title="Mở kịch bản trình chiếu & hướng dẫn sử dụng"
+              >
+                <Presentation className="w-3.5 h-3.5 text-[#38bdf8]" />
+                <span className="hidden xl:inline">Pitch & Hướng dẫn</span>
+              </button>
+            )}
+
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#111827] hover:bg-[#172033] border border-[#1f2b42] text-xs font-mono text-[#cbd5e1] transition"
+              title="Chuyển đổi giao diện Sáng / Tối"
+            >
+              <motion.span
+                key={theme}
+                initial={{ rotate: -45, opacity: 0, scale: 0.7 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                transition={{ duration: 0.25 }}
+                className="flex items-center"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5 text-sky-500" />
+                )}
+              </motion.span>
+              <span className="hidden md:inline">
+                {theme === 'dark' ? 'Light' : 'Dark'}
+              </span>
+            </button>
             {user ? (
               <div className="flex items-center gap-2">
                 <button
