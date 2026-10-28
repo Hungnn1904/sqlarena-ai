@@ -425,3 +425,49 @@ html.light .bg-\[\#0284c7\].text-white,
 html.light .bg-emerald-600.text-white {
   color: #ffffff !important;
 }
+
+/* ── EMIL KOWALSKI MOTION ENGINEERING & MICRO-INTERACTIONS ── */
+:root {
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+button:not(:disabled) {
+  transition:
+    transform 150ms var(--ease-out-strong),
+    background-color 160ms var(--ease-out-strong),
+    border-color 160ms var(--ease-out-strong),
+    color 160ms var(--ease-out-strong),
+    box-shadow 160ms var(--ease-out-strong);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.card-interactive {
+  transition:
+    transform 220ms var(--ease-out-strong),
+    box-shadow 220ms var(--ease-out-strong),
+    border-color 220ms var(--ease-out-strong);
+}
+
+html.light .card-interactive:hover {
+  border-color: #93c5fd !important;
+  box-shadow: 0 12px 28px -8px rgba(2, 132, 199, 0.14) !important;
+}
+
+html.dark .card-interactive:hover {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 12px 30px -8px rgba(14, 165, 233, 0.22) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

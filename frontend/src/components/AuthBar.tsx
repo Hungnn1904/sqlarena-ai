@@ -278,24 +278,24 @@ export default function AuthBar({
 
             <button
               onClick={toggleTheme}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#111827] hover:bg-[#172033] border border-[#1f2b42] text-xs font-mono text-[#cbd5e1] transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#111827] hover:bg-[#172033] border border-[#1f2b42] text-xs font-mono text-[#cbd5e1] transition shadow-xs"
               title="Chuyển đổi giao diện Sáng / Tối"
             >
               <motion.span
                 key={theme}
-                initial={{ rotate: -45, opacity: 0, scale: 0.7 }}
+                initial={{ rotate: -65, opacity: 0, scale: 0.65 }}
                 animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                transition={{ duration: 0.25 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 22 }}
                 className="flex items-center"
               >
-                {theme === 'dark' ? (
-                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                {theme === 'light' ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
                 ) : (
-                  <Moon className="w-3.5 h-3.5 text-sky-500" />
+                  <Moon className="w-3.5 h-3.5 text-sky-400" />
                 )}
               </motion.span>
-              <span className="hidden md:inline">
-                {theme === 'dark' ? 'Light' : 'Dark'}
+              <span className="hidden md:inline font-medium">
+                {theme === 'light' ? 'Sáng (Daylight)' : 'Tối (Cobalt)'}
               </span>
             </button>
             {user ? (

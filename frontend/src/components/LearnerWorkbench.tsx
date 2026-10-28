@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
   Send,
@@ -282,22 +283,36 @@ export default function LearnerWorkbench({
 
             {/* Problem Items List */}
             <div className="flex-1 overflow-y-auto divide-y divide-[#162032]">
-              {questions.map((q) => {
+              {questions.map((q, idx) => {
                 const dm = DIFF_META[q.difficulty] || DIFF_META[1];
                 const active = q.question_id === selectedId;
                 return (
-                  <button
+                  <motion.button
                     key={q.question_id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.2,
+                      delay: Math.min(idx * 0.025, 0.25),
+                      ease: [0.23, 1, 0.32, 1],
+                    }}
                     onClick={() => setSelectedId(q.question_id)}
-                    className={`w-full text-left px-3.5 py-3 transition flex items-start gap-3 ${
+                    className={`relative w-full text-left px-3.5 py-3 transition-colors flex items-start gap-3 ${
                       active
-                        ? 'bg-[#141f35] border-l-2 border-l-[#38bdf8]'
+                        ? 'bg-[#141f35]'
                         : 'hover:bg-[#101829]'
                     }`}
                   >
+                    {active && (
+                      <motion.span
+                        layoutId="activeProblemBar"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#0284c7] to-emerald-500"
+                      />
+                    )}
                     <div className="mt-0.5">
                       {q.solved ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                       ) : (
                         <span className="w-4 h-4 rounded-full border border-[#334155] block shrink-0" />
                       )}
@@ -335,7 +350,7 @@ export default function LearnerWorkbench({
                         })}
                       </div>
                     </div>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -376,39 +391,47 @@ export default function LearnerWorkbench({
                     </span>
                   </div>
 
-                  {isExp && (
-                    <div className="bg-[#080c14] px-4 py-2.5 border-t border-[#162032] space-y-1.5">
-                      <div className="flex justify-end mb-1">
-                        <button
-                          onClick={() =>
-                            setSql(`SELECT *\nFROM ${tb.table}\nLIMIT 20;`)
-                          }
-                          className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#162238] hover:bg-[#1e2f4d] text-[#38bdf8] border border-[#263a5e]"
-                        >
-                          Chèn SELECT * FROM {tb.table}
-                        </button>
-                      </div>
-                      {(tb.columns || []).map((c: any) => (
-                        <div
-                          key={c.name}
-                          className="flex items-center justify-between text-[11px] font-mono py-0.5"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[#cbd5e1]">{c.name}</span>
-                            {c.primary_key && (
-                              <span className="text-[9px] px-1 rounded bg-amber-950/70 text-amber-300 border border-amber-800/50">
-                                PK
-                              </span>
-                            )}
-                            {!c.nullable && !c.primary_key && (
-                              <span className="text-[9px] text-[#475569]">NOT NULL</span>
-                            )}
-                          </div>
-                          <span className="text-[#64748b]">{c.postgres_type}</span>
+                  <AnimatePresence initial={false}>
+                    {isExp && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                        className="bg-[#080c14] px-4 py-2.5 border-t border-[#162032] space-y-1.5 overflow-hidden"
+                      >
+                        <div className="flex justify-end mb-1">
+                          <button
+                            onClick={() =>
+                              setSql(`SELECT *\nFROM ${tb.table}\nLIMIT 20;`)
+                            }
+                            className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#162238] hover:bg-[#1e2f4d] text-[#38bdf8] border border-[#263a5e]"
+                          >
+                            Chèn SELECT * FROM {tb.table}
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        {(tb.columns || []).map((c: any) => (
+                          <div
+                            key={c.name}
+                            className="flex items-center justify-between text-[11px] font-mono py-0.5"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[#cbd5e1]">{c.name}</span>
+                              {c.primary_key && (
+                                <span className="text-[9px] px-1 rounded bg-amber-950/70 text-amber-300 border border-amber-800/50">
+                                  PK
+                                </span>
+                              )}
+                              {!c.nullable && !c.primary_key && (
+                                <span className="text-[9px] text-[#475569]">NOT NULL</span>
+                              )}
+                            </div>
+                            <span className="text-[#64748b]">{c.postgres_type}</span>
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })}
@@ -420,7 +443,13 @@ export default function LearnerWorkbench({
       <section className="lg:col-span-8 flex flex-col gap-4">
         {/* Upper Card: Problem Specification */}
         {questionDetail ? (
-          <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+          <motion.div
+            key={questionDetail.question_id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+            className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden card-interactive"
+          >
             {/* Metadata Header Bar */}
             <div className="px-5 py-3 bg-[#090d16] border-b border-[#1d283a] flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 text-xs font-mono">
@@ -499,7 +528,7 @@ export default function LearnerWorkbench({
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         ) : (
           <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg p-8 text-center text-xs font-mono text-[#64748b]">
             Đang nạp đặc tả bài toán...

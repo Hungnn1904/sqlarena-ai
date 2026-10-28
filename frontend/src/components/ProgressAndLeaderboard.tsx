@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   CheckCircle2,
   XCircle,
@@ -124,12 +125,20 @@ export function LearnerProgressView() {
         </div>
 
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {skills.map((sk: any) => {
+          {skills.map((sk: any, idx: number) => {
             const pct = sk.percent || 0;
             return (
-              <div
+              <motion.div
                 key={sk.skill_id}
-                className="p-4 rounded-md bg-[#090d16] border border-[#192336] flex flex-col justify-between"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -3 }}
+                transition={{
+                  duration: 0.22,
+                  delay: idx * 0.04,
+                  ease: [0.23, 1, 0.32, 1],
+                }}
+                className="p-4 rounded-md bg-[#090d16] border border-[#192336] flex flex-col justify-between card-interactive"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
@@ -148,13 +157,15 @@ export function LearnerProgressView() {
                   </p>
                 </div>
 
-                <div className="w-full h-1.5 rounded-full bg-[#162032] overflow-hidden">
-                  <div
-                    className="h-full bg-[#38bdf8] transition-all duration-300"
-                    style={{ width: `${Math.min(100, pct)}%` }}
+                <div className="w-full h-2 rounded-full bg-[#162032] overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, pct)}%` }}
+                    transition={{ type: 'spring', stiffness: 110, damping: 18, delay: 0.1 + idx * 0.05 }}
+                    className="h-full bg-gradient-to-r from-[#0284c7] to-emerald-500"
                   />
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -311,9 +322,13 @@ export function LeaderboardView() {
               'bg-orange-500/15 text-orange-300 border-orange-500/40',
             ];
             return (
-              <div
+              <motion.div
                 key={r.user_id}
-                className={`border rounded-lg p-4 ${borderColors[idx] || borderColors[1]}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -4 }}
+                transition={{ duration: 0.22, delay: idx * 0.05, ease: [0.23, 1, 0.32, 1] }}
+                className={`border rounded-lg p-4 card-interactive ${borderColors[idx] || borderColors[1]}`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <span
@@ -347,7 +362,7 @@ export function LeaderboardView() {
                     {r.total_score} pts
                   </span>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
