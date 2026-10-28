@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:17-alpine
@@ -10,15 +8,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: sqlarena_app
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./postgre:/docker-entrypoint-initdb.d/postgre:ro
+      - ./postgre:/sqlarena-postgre:ro
+      - ./postgre/init-docker-db.sh:/docker-entrypoint-initdb.d/00_init_all.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sqlarena_app && pg_isready -U postgres -d enterprise_db"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
 
   backend:
     build:
@@ -37,6 +36,9 @@ services:
       ENTERPRISE_DB_NAME: enterprise_db
       ENTERPRISE_DB_USER: sqlarena_ai_ro
       ENTERPRISE_DB_PASSWORD: ${ENTERPRISE_DB_PASSWORD:-sqlarena_ro}
+      CATALOG_DB_HOST: postgres
+      CATALOG_DB_PORT: 5432
+      CATALOG_DB_NAME: enterprise_db
       CATALOG_DB_USER: postgres
       CATALOG_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       ARENA_DB_HOST: postgres
@@ -46,7 +48,7 @@ services:
       ARENA_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
     ports:
-      - "8000:8000"
+      - "${BACKEND_HOST_PORT:-8000}:8000"
     command: >
       sh -c "cd backend &&
              python -m app.cli migrate &&
@@ -70,6 +72,9 @@ services:
       ENTERPRISE_DB_NAME: enterprise_db
       ENTERPRISE_DB_USER: sqlarena_ai_ro
       ENTERPRISE_DB_PASSWORD: ${ENTERPRISE_DB_PASSWORD:-sqlarena_ro}
+      CATALOG_DB_HOST: postgres
+      CATALOG_DB_PORT: 5432
+      CATALOG_DB_NAME: enterprise_db
       CATALOG_DB_USER: postgres
       CATALOG_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
@@ -85,9 +90,9 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://127.0.0.1:8000}
     ports:
-      - "3000:3000"
+      - "${FRONTEND_HOST_PORT:-3000}:3000"
 
 volumes:
   pgdata:
