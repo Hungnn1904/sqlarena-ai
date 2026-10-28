@@ -127,18 +127,18 @@ export default function PitchTourBanner({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -14 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="border-b border-[#1d283a] bg-gradient-to-r from-[#0b1324] via-[#0f1a30] to-[#0b1324]"
+          className="pitch-banner-surface border-b border-[#1d283a] bg-gradient-to-r from-[#13203d] via-[#1a2c54] to-[#13203d]"
         >
           <div className="max-w-[1520px] mx-auto px-5 py-4">
             {/* Top Stepper Row */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-3 border-b border-[#1e2d47]">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-3 border-b border-[#263859]">
               <div className="flex items-center gap-2.5">
-                <span className="p-1.5 rounded bg-sky-500/15 border border-sky-500/30 text-[#38bdf8]">
+                <span className="p-1.5 rounded bg-sky-500/20 border border-sky-400/40 text-[#0284c7] dark:text-[#38bdf8]">
                   <Presentation className="w-4 h-4" />
                 </span>
                 <div>
                   <div className="text-xs font-semibold text-white">
-                     kịch bản Trình chiếu & Hướng dẫn (Investor / Reviewer Pitch Guide)
+                    Kịch bản Trình chiếu & Hướng dẫn (Investor / Reviewer Pitch Guide)
                   </div>
                   <div className="text-[11px] font-mono text-[#94a3b8]">
                     Bấm qua từng bước để tự động chuyển quyền & màn hình minh họa trực tiếp

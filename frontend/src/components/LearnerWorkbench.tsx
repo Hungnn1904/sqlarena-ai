@@ -317,14 +317,22 @@ export default function LearnerWorkbench({
                         {q.title}
                       </div>
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        {(q.skills || []).map((sk: any) => (
-                          <span
-                            key={sk.code}
-                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#090d16] text-[#94a3b8] border border-[#1d283a]"
-                          >
-                            {sk.code} · {sk.name}
-                          </span>
-                        ))}
+                        {(q.skills || []).map((sk: any, sIdx: number) => {
+                          const label =
+                            typeof sk === 'string'
+                              ? sk
+                              : sk?.code && sk?.name
+                              ? `${sk.code} · ${sk.name}`
+                              : sk?.name || sk?.code || 'SQL Core';
+                          return (
+                            <span
+                              key={`${q.question_id}-sk-${sIdx}`}
+                              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#090d16] text-[#94a3b8] border border-[#1d283a]"
+                            >
+                              {label}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   </button>

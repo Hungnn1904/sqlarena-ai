@@ -28,9 +28,10 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${syne.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
+      suppressHydrationWarning
+      className={`${syne.variable} ${jetbrainsMono.variable} light h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
       </body>
     </html>
