@@ -426,6 +426,128 @@ html.light .bg-emerald-600.text-white {
   color: #ffffff !important;
 }
 
+/* ── HYBRID ALTERNATING LIGHT/DARK STUDIO ENGINE ("Sáng - Tối Luân Phiên") ──
+   In html.hybrid:
+   - Page Canvas, Left Problem Rail, Problem Specification Card, Analytics & Leaderboard = Crisp Daylight White (#ffffff / #f1f5f9)
+   - Top Command Header (.command-header), Pitch Tour Banner (.pitch-banner-surface), & SQL Studio IDE (.dark-zone-hybrid) = Luminous Cobalt Dark (#0f172a / #131e36)
+*/
+html.hybrid .command-header {
+  background-color: rgba(15, 23, 42, 0.96) !important;
+  border-bottom-color: #1e293b !important;
+}
+
+html.hybrid .command-header .bg-\[\#060911\] {
+  background-color: #090e1a !important;
+}
+
+html.hybrid .command-header .bg-\[\#111827\] {
+  background-color: #1e293b !important;
+  box-shadow: none !important;
+}
+
+html.hybrid .command-header .bg-\[\#131c2e\],
+html.hybrid .command-header .bg-\[\#152036\] {
+  background-color: #1e3a5f !important;
+}
+
+html.hybrid .command-header .border-\[\#151d2c\],
+html.hybrid .command-header .border-\[\#1b2436\],
+html.hybrid .command-header .border-\[\#1f2b42\],
+html.hybrid .command-header .border-\[\#22304a\],
+html.hybrid .command-header .border-\[\#26334d\],
+html.hybrid .command-header .border-\[\#293b5f\] {
+  border-color: #334155 !important;
+}
+
+html.hybrid .command-header .text-white,
+html.hybrid .command-header .text-\[\#e2e8f0\],
+html.hybrid .command-header .text-\[\#cbd5e1\] {
+  color: #f8fafc !important;
+}
+
+html.hybrid .command-header .text-\[\#94a3b8\] {
+  color: #cbd5e1 !important;
+}
+
+html.hybrid .command-header .text-\[\#64748b\] {
+  color: #94a3b8 !important;
+}
+
+html.hybrid .command-header .text-\[\#38bdf8\] {
+  color: #38bdf8 !important;
+}
+
+html.hybrid .pitch-banner-surface {
+  background: linear-gradient(90deg, #0f172a 0%, #172554 50%, #0f172a 100%) !important;
+  border-bottom-color: #1e3a8a !important;
+}
+
+html.hybrid .pitch-banner-surface .bg-\[\#090d16\],
+html.hybrid .pitch-banner-surface .bg-\[\#090d16\]\/90 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+}
+
+html.hybrid .pitch-banner-surface .border-\[\#1d283a\],
+html.hybrid .pitch-banner-surface .border-\[\#1e2d47\],
+html.hybrid .pitch-banner-surface .border-\[\#263859\] {
+  border-color: #334155 !important;
+}
+
+html.hybrid .pitch-banner-surface .text-white,
+html.hybrid .pitch-banner-surface .text-\[\#cbd5e1\] {
+  color: #f8fafc !important;
+}
+
+html.hybrid .pitch-banner-surface .text-\[\#94a3b8\],
+html.hybrid .pitch-banner-surface .text-\[\#64748b\] {
+  color: #cbd5e1 !important;
+}
+
+html.hybrid .pitch-banner-surface .text-\[\#38bdf8\] {
+  color: #38bdf8 !important;
+}
+
+html.hybrid .dark-zone-hybrid {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  box-shadow: 0 12px 32px -8px rgba(15, 23, 42, 0.25) !important;
+}
+
+html.hybrid .dark-zone-hybrid .bg-\[\#070b12\],
+html.hybrid .dark-zone-hybrid .bg-\[\#090d16\],
+html.hybrid .dark-zone-hybrid .bg-\[\#0d1321\],
+html.hybrid .dark-zone-hybrid .bg-\[\#0e1525\] {
+  background-color: #0f172a !important;
+}
+
+html.hybrid .dark-zone-hybrid .bg-\[\#111827\],
+html.hybrid .dark-zone-hybrid .bg-\[\#162238\] {
+  background-color: #1e293b !important;
+}
+
+html.hybrid .dark-zone-hybrid .border-\[\#141d2e\],
+html.hybrid .dark-zone-hybrid .border-\[\#1a2436\],
+html.hybrid .dark-zone-hybrid .border-\[\#1d283a\],
+html.hybrid .dark-zone-hybrid .border-\[\#22304a\],
+html.hybrid .dark-zone-hybrid .border-\[\#293f66\] {
+  border-color: #334155 !important;
+}
+
+html.hybrid .dark-zone-hybrid .text-white,
+html.hybrid .dark-zone-hybrid .text-\[\#e2e8f0\],
+html.hybrid .dark-zone-hybrid .text-\[\#cbd5e1\] {
+  color: #f8fafc !important;
+}
+
+html.hybrid .dark-zone-hybrid .text-\[\#94a3b8\],
+html.hybrid .dark-zone-hybrid .text-\[\#64748b\] {
+  color: #94a3b8 !important;
+}
+
+html.hybrid .dark-zone-hybrid .text-\[\#38bdf8\] {
+  color: #38bdf8 !important;
+}
+
 /* ── EMIL KOWALSKI MOTION ENGINEERING & MICRO-INTERACTIONS ── */
 :root {
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);

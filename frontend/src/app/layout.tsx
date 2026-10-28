@@ -29,7 +29,7 @@ export default function RootLayout({
     <html
       lang="vi"
       suppressHydrationWarning
-      className={`${syne.variable} ${jetbrainsMono.variable} light h-full antialiased`}
+      className={`${syne.variable} ${jetbrainsMono.variable} light hybrid h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
         <Providers>{children}</Providers>

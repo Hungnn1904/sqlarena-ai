@@ -536,7 +536,7 @@ export default function LearnerWorkbench({
         )}
 
         {/* Lower Card: Studio SQL Editor & Multi-Tab Execution Console */}
-        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+        <div className="dark-zone-hybrid bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden card-interactive">
           {/* Editor Action Bar */}
           <div className="px-4 py-2.5 bg-[#090d16] border-b border-[#1d283a] flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-mono text-[#94a3b8]">

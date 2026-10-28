@@ -154,7 +154,7 @@ export default function AuthBar({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#090d16]/95 backdrop-blur-md border-b border-[#1b2436]">
+      <header className="command-header sticky top-0 z-40 bg-[#090d16]/95 backdrop-blur-md border-b border-[#1b2436]">
         {/* Top Engineering Telemetry Bar */}
         <div className="border-b border-[#151d2c] bg-[#060911] px-5 py-1.5">
           <div className="max-w-[1520px] mx-auto flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-[#64748b]">
@@ -226,7 +226,7 @@ export default function AuthBar({
               </div>
             </div>
 
-            <nav className="flex items-center gap-1 overflow-x-auto">
+            <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
               {tabs.map((t) => {
                 const Icon = t.icon;
                 const active = activeTab === t.id;
@@ -279,7 +279,7 @@ export default function AuthBar({
             <button
               onClick={toggleTheme}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#111827] hover:bg-[#172033] border border-[#1f2b42] text-xs font-mono text-[#cbd5e1] transition shadow-xs"
-              title="Chuyển đổi giao diện Sáng / Tối"
+              title="Bấm để luân phiên 3 chế độ: Đan xen Sáng-Tối -> Sáng Toàn Bộ -> Tối Cobalt"
             >
               <motion.span
                 key={theme}
@@ -290,12 +290,18 @@ export default function AuthBar({
               >
                 {theme === 'light' ? (
                   <Sun className="w-3.5 h-3.5 text-amber-500" />
-                ) : (
+                ) : theme === 'dark' ? (
                   <Moon className="w-3.5 h-3.5 text-sky-400" />
+                ) : (
+                  <Sun className="w-3.5 h-3.5 text-sky-400" />
                 )}
               </motion.span>
               <span className="hidden md:inline font-medium">
-                {theme === 'light' ? 'Sáng (Daylight)' : 'Tối (Cobalt)'}
+                {theme === 'hybrid'
+                  ? 'Đan xen Sáng/Tối'
+                  : theme === 'light'
+                  ? 'Sáng (Daylight)'
+                  : 'Tối (Cobalt)'}
               </span>
             </button>
             {user ? (
