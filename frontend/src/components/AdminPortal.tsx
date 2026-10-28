@@ -2,6 +2,20 @@
 
 import React, { useEffect, useState } from 'react';
 import {
+  GitPullRequest,
+  Cpu,
+  CalendarRange,
+  Users,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  AlertTriangle,
+  Search,
+  Lock,
+  Unlock,
+  UserCog,
+} from 'lucide-react';
+import {
   getGenerationJobs,
   createGenerationJob,
   getLlmUsage,
@@ -17,12 +31,21 @@ import {
   updateAdminUser,
 } from '../lib/api';
 
+const SKILL_OPTIONS = [
+  { id: 1, code: 'S1', name: 'SELECT / WHERE' },
+  { id: 2, code: 'S2', name: 'JOIN Multi-Table' },
+  { id: 3, code: 'S3', name: 'GROUP BY / HAVING' },
+  { id: 4, code: 'S4', name: 'Subquery / CTE' },
+  { id: 5, code: 'S5', name: 'Window Functions' },
+  { id: 6, code: 'S6', name: 'Edge Cases & NULL' },
+];
+
 export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   const [subTab, setSubTab] = useState<'drafts' | 'jobs' | 'weekly' | 'users'>('drafts');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // Drafts state
+  // Drafts
   const [draftStatus, setDraftStatus] = useState<string>('');
   const [drafts, setDrafts] = useState<any[]>([]);
   const [selectedDraft, setSelectedDraft] = useState<any>(null);
@@ -30,15 +53,17 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   const [editQuestion, setEditQuestion] = useState('');
   const [reviewNote, setReviewNote] = useState('');
 
-  // Generation jobs state
+  // Jobs
   const [jobs, setJobs] = useState<any[]>([]);
   const [llmUsage, setLlmUsage] = useState<any>(null);
   const [jobDiff, setJobDiff] = useState(2);
   const [jobCount, setJobCount] = useState(3);
-  const [jobTopic, setJobTopic] = useState('Phân tích doanh thu & hành vi khách hàng B2B');
+  const [jobTopic, setJobTopic] = useState(
+    'Phân tích doanh thu theo danh mục và tỷ lệ hoàn tiền quý 1/2025'
+  );
   const [jobSkills, setJobSkills] = useState<number[]>([2, 3]);
 
-  // Weekly sets & Users state
+  // Weekly & Users
   const [weeklySets, setWeeklySets] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
@@ -51,7 +76,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
         inspectDraft(r.items[0].draft_id);
       }
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Cần quyền Admin để truy cập');
+      setErr(e?.response?.data?.error?.message || 'Cần quyền Quản trị viên (Admin)');
     }
   };
 
@@ -62,7 +87,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setEditTitle(d.title || '');
       setEditQuestion(d.question || '');
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Không tải được chi tiết draft');
+      setErr(e?.response?.data?.error?.message || 'Không tải được chi tiết bản nháp');
     }
   };
 
@@ -99,17 +124,26 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
 
   if (!isAdmin) {
     return (
-      <div className="bg-[#111827] border border-[#ffb830]/40 rounded-xl p-8 text-center space-y-3">
-        <div className="text-lg font-bold text-[#ffb830]">
-          🛡️ Khu vực Quản trị AI Pipeline & Kiểm duyệt (Yêu cầu quyền ADMIN)
+      <div className="bg-[#0d1321] border border-amber-900/50 rounded-lg p-8 text-center space-y-3">
+        <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-950/60 border border-amber-800/60 text-amber-400">
+          <AlertTriangle className="w-5 h-5" />
         </div>
-        <p className="text-xs text-[#8ba3c7] max-w-lg mx-auto">
-          Bạn đang đăng nhập với vai trò Học viên. Nhấn nút{' '}
-          <strong className="text-[#ffb830]">&quot;🛡️ Admin (admin)&quot;</strong> trên thanh điều hướng phía trên để chuyển sang tài khoản Quản trị viên trong 1 click!
+        <div className="text-sm font-semibold text-white">
+          Phân hệ Quản trị & Kiểm duyệt yêu cầu quyền Admin
+        </div>
+        <p className="text-xs text-[#94a3b8] max-w-md mx-auto leading-relaxed">
+          Tài khoản hiện tại đang ở vai trò Học viên. Bạn có thể chuyển sang quyền quản trị bằng nút{' '}
+          <strong className="text-amber-300 font-mono">Admin (admin)</strong> trên thanh trạng thái phía trên.
         </p>
       </div>
     );
   }
+
+  const toggleSkill = (id: number) => {
+    setJobSkills((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,7 +156,9 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
         requested_count: jobCount,
         topic: jobTopic,
       });
-      setMsg(`Đã khởi tạo Generation Job #${job.job_id} (trạng thái: ${job.status})!`);
+      setMsg(
+        `Đã khởi tạo Generation Job #${job.job_id} vào hàng đợi worker (status: ${job.status}).`
+      );
       loadJobs();
     } catch (e: any) {
       setErr(e?.response?.data?.error?.message || 'Lỗi tạo job sinh đề');
@@ -137,13 +173,15 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       const firstRunId = selectedDraft.self_solve_runs?.[0]?.run_id;
       const d = await approveAdminDraft(selectedDraft.draft_id, {
         selected_run_id: firstRunId,
-        note: reviewNote || 'Admin xác nhận đáp án hợp lệ',
+        note: reviewNote || 'Admin xác nhận thông qua',
       });
       setSelectedDraft(d);
-      setMsg(`Đã phê duyệt Draft #${d.draft_id} -> Promote sang live.questions!`);
+      setMsg(
+        `Đã phê duyệt Draft #${d.draft_id} và chuyển vào ngân hàng đề live.questions.`
+      );
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi approve draft');
+      setErr(e?.response?.data?.error?.message || 'Lỗi phê duyệt');
     }
   };
 
@@ -154,13 +192,13 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     try {
       const d = await rejectAdminDraft(
         selectedDraft.draft_id,
-        reviewNote || 'Đề chưa rõ nghĩa hoặc thiếu điều kiện biên'
+        reviewNote || 'Không đạt tiêu chuẩn kiểm định'
       );
       setSelectedDraft(d);
-      setMsg(`Đã từ chối Draft #${d.draft_id}`);
+      setMsg(`Đã từ chối Draft #${d.draft_id}.`);
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi reject draft');
+      setErr(e?.response?.data?.error?.message || 'Lỗi từ chối draft');
     }
   };
 
@@ -172,13 +210,13 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       const d = await editAdminDraft(selectedDraft.draft_id, {
         title: editTitle,
         question: editQuestion,
-        note: reviewNote || 'Admin hiệu đính nội dung đề',
+        note: reviewNote || 'Hiệu đính nội dung đề bài',
       });
       setSelectedDraft(d);
-      setMsg(`Đã cập nhật nội dung Draft #${d.draft_id} và đưa lại hàng đợi kiểm duyệt!`);
+      setMsg(`Đã lưu hiệu đính Draft #${d.draft_id} và đưa lại hàng đợi kiểm duyệt.`);
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi cập nhật draft');
+      setErr(e?.response?.data?.error?.message || 'Lỗi lưu bản nháp');
     }
   };
 
@@ -187,9 +225,13 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       const payload =
         field === 'role'
           ? { role: (u.role === 'admin' ? 'learner' : 'admin') as 'learner' | 'admin' }
-          : { status: (u.status === 'active' ? 'locked' : 'active') as 'active' | 'locked' };
+          : {
+              status: (u.status === 'active' ? 'locked' : 'active') as
+                | 'active'
+                | 'locked',
+            };
       await updateAdminUser(u.user_id, payload);
-      setMsg(`Đã cập nhật tài khoản @${u.username}`);
+      setMsg(`Đã cập nhật cấu hình tài khoản @${u.username}.`);
       loadUsers();
     } catch (e: any) {
       setErr(e?.response?.data?.error?.message || 'Không thể cập nhật tài khoản');
@@ -198,174 +240,235 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-4">
-      {/* Sub-navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-[#111827] border border-[#1e2d45] rounded-xl p-3">
-        <div className="flex flex-wrap gap-2">
+      {/* Sub-navigation Bar */}
+      <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {[
-            { id: 'drafts', label: '🔍 Kiểm duyệt Câu hỏi nháp (Human-in-the-Loop)' },
-            { id: 'jobs', label: '🤖 Khởi chạy AI Pipeline (Model A + Model B)' },
-            { id: 'weekly', label: '📅 Quản lý Bộ đề Tuần' },
-            { id: 'users', label: '👥 Quản lý Tài khoản & Phân quyền' },
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setSubTab(t.id as any)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                subTab === t.id
-                  ? 'bg-[#ffb830] text-[#0a0e17]'
-                  : 'bg-[#0a0e17] text-[#8ba3c7] border border-[#1e2d45]'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+            {
+              id: 'drafts',
+              label: 'Hàng đợi Kiểm duyệt Draft',
+              icon: GitPullRequest,
+            },
+            { id: 'jobs', label: 'Pipeline Sinh đề AI', icon: Cpu },
+            { id: 'weekly', label: 'Quản lý Bộ đề tuần', icon: CalendarRange },
+            { id: 'users', label: 'Tài khoản & Phân quyền', icon: Users },
+          ].map((t) => {
+            const Icon = t.icon;
+            const active = subTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setSubTab(t.id as any)}
+                className={`px-3 py-1.5 rounded text-xs font-medium flex items-center gap-2 transition ${
+                  active
+                    ? 'bg-[#162238] text-white border border-[#293f66]'
+                    : 'text-[#64748b] hover:text-white border border-transparent'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 text-[#38bdf8]" />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
         </div>
+
+        <span className="text-[11px] font-mono text-[#64748b]">
+          ADMINISTRATION & GOVERNANCE CONSOLE
+        </span>
       </div>
 
       {err && (
-        <div className="p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-xs">
-          ❌ {err}
+        <div className="p-3 rounded bg-red-950/40 border border-red-900/60 text-red-300 text-xs font-mono">
+          {err}
         </div>
       )}
       {msg && (
-        <div className="p-3 rounded-lg bg-[#00e5a0]/15 border border-[#00e5a0]/30 text-[#00e5a0] text-xs">
-          ✓ {msg}
+        <div className="p-3 rounded bg-emerald-950/40 border border-emerald-900/60 text-emerald-300 text-xs font-mono">
+          {msg}
         </div>
       )}
 
       {/* TAB 1: DRAFT REVIEW */}
       {subTab === 'drafts' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-5 bg-[#111827] border border-[#1e2d45] rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Hàng đợi Draft AI</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Queue */}
+          <div className="lg:col-span-4 bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+            <div className="p-3.5 bg-[#090d16] border-b border-[#1d283a] flex items-center justify-between">
+              <span className="text-xs font-semibold text-white">
+                Danh sách Bản nháp ({drafts.length})
+              </span>
               <select
                 value={draftStatus}
                 onChange={(e) => setDraftStatus(e.target.value)}
-                className="px-2.5 py-1 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
+                className="px-2.5 py-1 rounded bg-[#0d1321] border border-[#22304a] text-xs text-[#cbd5e1] font-mono"
               >
                 <option value="">Tất cả trạng thái</option>
-                <option value="needs_human">⚠️ Cần người duyệt (needs_human)</option>
-                <option value="pending">⏳ Đang chờ (pending)</option>
-                <option value="approved">✓ Đã duyệt (approved)</option>
-                <option value="rejected">✕ Đã từ chối (rejected)</option>
+                <option value="needs_human">needs_human (Cần duyệt)</option>
+                <option value="pending">pending (Chờ kiểm định)</option>
+                <option value="approved">approved (Đã duyệt)</option>
+                <option value="rejected">rejected (Đã từ chối)</option>
               </select>
             </div>
 
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
-              {drafts.map((d) => (
-                <button
-                  key={d.draft_id}
-                  onClick={() => inspectDraft(d.draft_id)}
-                  className={`w-full text-left p-3 rounded-lg border transition ${
-                    selectedDraft?.draft_id === d.draft_id
-                      ? 'bg-[#ffb830]/10 border-[#ffb830]'
-                      : 'bg-[#0a0e17] border-[#1e2d45]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-[0.68rem] font-mono mb-1">
-                    <span className="text-[#00d4ff]">Draft #{d.draft_id} · Job #{d.job_id}</span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded uppercase ${
-                        d.status === 'needs_human'
-                          ? 'bg-[#ffb830]/20 text-[#ffb830]'
-                          : d.status === 'approved'
-                          ? 'bg-[#00e5a0]/20 text-[#00e5a0]'
-                          : 'bg-red-500/20 text-red-400'
-                      }`}
-                    >
-                      {d.status}
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-white">{d.title}</div>
-                  {d.status_reason && (
-                    <div className="text-[0.68rem] text-[#8ba3c7] mt-1 line-clamp-2">
-                      {d.status_reason}
+            <div className="divide-y divide-[#162032] max-h-[640px] overflow-y-auto">
+              {drafts.map((d) => {
+                const active = selectedDraft?.draft_id === d.draft_id;
+                const statusBadge =
+                  d.status === 'needs_human'
+                    ? 'bg-amber-950/60 text-amber-300 border-amber-800/60'
+                    : d.status === 'approved'
+                    ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                    : 'bg-slate-900 text-slate-400 border-slate-800';
+                return (
+                  <button
+                    key={d.draft_id}
+                    onClick={() => inspectDraft(d.draft_id)}
+                    className={`w-full text-left p-3.5 transition ${
+                      active
+                        ? 'bg-[#141f35] border-l-2 border-l-[#38bdf8]'
+                        : 'hover:bg-[#101829]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+                      <span className="text-[#64748b]">
+                        DRAFT #{d.draft_id} · L{d.difficulty}
+                      </span>
+                      <span className={`px-1.5 py-0.5 rounded border ${statusBadge}`}>
+                        {d.status}
+                      </span>
                     </div>
-                  )}
-                </button>
-              ))}
+                    <div className="text-xs font-medium text-white line-clamp-2">
+                      {d.title}
+                    </div>
+                    {d.status_reason && (
+                      <div className="text-[11px] text-[#64748b] mt-1 line-clamp-2 font-mono">
+                        {d.status_reason}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="lg:col-span-7 bg-[#111827] border border-[#1e2d45] rounded-xl p-5 space-y-4">
+          {/* Right Inspector */}
+          <div className="lg:col-span-8 bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
             {selectedDraft ? (
               <>
-                <div className="flex items-center justify-between border-b border-[#1e2d45] pb-3">
+                <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a] flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span className="font-mono text-xs text-[#ffb830]">
-                      CHI TIẾT KIỂM DUYỆT DRAFT #{selectedDraft.draft_id}
-                    </span>
-                    <h3 className="text-base font-bold text-white mt-0.5">
-                      Model sinh: {selectedDraft.gen_model} ({selectedDraft.gen_prompt_version})
-                    </h3>
+                    <div className="text-[11px] font-mono text-[#64748b]">
+                      DRAFT REVIEW INSPECTOR · ID #{selectedDraft.draft_id}
+                    </div>
+                    <div className="text-sm font-semibold text-white mt-0.5">
+                      Generator: {selectedDraft.gen_model} ({selectedDraft.gen_prompt_version})
+                    </div>
                   </div>
-                  <span className="font-mono text-xs px-2.5 py-1 rounded bg-[#0a0e17] border border-[#1e2d45] text-[#00d4ff]">
-                    Trạng thái: {selectedDraft.status.toUpperCase()}
+                  <span className="font-mono text-xs px-2.5 py-1 rounded bg-[#131c2e] border border-[#22304a] text-[#38bdf8]">
+                    STATUS: {selectedDraft.status.toUpperCase()}
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-xs font-mono text-[#8ba3c7]">Tiêu đề câu hỏi</label>
-                  <input
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
-                  />
-                  <label className="block text-xs font-mono text-[#8ba3c7]">Nội dung đề bài</label>
-                  <textarea
-                    rows={3}
-                    value={editQuestion}
-                    onChange={(e) => setEditQuestion(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
-                  />
-                </div>
-
-                <div>
-                  <div className="text-xs font-mono text-[#00e5a0] mb-1">
-                    SQL Tham chiếu & Kết quả Self-Solve từ Model B:
+                <div className="p-5 space-y-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-mono text-[#94a3b8] mb-1">
+                        Tiêu đề bài tập
+                      </label>
+                      <input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-3 py-2 rounded bg-[#080c14] border border-[#1f2b42] text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-mono text-[#94a3b8] mb-1">
+                        Nội dung đặc tả đề bài (Tiếng Việt)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={editQuestion}
+                        onChange={(e) => setEditQuestion(e.target.value)}
+                        className="w-full px-3 py-2 rounded bg-[#080c14] border border-[#1f2b42] text-xs text-white leading-relaxed"
+                      />
+                    </div>
                   </div>
-                  <pre className="p-3 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs font-mono text-[#dbe7ff] overflow-x-auto">
-                    {selectedDraft.reference_sql ||
-                      selectedDraft.self_solve_runs?.[0]?.model_sql ||
-                      '-- Chưa có SQL'}
-                  </pre>
-                </div>
 
-                <div className="space-y-2 pt-2 border-t border-[#1e2d45]">
-                  <input
-                    value={reviewNote}
-                    onChange={(e) => setReviewNote(e.target.value)}
-                    placeholder="Ghi chú kiểm duyệt của Admin (lưu vào audit_logs & admin_overrides)..."
-                    className="w-full px-3 py-2 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={handleApproveDraft}
-                      disabled={selectedDraft.status !== 'needs_human'}
-                      className="px-4 py-2 rounded-lg bg-[#00e5a0] text-[#0a0e17] text-xs font-bold disabled:opacity-40"
-                    >
-                      ✓ Phê duyệt & Promote sang Ngân hàng Đề
-                    </button>
-                    <button
-                      onClick={handleEditDraft}
-                      disabled={!['needs_human', 'rejected'].includes(selectedDraft.status)}
-                      className="px-4 py-2 rounded-lg bg-[#00d4ff] text-[#0a0e17] text-xs font-bold disabled:opacity-40"
-                    >
-                      ✎ Lưu chỉnh sửa & Đưa lại hàng đợi
-                    </button>
-                    <button
-                      onClick={handleRejectDraft}
-                      disabled={selectedDraft.status !== 'needs_human'}
-                      className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold disabled:opacity-40"
-                    >
-                      ✕ Từ chối Draft
-                    </button>
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-mono text-[#94a3b8] mb-1.5">
+                      <span>Lời giải SQL tham chiếu & Kết quả đối sánh Model B</span>
+                      <span>
+                        Self-solve runs: {selectedDraft.self_solve_runs?.length || 0}
+                      </span>
+                    </div>
+                    <pre className="p-3.5 rounded bg-[#080c14] border border-[#182235] text-xs font-mono text-[#cbd5e1] overflow-x-auto leading-relaxed">
+                      {selectedDraft.reference_sql ||
+                        selectedDraft.self_solve_runs?.[0]?.model_sql ||
+                        '-- Chưa có SQL'}
+                    </pre>
+                  </div>
+
+                  {selectedDraft.self_solve_runs?.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {selectedDraft.self_solve_runs.map((run: any) => (
+                        <div
+                          key={run.run_id}
+                          className="p-3 rounded bg-[#090d16] border border-[#192336] text-xs font-mono"
+                        >
+                          <div className="flex items-center justify-between text-[#94a3b8] mb-1">
+                            <span>Reviewer: {run.review_model}</span>
+                            <span className="text-emerald-400">
+                              Matched: {run.matched_datasets}/{run.total_datasets} datasets
+                            </span>
+                          </div>
+                          <div className="text-[#64748b]">
+                            Status: {run.exec_status} · Rows: {run.row_count}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="pt-3 border-t border-[#1d283a] space-y-3">
+                    <input
+                      value={reviewNote}
+                      onChange={(e) => setReviewNote(e.target.value)}
+                      placeholder="Ghi chú quyết định kiểm duyệt (lưu vào live.audit_logs)..."
+                      className="w-full px-3 py-2 rounded bg-[#080c14] border border-[#1f2b42] text-xs text-white"
+                    />
+                    <div className="flex flex-wrap gap-2.5">
+                      <button
+                        onClick={handleApproveDraft}
+                        disabled={selectedDraft.status !== 'needs_human'}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium disabled:opacity-40 transition"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Phê duyệt & Đưa vào Ngân hàng đề</span>
+                      </button>
+                      <button
+                        onClick={handleEditDraft}
+                        disabled={!['needs_human', 'rejected'].includes(selectedDraft.status)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded bg-[#162238] hover:bg-[#1f304d] border border-[#293f66] text-white text-xs font-medium disabled:opacity-40 transition"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Lưu hiệu đính & Kiểm định lại</span>
+                      </button>
+                      <button
+                        onClick={handleRejectDraft}
+                        disabled={selectedDraft.status !== 'needs_human'}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60 text-rose-200 text-xs font-medium disabled:opacity-40 transition"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Từ chối bản nháp</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="text-xs text-[#8ba3c7]">Chọn một draft bên trái để xem chi tiết.</div>
+              <div className="p-8 text-center text-xs font-mono text-[#64748b]">
+                Chọn một bản nháp ở danh sách bên trái để kiểm tra.
+              </div>
             )}
           </div>
         </div>
@@ -373,79 +476,118 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
 
       {/* TAB 2: AI GENERATION JOBS */}
       {subTab === 'jobs' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           <form
             onSubmit={handleCreateJob}
-            className="lg:col-span-5 bg-[#111827] border border-[#1e2d45] rounded-xl p-5 space-y-3"
+            className="lg:col-span-5 bg-[#0d1321] border border-[#1d283a] rounded-lg p-5 space-y-4"
           >
-            <h3 className="text-sm font-bold text-white">
-              🚀 Khởi chạy Pipeline Sinh đề AI (Model A + Model B)
-            </h3>
+            <div className="border-b border-[#1d283a] pb-3">
+              <div className="text-[11px] font-mono text-[#38bdf8]">
+                PIPELINE JOB DISPATCHER
+              </div>
+              <h3 className="text-sm font-semibold text-white mt-0.5">
+                Khởi tạo Tác vụ Sinh đề AI (Model A + Model B)
+              </h3>
+            </div>
+
             <div>
-              <label className="block text-xs text-[#8ba3c7] mb-1">Chủ đề nghiệp vụ (Topic)</label>
+              <label className="block text-xs text-[#94a3b8] mb-1">
+                Ngữ cảnh nghiệp vụ yêu cầu (Topic)
+              </label>
               <input
                 value={jobTopic}
                 onChange={(e) => setJobTopic(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
+                className="w-full px-3 py-2 rounded bg-[#080c14] border border-[#1f2b42] text-xs text-white"
               />
             </div>
+
+            <div>
+              <label className="block text-xs text-[#94a3b8] mb-1.5">
+                Nhóm kỹ năng mục tiêu (Skills S1–S6)
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {SKILL_OPTIONS.map((sk) => {
+                  const active = jobSkills.includes(sk.id);
+                  return (
+                    <button
+                      type="button"
+                      key={sk.id}
+                      onClick={() => toggleSkill(sk.id)}
+                      className={`px-2.5 py-1.5 rounded text-left text-xs font-mono border transition ${
+                        active
+                          ? 'bg-[#162238] border-[#38bdf8]/60 text-white'
+                          : 'bg-[#080c14] border-[#1d283a] text-[#64748b]'
+                      }`}
+                    >
+                      {sk.code} · {sk.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-[#8ba3c7] mb-1">Độ khó</label>
+                <label className="block text-xs text-[#94a3b8] mb-1">Cấp độ khó</label>
                 <select
                   value={jobDiff}
                   onChange={(e) => setJobDiff(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
+                  className="w-full px-3 py-2 rounded bg-[#080c14] border border-[#1f2b42] text-xs text-white"
                 >
-                  <option value={1}>1 — Easy</option>
-                  <option value={2}>2 — Medium</option>
-                  <option value={3}>3 — Hard</option>
+                  <option value={1}>L1 — Basic</option>
+                  <option value={2}>L2 — Intermediate</option>
+                  <option value={3}>L3 — Advanced</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-[#8ba3c7] mb-1">Số lượng câu sinh</label>
+                <label className="block text-xs text-[#94a3b8] mb-1">
+                  Số lượng câu hỏi
+                </label>
                 <input
                   type="number"
                   min={1}
                   max={10}
                   value={jobCount}
                   onChange={(e) => setJobCount(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
+                  className="w-full px-3 py-2 rounded bg-[#080c14] border border-[#1f2b42] text-xs text-white"
                 />
               </div>
             </div>
+
             <button
               type="submit"
-              className="w-full py-2.5 rounded-lg bg-gradient-to-r from-[#ffb830] to-[#00e5a0] text-[#0a0e17] font-bold text-xs"
+              className="w-full py-2.5 rounded bg-[#0284c7] hover:bg-[#0369a1] text-white font-medium text-xs transition"
             >
-              ⚡ Đẩy Job vào Hàng đợi Generation Worker
+              Đẩy tác vụ vào Hàng đợi Worker
             </button>
           </form>
 
-          <div className="lg:col-span-7 bg-[#111827] border border-[#1e2d45] rounded-xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Tiến độ các Job Sinh đề & Ngân sách LLM</h3>
+          <div className="lg:col-span-7 bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+            <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">
+                Nhật ký Generation Jobs & Ngân sách LLM
+              </h3>
               {llmUsage && (
-                <span className="text-xs font-mono text-[#00d4ff]">
-                  LLM Calls hôm nay: {llmUsage.calls_used ?? 0}/{llmUsage.daily_call_cap ?? 200}
+                <span className="text-xs font-mono text-[#38bdf8]">
+                  Daily Quota: {llmUsage.calls_used ?? 0} / {llmUsage.daily_call_cap ?? 200} calls
                 </span>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="divide-y divide-[#162032]">
               {jobs.map((j) => (
                 <div
                   key={j.job_id}
-                  className="p-3 rounded-lg bg-[#0a0e17] border border-[#1e2d45] flex items-center justify-between text-xs"
+                  className="p-4 flex items-center justify-between text-xs"
                 >
                   <div>
-                    <div className="font-bold text-white">
-                      Job #{j.job_id} — {j.topic || 'Enterprise SQL'}
+                    <div className="font-medium text-white">
+                      Job #{j.job_id} — {j.topic || 'Enterprise SQL Generation'}
                     </div>
-                    <div className="font-mono text-[0.68rem] text-[#8ba3c7]">
-                      Độ khó: {j.difficulty} · Đã tạo: {j.created_count}/{j.requested_count} câu
+                    <div className="font-mono text-[11px] text-[#64748b] mt-0.5">
+                      Difficulty: L{j.difficulty} · Created: {j.created_count}/{j.requested_count} · Failed: {j.failed_count}
                     </div>
                   </div>
-                  <span className="font-mono px-2 py-0.5 rounded bg-[#00e5a0]/15 text-[#00e5a0] uppercase">
+                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#131c2e] border border-[#22304a] text-[#cbd5e1] uppercase">
                     {j.status}
                   </span>
                 </div>
@@ -457,37 +599,41 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
 
       {/* TAB 3: WEEKLY SETS */}
       {subTab === 'weekly' && (
-        <div className="bg-[#111827] border border-[#1e2d45] rounded-xl p-5 space-y-3">
-          <h3 className="text-sm font-bold text-white">Danh sách Bộ đề Tuần (live.weekly_sets)</h3>
-          <div className="space-y-2">
+        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a]">
+            <h3 className="text-sm font-semibold text-white">
+              Quản lý Vòng đời Bộ đề Tuần (live.weekly_sets)
+            </h3>
+          </div>
+          <div className="divide-y divide-[#162032]">
             {weeklySets.map((w) => (
               <div
                 key={w.set_id}
-                className="p-3.5 rounded-lg bg-[#0a0e17] border border-[#1e2d45] flex flex-wrap items-center justify-between gap-2 text-xs"
+                className="p-4 flex flex-wrap items-center justify-between gap-3 text-xs"
               >
                 <div>
-                  <div className="font-bold text-white">
-                    #{w.set_id} · {w.title}
+                  <div className="font-semibold text-white">
+                    Set #{w.set_id} · {w.title}
                   </div>
-                  <div className="font-mono text-[#8ba3c7]">
-                    Tuần bắt đầu: {w.week_start} · Trạng thái: {w.status.toUpperCase()}
+                  <div className="font-mono text-[11px] text-[#64748b] mt-0.5">
+                    Week Start: {w.week_start} · Status: {w.status.toUpperCase()}
                   </div>
                 </div>
                 <div className="flex gap-2">
                   {w.status === 'draft' && (
                     <button
                       onClick={() => publishAdminWeeklySet(w.set_id).then(loadWeekly)}
-                      className="px-3 py-1 rounded bg-[#00e5a0] text-[#0a0e17] font-bold"
+                      className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
                     >
-                      Xuất bản (Publish)
+                      Publish Bộ đề
                     </button>
                   )}
                   {w.status === 'published' && (
                     <button
                       onClick={() => closeAdminWeeklySet(w.set_id).then(loadWeekly)}
-                      className="px-3 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40"
+                      className="px-3 py-1.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-200"
                     >
-                      Đóng bộ đề
+                      Đóng chu kỳ tuần
                     </button>
                   )}
                 </div>
@@ -497,25 +643,28 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* TAB 4: USER MANAGEMENT */}
+      {/* TAB 4: USERS */}
       {subTab === 'users' && (
-        <div className="bg-[#111827] border border-[#1e2d45] rounded-xl p-5 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-bold text-white">
-              👥 Quản lý Tài khoản & Phân quyền (live.users)
+        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a] flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-white">
+              Danh mục Tài khoản & Phân quyền Hệ thống
             </h3>
             <div className="flex gap-2">
-              <input
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Tìm username hoặc email..."
-                className="px-3 py-1.5 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
-              />
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-[#64748b] absolute left-2.5 top-2" />
+                <input
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Tìm username hoặc email..."
+                  className="pl-8 pr-3 py-1 rounded bg-[#0d1321] border border-[#22304a] text-xs text-white"
+                />
+              </div>
               <button
                 onClick={loadUsers}
-                className="px-3 py-1.5 rounded bg-[#00d4ff] text-[#0a0e17] text-xs font-bold"
+                className="px-3 py-1 rounded bg-[#162238] border border-[#293f66] text-xs text-white"
               >
-                Tìm kiếm
+                Lọc
               </button>
             </div>
           </div>
@@ -523,58 +672,71 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-[#1e2d45] text-[#8ba3c7] font-mono">
-                  <th className="py-2 px-3">ID</th>
-                  <th className="py-2 px-3">Tài khoản</th>
-                  <th className="py-2 px-3">Email</th>
-                  <th className="py-2 px-3">Vai trò</th>
-                  <th className="py-2 px-3">Trạng thái</th>
-                  <th className="py-2 px-3">Hành động</th>
+                <tr className="bg-[#0a0f1a] border-b border-[#1d283a] text-[#64748b] font-mono">
+                  <th className="py-2.5 px-4">ID</th>
+                  <th className="py-2.5 px-4">TÀI KHOẢN</th>
+                  <th className="py-2.5 px-4">EMAIL</th>
+                  <th className="py-2.5 px-4">VAI TRÒ</th>
+                  <th className="py-2.5 px-4">TRẠNG THÁI</th>
+                  <th className="py-2.5 px-4">THAO TÁC</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-[#151f30]">
                 {users.map((u) => (
-                  <tr key={u.user_id} className="border-b border-[#1e2d45]/50">
-                    <td className="py-2.5 px-3 font-mono text-[#5a7298]">#{u.user_id}</td>
-                    <td className="py-2.5 px-3 font-bold text-white">
-                      {u.display_name || u.username}{' '}
-                      <span className="font-mono text-[#5a7298]">(@{u.username})</span>
+                  <tr key={u.user_id} className="hover:bg-[#101829]">
+                    <td className="py-2.5 px-4 font-mono text-[#64748b]">
+                      #{u.user_id}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-[#8ba3c7]">{u.email}</td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-4 font-medium text-white">
+                      {u.display_name || u.username}{' '}
+                      <span className="font-mono text-[#64748b]">(@{u.username})</span>
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[#94a3b8]">{u.email}</td>
+                    <td className="py-2.5 px-4">
                       <span
-                        className={`font-mono px-2 py-0.5 rounded uppercase text-[0.68rem] ${
+                        className={`font-mono px-2 py-0.5 rounded uppercase text-[10px] border ${
                           u.role === 'admin'
-                            ? 'bg-[#ffb830]/20 text-[#ffb830]'
-                            : 'bg-[#00d4ff]/20 text-[#00d4ff]'
+                            ? 'bg-amber-950/60 text-amber-300 border-amber-800/60'
+                            : 'bg-sky-950/60 text-sky-300 border-sky-800/60'
                         }`}
                       >
                         {u.role}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-4">
                       <span
-                        className={`font-mono px-2 py-0.5 rounded uppercase text-[0.68rem] ${
+                        className={`font-mono px-2 py-0.5 rounded uppercase text-[10px] border ${
                           u.status === 'active'
-                            ? 'bg-[#00e5a0]/20 text-[#00e5a0]'
-                            : 'bg-red-500/20 text-red-400'
+                            ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                            : 'bg-rose-950/60 text-rose-300 border-rose-800/60'
                         }`}
                       >
                         {u.status}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 flex gap-2">
+                    <td className="py-2.5 px-4 flex gap-2">
                       <button
                         onClick={() => handleToggleUser(u, 'role')}
-                        className="px-2 py-1 rounded bg-[#1e2d45] text-white hover:bg-[#00d4ff] hover:text-[#0a0e17]"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#162032] hover:bg-[#1f2e47] text-[#cbd5e1] border border-[#263552]"
                       >
-                        Đổi Role
+                        <UserCog className="w-3 h-3" />
+                        <span>Đổi Role</span>
                       </button>
                       <button
                         onClick={() => handleToggleUser(u, 'status')}
-                        className="px-2 py-1 rounded bg-red-500/15 text-red-300 hover:bg-red-500/30"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#162032] hover:bg-rose-950/60 text-[#cbd5e1] hover:text-rose-200 border border-[#263552]"
                       >
-                        {u.status === 'active' ? 'Khóa' : 'Mở khóa'}
+                        {u.status === 'active' ? (
+                          <>
+                            <Lock className="w-3 h-3" />
+                            <span>Khóa</span>
+                          </>
+                        ) : (
+                          <>
+                            <Unlock className="w-3 h-3" />
+                            <span>Mở khóa</span>
+                          </>
+                        )}
                       </button>
                     </td>
                   </tr>

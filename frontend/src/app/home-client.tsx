@@ -22,7 +22,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
     ],
     status: 'completed',
     content: (
-      <div className="text-xs text-[#8ba3c7] leading-relaxed">
+      <div className="text-xs text-[#94a3b8] leading-relaxed">
         Tầng tri thức nền tảng lưu trữ cấu trúc 13 bảng dữ liệu thật của EnterpriseDB, 6 kỹ năng SQL cốt lõi (SELECT, JOIN, GROUP BY, Subquery/CTE, Window Functions, Edge Cases) và 50 đề nguồn chuẩn.
       </div>
     ),
@@ -36,7 +36,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
     ],
     status: 'completed',
     content: (
-      <div className="text-xs text-[#8ba3c7] leading-relaxed">
+      <div className="text-xs text-[#94a3b8] leading-relaxed">
         Sinh câu hỏi tiếng Việt bám sát nghiệp vụ doanh nghiệp kèm Blueprint logic_signature, danh sách cột đầu ra và điều kiện biên.
       </div>
     ),
@@ -50,8 +50,8 @@ const PIPELINE_STEPS: PipelineStep[] = [
     ],
     status: 'running',
     content: (
-      <div className="text-xs text-[#8ba3c7] leading-relaxed">
-        Model B độc lập giải lại đề trên Base + Mutant Datasets. Chỉ những đề khớp kết quả thực thi và vượt qua 7 cổng kiểm định mới được tự động duyệt hoặc chuyển sang trạng thái <code className="text-[#ffb830]">needs_human</code> cho Admin.
+      <div className="text-xs text-[#94a3b8] leading-relaxed">
+        Model B độc lập giải lại đề trên Base + Mutant Datasets. Chỉ những đề khớp kết quả thực thi và vượt qua 7 cổng kiểm định mới được tự động duyệt hoặc chuyển sang trạng thái <code className="text-amber-300">needs_human</code> cho Admin.
       </div>
     ),
   },
@@ -64,8 +64,8 @@ const PIPELINE_STEPS: PipelineStep[] = [
     ],
     status: 'completed',
     content: (
-      <div className="text-xs text-[#8ba3c7] leading-relaxed">
-        Câu hỏi đã duyệt được promote vào <code className="text-[#00e5a0]">live.questions</code> kèm <code className="text-[#00e5a0]">live.test_cases</code>. Học viên làm bài trên Monaco SQL Workbench, chấm điểm tức thì và xếp hạng Tuần/Tháng.
+      <div className="text-xs text-[#94a3b8] leading-relaxed">
+        Câu hỏi đã duyệt được promote vào <code className="text-emerald-300">live.questions</code> kèm <code className="text-emerald-300">live.test_cases</code>. Học viên làm bài trên Monaco SQL Workbench, chấm điểm tức thì và xếp hạng Tuần/Tháng.
       </div>
     ),
   },
@@ -89,7 +89,6 @@ export default function HomeClient() {
       } catch {
         window.localStorage.removeItem('sqlarena_token');
       }
-      // Auto-login demo learner on first visit so UI is immediately interactive
       try {
         const res = await loginUser('nguyen_ptit', 'demo123');
         window.localStorage.setItem('sqlarena_token', res.access_token);
@@ -111,7 +110,7 @@ export default function HomeClient() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0e17] text-[#e2e8f0] flex flex-col">
+    <div className="min-h-screen bg-[#060911] text-[#e2e8f0] flex flex-col">
       <AuthBar
         user={user}
         activeTab={activeTab}
@@ -121,10 +120,10 @@ export default function HomeClient() {
         onUserUpdated={setUser}
       />
 
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 py-6">
+      <main className="flex-1 max-w-[1520px] w-full mx-auto px-5 py-5">
         {booting ? (
-          <div className="p-12 text-center text-sm font-mono text-[#00d4ff]">
-            ⚡ Đang kết nối Unified Backend & PostgreSQL 17 Enterprise Sandbox...
+          <div className="p-12 text-center text-xs font-mono text-[#64748b]">
+            Initializing PostgreSQL 17 Enterprise Sandbox & Unified API...
           </div>
         ) : (
           <>
@@ -144,8 +143,11 @@ export default function HomeClient() {
         )}
       </main>
 
-      <footer className="border-t border-[#1e2d45] bg-[#0b1120] py-4 px-4 text-center text-xs text-[#5a7298] font-mono">
-        SQLArena AI — Kiến trúc Hợp nhất Design v7 (Hưng: AI Pipeline · Đạt: SQL Sandbox & Grading · Nguyên: Auth, Fullstack Integration & Next.js 16)
+      <footer className="border-t border-[#151d2c] bg-[#060911] py-3.5 px-5 text-xs text-[#64748b] font-mono">
+        <div className="max-w-[1520px] mx-auto flex flex-wrap items-center justify-between gap-2">
+          <span>SQLArena Platform · Design v7 Clean Architecture</span>
+          <span>PostgreSQL 17 Read-Only Sandbox · FastAPI · Next.js 16</span>
+        </div>
       </footer>
     </div>
   );

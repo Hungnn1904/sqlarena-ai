@@ -3,6 +3,22 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
+  Play,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  Database,
+  FileCode2,
+  Layers,
+  Clock,
+  RotateCcw,
+  ChevronRight,
+  ChevronDown,
+  Table2,
+  Shield,
+} from 'lucide-react';
+import {
   getWeeklyCurrent,
   getWeeklyQuestions,
   getQuestionDetail,
@@ -13,42 +29,82 @@ import {
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
-const DIFF_LABEL: Record<number, { text: string; cls: string }> = {
-  1: { text: 'Easy', cls: 'bg-[#00e5a0]/15 text-[#00e5a0] border-[#00e5a0]/30' },
-  2: { text: 'Medium', cls: 'bg-[#ffb830]/15 text-[#ffb830] border-[#ffb830]/30' },
-  3: { text: 'Hard', cls: 'bg-red-500/15 text-red-400 border-red-500/30' },
+const DIFF_META: Record<number, { label: string; code: string; badge: string }> = {
+  1: {
+    label: 'Basic',
+    code: 'L1',
+    badge: 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60',
+  },
+  2: {
+    label: 'Intermediate',
+    code: 'L2',
+    badge: 'bg-amber-950/60 text-amber-300 border-amber-800/60',
+  },
+  3: {
+    label: 'Advanced',
+    code: 'L3',
+    badge: 'bg-rose-950/60 text-rose-300 border-rose-800/60',
+  },
 };
 
-export default function LearnerWorkbench({ onSubmissionComplete }: { onSubmissionComplete?: () => void }) {
+const SQL_SNIPPETS = [
+  {
+    label: 'SELECT + GROUP BY',
+    code: 'SELECT column_name, COUNT(*) AS total\nFROM table_name\nWHERE status = \'active\'\nGROUP BY column_name\nORDER BY total DESC;',
+  },
+  {
+    label: 'CTE (WITH)',
+    code: 'WITH summary AS (\n  SELECT customer_id, SUM(total_amount) AS total_spent\n  FROM orders\n  WHERE status = \'completed\'\n  GROUP BY customer_id\n)\nSELECT * FROM summary ORDER BY total_spent DESC;',
+  },
+  {
+    label: 'Window Function',
+    code: 'SELECT employee_id, department_id, salary,\n       RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS rk\nFROM employees;',
+  },
+];
+
+export default function LearnerWorkbench({
+  onSubmissionComplete,
+}: {
+  onSubmissionComplete?: () => void;
+}) {
+  const [leftMode, setLeftMode] = useState<'problems' | 'schema'>('problems');
   const [weeklyMeta, setWeeklyMeta] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [questionDetail, setQuestionDetail] = useState<any>(null);
   const [schemaInfo, setSchemaInfo] = useState<any>(null);
-  const [showSchema, setShowSchema] = useState(false);
+  const [expandedTable, setExpandedTable] = useState<string | null>('customers');
 
   // Filters
   const [diffFilter, setDiffFilter] = useState<number | undefined>(undefined);
   const [solvedFilter, setSolvedFilter] = useState<boolean | undefined>(undefined);
   const [searchQ, setSearchQ] = useState('');
 
-  // SQL Editor & Output
+  // Editor & Console
   const [sql, setSql] = useState<string>('SELECT * FROM categories LIMIT 10;');
   const [running, setRunning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [output, setOutput] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [consoleTab, setConsoleTab] = useState<'results' | 'tests' | 'policy'>('results');
 
   const loadQuestions = async () => {
     try {
       const [meta, qList] = await Promise.all([
         getWeeklyCurrent(),
-        getWeeklyQuestions({ difficulty: diffFilter, solved: solvedFilter, q: searchQ || undefined }),
+        getWeeklyQuestions({
+          difficulty: diffFilter,
+          solved: solvedFilter,
+          q: searchQ || undefined,
+        }),
       ]);
       setWeeklyMeta(meta);
       const items = qList.items || [];
       setQuestions(items);
-      if (items.length > 0 && (!selectedId || !items.some((x: any) => x.question_id === selectedId))) {
+      if (
+        items.length > 0 &&
+        (!selectedId || !items.some((x: any) => x.question_id === selectedId))
+      ) {
         setSelectedId(items[0].question_id);
       }
     } catch (e: any) {
@@ -74,9 +130,10 @@ export default function LearnerWorkbench({ onSubmissionComplete }: { onSubmissio
       .then((d) => {
         setQuestionDetail(d);
         const firstTable = d.tables_used?.[0] || 'categories';
+        setExpandedTable(firstTable);
         setSql(`SELECT *\nFROM ${firstTable}\nLIMIT 10;`);
       })
-      .catch((e) => setErrorMsg(e?.response?.data?.error?.message || 'Lỗi tải chi tiết đề'));
+      .catch((e) => setErrorMsg(e?.response?.data?.error?.message || 'Lỗi tải đề bài'));
   }, [selectedId]);
 
   const handleRunSandbox = async () => {
@@ -84,11 +141,12 @@ export default function LearnerWorkbench({ onSubmissionComplete }: { onSubmissio
     setRunning(true);
     setErrorMsg(null);
     setOutput(null);
+    setConsoleTab('results');
     try {
       const res = await runSandboxSql(selectedId, sql);
       setOutput({ mode: 'run', ...res });
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.error?.message || 'Lỗi thực thi SQL Sandbox');
+      setErrorMsg(e?.response?.data?.error?.message || 'Truy vấn không hợp lệ');
     } finally {
       setRunning(false);
     }
@@ -102,6 +160,7 @@ export default function LearnerWorkbench({ onSubmissionComplete }: { onSubmissio
     try {
       const res = await submitGradingSql(selectedId, sql);
       setOutput({ mode: 'submit', ...res });
+      setConsoleTab('results');
       await loadQuestions();
       const updatedDetail = await getQuestionDetail(selectedId);
       setQuestionDetail(updatedDetail);
@@ -114,233 +173,376 @@ export default function LearnerWorkbench({ onSubmissionComplete }: { onSubmissio
   };
 
   const tablesList = schemaInfo?.schema_description?.tables || [];
+  const solvedCount = weeklyMeta?.solved_count || 0;
+  const totalCount = weeklyMeta?.question_count || questions.length || 20;
+  const progressPct = Math.round((solvedCount * 100) / Math.max(totalCount, 1));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      {/* Left Column: Question List */}
-      <div className="lg:col-span-4 bg-[#111827] border border-[#1e2d45] rounded-xl p-4 flex flex-col max-h-[840px]">
-        <div className="mb-3 pb-3 border-b border-[#1e2d45]">
-          <div className="flex items-center justify-between">
-            <span className="text-[0.68rem] font-mono uppercase tracking-wider text-[#00d4ff]">
-              BỘ ĐỀ TUẦN ĐANG MỞ
-            </span>
-            {weeklyMeta && (
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#00e5a0]/15 text-[#00e5a0]">
-                Đã giải: {weeklyMeta.solved_count || 0}/{weeklyMeta.total_questions || questions.length}
-              </span>
-            )}
-          </div>
-          <h2 className="text-sm font-bold text-white mt-1">
-            {weeklyMeta?.title || 'Tuần #42 — Thử thách SQL Doanh nghiệp'}
-          </h2>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      {/* LEFT RAIL: Problem Set & Database Catalog Navigator */}
+      <aside className="lg:col-span-4 bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden flex flex-col h-[860px]">
+        {/* Switcher Header */}
+        <div className="grid grid-cols-2 border-b border-[#1d283a] bg-[#090d16]">
+          <button
+            onClick={() => setLeftMode('problems')}
+            className={`py-3 px-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition ${
+              leftMode === 'problems'
+                ? 'border-[#38bdf8] text-white bg-[#0d1321]'
+                : 'border-transparent text-[#64748b] hover:text-[#cbd5e1]'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Bộ đề tuần ({questions.length})</span>
+          </button>
+          <button
+            onClick={() => setLeftMode('schema')}
+            className={`py-3 px-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition ${
+              leftMode === 'schema'
+                ? 'border-[#38bdf8] text-white bg-[#0d1321]'
+                : 'border-transparent text-[#64748b] hover:text-[#cbd5e1]'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Schema DB ({tablesList.length || 13})</span>
+          </button>
         </div>
 
-        {/* Filters */}
-        <div className="space-y-2 mb-3">
-          <div className="flex gap-1.5">
-            <input
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && loadQuestions()}
-              placeholder="Tìm tiêu đề câu hỏi..."
-              className="flex-1 px-2.5 py-1.5 rounded bg-[#0a0e17] border border-[#1e2d45] text-xs text-white"
-            />
-            <button
-              onClick={loadQuestions}
-              className="px-3 py-1.5 rounded bg-[#1e2d45] text-xs text-white hover:bg-[#00d4ff] hover:text-[#0a0e17] font-medium"
-            >
-              Lọc
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { label: 'Tất cả', val: undefined },
-              { label: 'Easy', val: 1 },
-              { label: 'Medium', val: 2 },
-              { label: 'Hard', val: 3 },
-            ].map((b) => (
-              <button
-                key={b.label}
-                onClick={() => setDiffFilter(b.val)}
-                className={`px-2.5 py-1 rounded text-[0.7rem] font-mono border transition ${
-                  diffFilter === b.val
-                    ? 'bg-[#00d4ff]/20 border-[#00d4ff] text-[#00d4ff]'
-                    : 'bg-[#0a0e17] border-[#1e2d45] text-[#8ba3c7]'
-                }`}
-              >
-                {b.label}
-              </button>
-            ))}
-            <button
-              onClick={() =>
-                setSolvedFilter(solvedFilter === undefined ? true : solvedFilter ? false : undefined)
-              }
-              className="px-2.5 py-1 rounded text-[0.7rem] font-mono border bg-[#0a0e17] border-[#1e2d45] text-[#8ba3c7]"
-            >
-              {solvedFilter === undefined
-                ? 'Trạng thái: Tất cả'
-                : solvedFilter
-                ? '✓ Đã giải'
-                : '○ Chưa giải'}
-            </button>
-          </div>
-        </div>
-
-        {/* Question Items */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {questions.map((q) => {
-            const d = DIFF_LABEL[q.difficulty] || DIFF_LABEL[1];
-            const active = q.question_id === selectedId;
-            return (
-              <button
-                key={q.question_id}
-                onClick={() => setSelectedId(q.question_id)}
-                className={`w-full text-left p-3 rounded-lg border transition ${
-                  active
-                    ? 'bg-[#00d4ff]/10 border-[#00d4ff] shadow-md'
-                    : 'bg-[#0a0e17]/80 border-[#1e2d45] hover:border-[#00d4ff]/40'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="font-mono text-[0.68rem] text-[#5a7298]">
-                    Câu #{q.position} · ID {q.question_id}
+        {leftMode === 'problems' ? (
+          <>
+            {/* Weekly Set Progress & Filter Strip */}
+            <div className="p-3.5 border-b border-[#1d283a] space-y-3 bg-[#0a0f1a]">
+              <div>
+                <div className="flex items-center justify-between text-[11px] font-mono text-[#94a3b8] mb-1">
+                  <span className="truncate max-w-[220px]">
+                    {weeklyMeta?.title || 'Tuần #42 — Enterprise SQL'}
                   </span>
-                  <div className="flex items-center gap-1.5">
-                    {q.solved && (
-                      <span className="text-[0.65rem] font-mono px-1.5 py-0.5 rounded bg-[#00e5a0]/20 text-[#00e5a0] border border-[#00e5a0]/40">
-                        ✓ PASSED
-                      </span>
-                    )}
-                    <span className={`text-[0.65rem] font-mono px-1.5 py-0.5 rounded border ${d.cls}`}>
-                      {d.text}
-                    </span>
-                  </div>
+                  <span className="text-emerald-400">
+                    {solvedCount}/{totalCount} hoàn thành ({progressPct}%)
+                  </span>
                 </div>
-                <div className="text-xs font-semibold text-white line-clamp-2">{q.title}</div>
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {(q.skills || []).map((sk: any) => (
-                    <span
-                      key={sk.code}
-                      className="text-[0.62rem] font-mono px-1.5 py-0.5 rounded bg-[#1e2d45]/70 text-[#8ba3c7]"
+                <div className="w-full h-1.5 bg-[#162032] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-[#64748b] absolute left-2.5 top-2.5" />
+                <input
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && loadQuestions()}
+                  placeholder="Tìm kiếm tiêu đề bài tập..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded bg-[#090d16] border border-[#1f2b42] text-xs text-white placeholder-[#64748b] focus:outline-none focus:border-[#38bdf8]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1">
+                  {[
+                    { label: 'All', val: undefined },
+                    { label: 'L1 · Basic', val: 1 },
+                    { label: 'L2 · Mid', val: 2 },
+                    { label: 'L3 · Hard', val: 3 },
+                  ].map((b) => (
+                    <button
+                      key={b.label}
+                      onClick={() => setDiffFilter(b.val)}
+                      className={`px-2 py-1 rounded text-[11px] font-mono border transition ${
+                        diffFilter === b.val
+                          ? 'bg-[#17253d] border-[#38bdf8]/60 text-white'
+                          : 'bg-[#090d16] border-[#1d283a] text-[#64748b] hover:text-[#94a3b8]'
+                      }`}
                     >
-                      {sk.code}: {sk.name}
-                    </span>
+                      {b.label}
+                    </button>
                   ))}
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* Right Column: Question Statement + Monaco SQL Workbench + Grading Result */}
-      <div className="lg:col-span-8 flex flex-col gap-4">
-        {questionDetail ? (
-          <div className="bg-[#111827] border border-[#1e2d45] rounded-xl p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs text-[#00d4ff]">
-                    QUESTION #{questionDetail.question_id}
-                  </span>
-                  <span
-                    className={`text-xs font-mono px-2 py-0.5 rounded border ${
-                      DIFF_LABEL[questionDetail.difficulty]?.cls || ''
+                <button
+                  onClick={() =>
+                    setSolvedFilter(
+                      solvedFilter === undefined ? true : solvedFilter ? false : undefined
+                    )
+                  }
+                  className="px-2 py-1 rounded text-[11px] font-mono border bg-[#090d16] border-[#1d283a] text-[#94a3b8] hover:border-[#2e405e]"
+                >
+                  {solvedFilter === undefined
+                    ? 'Tất cả'
+                    : solvedFilter
+                    ? 'Đã giải'
+                    : 'Chưa giải'}
+                </button>
+              </div>
+            </div>
+
+            {/* Problem Items List */}
+            <div className="flex-1 overflow-y-auto divide-y divide-[#162032]">
+              {questions.map((q) => {
+                const dm = DIFF_META[q.difficulty] || DIFF_META[1];
+                const active = q.question_id === selectedId;
+                return (
+                  <button
+                    key={q.question_id}
+                    onClick={() => setSelectedId(q.question_id)}
+                    className={`w-full text-left px-3.5 py-3 transition flex items-start gap-3 ${
+                      active
+                        ? 'bg-[#141f35] border-l-2 border-l-[#38bdf8]'
+                        : 'hover:bg-[#101829]'
                     }`}
                   >
-                    {DIFF_LABEL[questionDetail.difficulty]?.text}
-                  </span>
-                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#1e2d45] text-[#8ba3c7]">
-                    So khớp: {questionDetail.compare_mode === 'ordered' ? 'Có thứ tự (ORDERED)' : 'Không thứ tự'}
-                  </span>
-                  {questionDetail.solved && (
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#00e5a0]/20 text-[#00e5a0] font-semibold">
-                      ✓ Đã hoàn thành ({questionDetail.attempt_count} lần nộp)
-                    </span>
-                  )}
-                </div>
-                <h1 className="text-lg font-bold text-white">{questionDetail.title}</h1>
-              </div>
-              <button
-                onClick={() => setShowSchema(!showSchema)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-[#00d4ff]/40 text-[#00d4ff] hover:bg-[#00d4ff]/10 font-mono"
-              >
-                {showSchema ? 'Ẩn Schema Enterprise DB' : '🗄️ Xem Schema Enterprise DB (13 bảng)'}
-              </button>
-            </div>
-
-            <div className="p-3.5 rounded-lg bg-[#0a0e17] border border-[#1e2d45] text-sm text-[#dbe7ff] leading-relaxed whitespace-pre-line">
-              {questionDetail.question}
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-mono text-[#5a7298]">Bảng liên quan:</span>
-              {(questionDetail.tables_used || []).map((tb: string) => (
-                <code
-                  key={tb}
-                  className="px-2 py-0.5 rounded bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/25 font-mono"
-                >
-                  {tb}
-                </code>
-              ))}
-            </div>
-
-            {showSchema && tablesList.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-[#1e2d45] max-h-56 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2">
-                {tablesList.map((t: any) => (
-                  <div key={t.table} className="p-2.5 rounded bg-[#0a0e17] border border-[#1e2d45]">
-                    <div className="font-mono text-xs font-bold text-[#00e5a0] mb-1">
-                      public.{t.table}
+                    <div className="mt-0.5">
+                      {q.solved ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <span className="w-4 h-4 rounded-full border border-[#334155] block shrink-0" />
+                      )}
                     </div>
-                    <div className="text-[0.7rem] font-mono text-[#8ba3c7] space-y-0.5">
-                      {(t.columns || []).map((c: any) => (
-                        <div key={c.name} className="flex justify-between">
-                          <span className="text-white">{c.name}</span>
-                          <span className="text-[#5a7298]">{c.postgres_type}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-mono text-[11px] text-[#64748b]">
+                          #{String(q.position).padStart(2, '0')} · Q-{q.question_id}
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${dm.badge}`}
+                        >
+                          {dm.code} · {dm.label}
+                        </span>
+                      </div>
+                      <div className="text-xs font-medium text-[#e2e8f0] line-clamp-2 leading-snug">
+                        {q.title}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {(q.skills || []).map((sk: any) => (
+                          <span
+                            key={sk.code}
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#090d16] text-[#94a3b8] border border-[#1d283a]"
+                          >
+                            {sk.code} · {sk.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          /* Database Schema Browser */
+          <div className="flex-1 overflow-y-auto divide-y divide-[#162032]">
+            <div className="p-3 bg-[#0a0f1a] text-[11px] text-[#94a3b8] font-mono">
+              Catalog: <span className="text-white">enterprise_db.public</span> · Bấm vào bảng để xem cột hoặc chèn truy vấn mẫu.
+            </div>
+            {tablesList.map((tb: any) => {
+              const isExp = expandedTable === tb.table;
+              const isUsedInQ = (questionDetail?.tables_used || []).includes(tb.table);
+              return (
+                <div key={tb.table} className="bg-[#0d1321]">
+                  <div
+                    onClick={() => setExpandedTable(isExp ? null : tb.table)}
+                    className="w-full px-3.5 py-2.5 flex items-center justify-between cursor-pointer hover:bg-[#131c2e] transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isExp ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-[#38bdf8]" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-[#64748b]" />
+                      )}
+                      <Table2 className="w-3.5 h-3.5 text-[#94a3b8]" />
+                      <span className="font-mono text-xs font-medium text-white">
+                        {tb.table}
+                      </span>
+                      {isUsedInQ && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-950/80 text-sky-300 border border-sky-800/60">
+                          Đang dùng
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-mono text-[#64748b]">
+                      {(tb.columns || []).length} cols
+                    </span>
+                  </div>
+
+                  {isExp && (
+                    <div className="bg-[#080c14] px-4 py-2.5 border-t border-[#162032] space-y-1.5">
+                      <div className="flex justify-end mb-1">
+                        <button
+                          onClick={() =>
+                            setSql(`SELECT *\nFROM ${tb.table}\nLIMIT 20;`)
+                          }
+                          className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#162238] hover:bg-[#1e2f4d] text-[#38bdf8] border border-[#263a5e]"
+                        >
+                          Chèn SELECT * FROM {tb.table}
+                        </button>
+                      </div>
+                      {(tb.columns || []).map((c: any) => (
+                        <div
+                          key={c.name}
+                          className="flex items-center justify-between text-[11px] font-mono py-0.5"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[#cbd5e1]">{c.name}</span>
+                            {c.primary_key && (
+                              <span className="text-[9px] px-1 rounded bg-amber-950/70 text-amber-300 border border-amber-800/50">
+                                PK
+                              </span>
+                            )}
+                            {!c.nullable && !c.primary_key && (
+                              <span className="text-[9px] text-[#475569]">NOT NULL</span>
+                            )}
+                          </div>
+                          <span className="text-[#64748b]">{c.postgres_type}</span>
                         </div>
                       ))}
                     </div>
-                  </div>
-                ))}
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </aside>
+
+      {/* RIGHT MAIN WORKSPACE: Problem Specification + Studio SQL Editor + Output Console */}
+      <section className="lg:col-span-8 flex flex-col gap-4">
+        {/* Upper Card: Problem Specification */}
+        {questionDetail ? (
+          <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+            {/* Metadata Header Bar */}
+            <div className="px-5 py-3 bg-[#090d16] border-b border-[#1d283a] flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 text-xs font-mono">
+                <span className="text-[#64748b]">
+                  PROBLEM #{questionDetail.question_id}
+                </span>
+                <span className="text-[#334155]">/</span>
+                <span
+                  className={`px-2 py-0.5 rounded border text-[11px] ${
+                    DIFF_META[questionDetail.difficulty]?.badge || ''
+                  }`}
+                >
+                  {DIFF_META[questionDetail.difficulty]?.code} ·{' '}
+                  {DIFF_META[questionDetail.difficulty]?.label}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-[#131c2e] border border-[#22304a] text-[#94a3b8] text-[11px]">
+                  {questionDetail.compare_mode === 'ordered'
+                    ? 'ORDER SENSITIVE'
+                    : 'UNORDERED SET'}
+                </span>
               </div>
-            )}
+
+              <div className="flex items-center gap-3 text-xs font-mono text-[#94a3b8]">
+                <span>Lượt nộp: {questionDetail.attempt_count || 0}</span>
+                {questionDetail.solved && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    SOLVED
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Problem Content */}
+            <div className="p-5 space-y-4">
+              <h1 className="text-base font-semibold text-white tracking-tight">
+                {questionDetail.title}
+              </h1>
+
+              <div className="p-4 rounded-md bg-[#080c14] border border-[#182235] text-[13px] text-[#cbd5e1] leading-relaxed whitespace-pre-line">
+                {questionDetail.question}
+              </div>
+
+              {/* Schema & Tables Strip */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-mono text-[#64748b] mr-1">
+                    Bảng dữ liệu yêu cầu:
+                  </span>
+                  {(questionDetail.tables_used || []).map((tb: string) => (
+                    <button
+                      key={tb}
+                      onClick={() => {
+                        setLeftMode('schema');
+                        setExpandedTable(tb);
+                      }}
+                      className="px-2.5 py-1 rounded bg-[#111a2e] hover:bg-[#18243f] text-[#38bdf8] border border-[#223459] font-mono text-xs flex items-center gap-1.5 transition"
+                    >
+                      <Table2 className="w-3 h-3" />
+                      <span>public.{tb}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-mono text-[#64748b]">Mẫu cú pháp:</span>
+                  {SQL_SNIPPETS.map((sn) => (
+                    <button
+                      key={sn.label}
+                      onClick={() => setSql(sn.code)}
+                      className="px-2 py-1 rounded bg-[#111827] hover:bg-[#1b263b] text-[#94a3b8] hover:text-white border border-[#1f2b42] text-[11px] font-mono transition"
+                    >
+                      {sn.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="bg-[#111827] border border-[#1e2d45] rounded-xl p-6 text-center text-sm text-[#8ba3c7]">
-            Đang tải chi tiết câu hỏi...
+          <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg p-8 text-center text-xs font-mono text-[#64748b]">
+            Đang nạp đặc tả bài toán...
           </div>
         )}
 
-        {/* Monaco SQL Editor */}
-        <div className="bg-[#111827] border border-[#1e2d45] rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-[#0b1120] border-b border-[#1e2d45] flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#00e5a0]" />
-              <span className="font-mono text-xs text-white font-semibold">
-                PostgreSQL 17 Read-Only Sandbox (sqlarena_ai_ro @ enterprise_db)
-              </span>
+        {/* Lower Card: Studio SQL Editor & Multi-Tab Execution Console */}
+        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+          {/* Editor Action Bar */}
+          <div className="px-4 py-2.5 bg-[#090d16] border-b border-[#1d283a] flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-mono text-[#94a3b8]">
+              <FileCode2 className="w-4 h-4 text-[#38bdf8]" />
+              <span className="text-white font-medium">query.sql</span>
+              <span className="text-[#475569]">·</span>
+              <span className="text-[11px] text-[#64748b]">PostgreSQL 17 Dialect</span>
             </div>
+
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const firstTable = questionDetail?.tables_used?.[0] || 'categories';
+                  setSql(`SELECT *\nFROM ${firstTable}\nLIMIT 10;`);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-[#111827] hover:bg-[#1b263b] border border-[#22304a] text-[#94a3b8] hover:text-white text-xs transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Khôi phục</span>
+              </button>
+
               <button
                 onClick={handleRunSandbox}
                 disabled={running || submitting}
-                className="px-3.5 py-1.5 rounded-lg bg-[#1e2d45] hover:bg-[#2a3f5f] text-white text-xs font-semibold transition"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-[#162238] hover:bg-[#1f304d] border border-[#293f66] text-white text-xs font-medium transition disabled:opacity-50"
               >
-                {running ? '⏳ Đang chạy thử...' : '▶ Chạy thử SQL (Không lưu)'}
+                <Play className="w-3.5 h-3.5 text-[#38bdf8]" />
+                <span>{running ? 'Đang thực thi...' : 'Chạy thử SQL'}</span>
               </button>
+
               <button
                 onClick={handleSubmitGrade}
                 disabled={running || submitting}
-                className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-[#00d4ff] to-[#00e5a0] text-[#0a0e17] text-xs font-bold shadow hover:opacity-95 transition"
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-medium transition disabled:opacity-50"
               >
-                {submitting ? '⏳ Đang chấm điểm...' : '🚀 Nộp bài & Chấm Test Case'}
+                <Send className="w-3.5 h-3.5" />
+                <span>{submitting ? 'Đang chấm...' : 'Nộp bài chấm điểm'}</span>
               </button>
             </div>
           </div>
 
-          <div className="h-[250px] border-b border-[#1e2d45]">
+          {/* Monaco Code Editor */}
+          <div className="h-[260px] border-b border-[#1d283a]">
             <MonacoEditor
-              height="250px"
+              height="260px"
               defaultLanguage="sql"
               theme="vs-dark"
               value={sql}
@@ -348,71 +550,127 @@ export default function LearnerWorkbench({ onSubmissionComplete }: { onSubmissio
               options={{
                 minimap: { enabled: false },
                 fontSize: 13,
-                fontFamily: 'JetBrains Mono, monospace',
+                lineHeight: 21,
+                fontFamily: 'JetBrains Mono, Menlo, monospace',
                 scrollBeyondLastLine: false,
-                padding: { top: 12 },
+                padding: { top: 14, bottom: 14 },
+                renderLineHighlight: 'all',
               }}
             />
           </div>
 
-          {/* Execution & Grading Output */}
-          <div className="p-4 bg-[#0a0e17]">
+          {/* Console Tabs Header */}
+          <div className="px-4 bg-[#090d16] border-b border-[#1d283a] flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {[
+                { id: 'results', label: 'Bảng kết quả (Result Set)' },
+                {
+                  id: 'tests',
+                  label: `Kiểm định Test Cases (${output?.test_cases?.length || 1})`,
+                },
+                { id: 'policy', label: 'Cấu hình Sandbox' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setConsoleTab(t.id as any)}
+                  className={`py-2.5 text-xs font-medium border-b-2 transition ${
+                    consoleTab === t.id
+                      ? 'border-[#38bdf8] text-white'
+                      : 'border-transparent text-[#64748b] hover:text-[#94a3b8]'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {output && (
+              <div className="flex items-center gap-3 text-[11px] font-mono text-[#94a3b8]">
+                <span>Rows: {output.row_count ?? 0}</span>
+                {output.runtime_ms !== undefined && (
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <Clock className="w-3 h-3" />
+                    {output.runtime_ms} ms
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Console Body */}
+          <div className="p-4 bg-[#070b12] min-h-[210px]">
             {errorMsg && (
-              <div className="p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-mono">
-                ❌ Lỗi thực thi: {errorMsg}
+              <div className="p-3.5 rounded bg-red-950/30 border border-red-900/60 flex items-start gap-2.5 text-red-300 text-xs font-mono">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-red-200 mb-0.5">
+                    SQL Execution Error
+                  </div>
+                  <div>{errorMsg}</div>
+                </div>
               </div>
             )}
 
-            {output && (
-              <div className="space-y-3">
-                {output.mode === 'submit' && (
+            {!errorMsg && consoleTab === 'results' && (
+              <>
+                {output?.mode === 'submit' && (
                   <div
-                    className={`p-3.5 rounded-lg border flex flex-wrap items-center justify-between gap-2 ${
+                    className={`mb-3 p-3 rounded border flex flex-wrap items-center justify-between gap-2 ${
                       output.passed
-                        ? 'bg-[#00e5a0]/10 border-[#00e5a0]/40 text-[#00e5a0]'
-                        : 'bg-red-500/10 border-red-500/40 text-red-300'
+                        ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-200'
+                        : 'bg-rose-950/30 border-rose-800/60 text-rose-200'
                     }`}
                   >
-                    <div>
-                      <div className="text-sm font-bold">
+                    <div className="flex items-center gap-2 text-xs">
+                      {output.passed ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-400" />
+                      )}
+                      <span className="font-semibold">
                         {output.passed
-                          ? '🎉 CHÍNH XÁC! Vượt qua toàn bộ Test Cases chuẩn (100/100 điểm)'
-                          : `❌ CHƯA KHỚP ĐÁP ÁN (${output.submission_status.toUpperCase()})`}
-                      </div>
-                      {output.error && <div className="text-xs mt-0.5">{output.error}</div>}
+                          ? 'ACCEPTED — Kết quả khớp hoàn toàn với bộ Test Case chuẩn'
+                          : `WRONG ANSWER — ${output.error || 'Chưa khớp kết quả chuẩn'}`}
+                      </span>
                     </div>
                     <div className="font-mono text-xs">
-                      Điểm: <strong>{output.score}</strong> · Runtime: <strong>{output.runtime_ms}ms</strong>
+                      Score: <strong>{output.score}/100</strong> · Latency:{' '}
+                      <strong>{output.runtime_ms} ms</strong>
                     </div>
                   </div>
                 )}
 
-                {output.mode === 'run' && (
-                  <div className="flex items-center justify-between text-xs font-mono text-[#00d4ff]">
-                    <span>✓ Chạy thử Sandbox thành công (SELECT Read-Only)</span>
-                    <span>Số dòng trả về: {output.row_count}</span>
-                  </div>
-                )}
-
-                {output.columns && output.columns.length > 0 && (
-                  <div className="overflow-x-auto max-h-64 border border-[#1e2d45] rounded-lg">
+                {output?.columns && output.columns.length > 0 ? (
+                  <div className="overflow-x-auto max-h-64 border border-[#1a2436] rounded">
                     <table className="w-full text-left border-collapse text-xs font-mono">
                       <thead>
-                        <tr className="bg-[#111827] border-b border-[#1e2d45] text-[#00d4ff]">
+                        <tr className="bg-[#0e1525] border-b border-[#1a2436] text-[#94a3b8]">
+                          <th className="px-2.5 py-2 w-10 text-center border-r border-[#1a2436] text-[#475569]">
+                            #
+                          </th>
                           {output.columns.map((c: string) => (
-                            <th key={c} className="px-3 py-2 whitespace-nowrap">
+                            <th
+                              key={c}
+                              className="px-3 py-2 whitespace-nowrap border-r border-[#1a2436] last:border-r-0 text-[#cbd5e1]"
+                            >
                               {c}
                             </th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody>
-                        {(output.rows || []).slice(0, 30).map((r: any, idx: number) => (
-                          <tr key={idx} className="border-b border-[#1e2d45]/50 hover:bg-[#111827]/60">
+                      <tbody className="divide-y divide-[#141d2e]">
+                        {(output.rows || []).slice(0, 40).map((r: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-[#11192b]">
+                            <td className="px-2.5 py-1.5 text-center border-r border-[#141d2e] text-[#475569]">
+                              {idx + 1}
+                            </td>
                             {output.columns.map((c: string) => (
-                              <td key={c} className="px-3 py-1.5 text-[#dbe7ff] whitespace-nowrap">
+                              <td
+                                key={c}
+                                className="px-3 py-1.5 text-[#e2e8f0] whitespace-nowrap border-r border-[#141d2e] last:border-r-0"
+                              >
                                 {r[c] === null || r[c] === undefined ? (
-                                  <span className="text-[#5a7298] italic">NULL</span>
+                                  <span className="text-[#475569] italic">null</span>
                                 ) : (
                                   String(r[c])
                                 )}
@@ -423,18 +681,77 @@ export default function LearnerWorkbench({ onSubmissionComplete }: { onSubmissio
                       </tbody>
                     </table>
                   </div>
+                ) : (
+                  <div className="py-10 text-center text-xs font-mono text-[#64748b]">
+                    Chưa có dữ liệu đầu ra. Nhấn &quot;Chạy thử SQL&quot; hoặc &quot;Nộp bài chấm điểm&quot; để thực thi truy vấn.
+                  </div>
+                )}
+              </>
+            )}
+
+            {!errorMsg && consoleTab === 'tests' && (
+              <div className="space-y-2">
+                {output?.test_cases ? (
+                  output.test_cases.map((tc: any) => (
+                    <div
+                      key={tc.test_id}
+                      className="p-3 rounded bg-[#0d1321] border border-[#1d283a] flex items-center justify-between text-xs font-mono"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {tc.passed ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-400" />
+                        )}
+                        <span className="text-white">
+                          Dataset: {tc.dataset_ref} ({tc.type})
+                        </span>
+                      </div>
+                      <div className="text-[#94a3b8]">
+                        Expected rows: <strong className="text-white">{tc.expected_rows}</strong> ·
+                        Actual rows: <strong className="text-white">{tc.actual_rows}</strong>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-xs font-mono text-[#64748b]">
+                    Nhấn &quot;Nộp bài chấm điểm&quot; để xem chi tiết đối chiếu từng Test Case.
+                  </div>
                 )}
               </div>
             )}
 
-            {!errorMsg && !output && (
-              <div className="text-xs font-mono text-[#5a7298]">
-                💡 Nhấn &quot;Chạy thử SQL&quot; để kiểm tra kết quả truy vấn trên Enterprise DB, hoặc nhấn &quot;Nộp bài&quot; để hệ thống chấm tự động với bộ Test Case chuẩn.
+            {!errorMsg && consoleTab === 'policy' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+                <div className="p-3 rounded bg-[#0d1321] border border-[#1d283a]">
+                  <div className="text-[#64748b] mb-1 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-[#38bdf8]" />
+                    ROLE ISOLATION
+                  </div>
+                  <div className="text-white">sqlarena_ai_ro @ enterprise_db</div>
+                  <div className="text-[11px] text-[#64748b] mt-1">
+                    Quyền SELECT thuần túy, chặn tuyệt đối ghi/xóa bảng hệ thống.
+                  </div>
+                </div>
+                <div className="p-3 rounded bg-[#0d1321] border border-[#1d283a]">
+                  <div className="text-[#64748b] mb-1">TRANSACTION GUARD</div>
+                  <div className="text-white">SET LOCAL TRANSACTION READ ONLY</div>
+                  <div className="text-[11px] text-[#64748b] mt-1">
+                    statement_timeout = 10000ms · max_rows = 100,000
+                  </div>
+                </div>
+                <div className="p-3 rounded bg-[#0d1321] border border-[#1d283a]">
+                  <div className="text-[#64748b] mb-1">AST / REGEX FILTER</div>
+                  <div className="text-white">Single-Statement SELECT / WITH</div>
+                  <div className="text-[11px] text-[#64748b] mt-1">
+                    Chặn DDL, DML, COPY, GRANT, VACUUM và multi-statement.
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
