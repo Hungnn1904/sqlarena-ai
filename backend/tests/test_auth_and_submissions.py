@@ -103,7 +103,36 @@ def test_sql_sandbox_grading_progress_and_leaderboard(client, learner_h):
     # 5. Check progress & leaderboards
     prog = client.get("/api/v1/progress", headers=learner_h)
     assert prog.status_code == 200
-    assert prog.json()["summary"]["solved_questions"] == 1
+    prog_data = prog.json()
+    assert prog_data["summary"]["solved_questions"] == 1
+    assert "career" in prog_data
+    assert prog_data["career"]["xp"] > 0
+    assert prog_data["career"]["level"] >= 1
+    assert len(prog_data["career"]["badges"]) >= 5
+
+    # 6. Check Explain Plan, Per-Question Submission History & AI SQL Coach (3 modes)
+    exp_res = client.post("/api/v1/sql/explain", headers=learner_h, json={"sql": "SELECT COUNT(*)::int AS cnt FROM categories", "question_id": qid})
+    assert exp_res.status_code == 200
+    assert "plan_nodes" in exp_res.json()
+
+    hist_res = client.get(f"/api/v1/questions/{qid}/submissions", headers=learner_h)
+    assert hist_res.status_code == 200
+    assert len(hist_res.json()["items"]) == 2
+
+    for mode in ("review", "nl2sql", "interview"):
+        coach_res = client.post(
+            "/api/v1/sql/ai-coach",
+            headers=learner_h,
+            json={"question_id": qid, "sql": "SELECT * FROM categories", "mode": mode, "prompt": "Đếm tổng số danh mục"},
+        )
+        assert coach_res.status_code == 200
+        cdata = coach_res.json()
+        assert cdata["mode"] == mode
+        assert cdata["clean_score"] > 0
+        assert cdata["suggested_sql"]
+        if mode == "interview":
+            assert cdata["interview_q"]
+            assert cdata["interview_answer"]
 
     lb_w = client.get("/api/v1/leaderboard/weekly", headers=learner_h)
     assert lb_w.status_code == 200

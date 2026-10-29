@@ -173,26 +173,29 @@ def explain_query(conn: Connection, question_id: int, raw_sql: str) -> dict:
         raise bad_request(str(exc))
     try:
         with enterprise_connection() as econn:
-            with econn.cursor() as cur:
-                cur.execute("SET LOCAL TRANSACTION READ ONLY")
-                cur.execute("SET LOCAL statement_timeout = 3000")
-                cur.execute(f"EXPLAIN (ANALYZE, COSTS, FORMAT JSON) {clean_sql}")
-                raw = cur.fetchone()[0]
-                plan_list = raw if isinstance(raw, list) else json.loads(raw)
-                top = plan_list[0] if plan_list else {}
-                root_plan = top.get("Plan") or {}
-                nodes: list[dict] = []
-                warnings: list[str] = []
-                if root_plan:
-                    _walk_plan_nodes(root_plan, nodes, warnings)
-                return {
-                    "question_id": question_id,
-                    "planning_time_ms": top.get("Planning Time", 0),
-                    "execution_time_ms": top.get("Execution Time", 0),
-                    "total_cost": root_plan.get("Total Cost", 0),
-                    "plan_nodes": nodes,
-                    "warnings": warnings,
-                }
+            with econn.transaction():
+                with econn.cursor() as cur:
+                    cur.execute("SET LOCAL TRANSACTION READ ONLY")
+                    cur.execute("SELECT set_config('statement_timeout', '3000ms', true)")
+                    cur.execute("SET LOCAL search_path = public")
+                    cur.execute(f"EXPLAIN (ANALYZE, COSTS, FORMAT JSON) {clean_sql}")
+                    row = cur.fetchone()
+                    raw = row["QUERY PLAN"] if isinstance(row, dict) else row[0]
+                    plan_list = raw if isinstance(raw, list) else json.loads(raw)
+                    top = plan_list[0] if plan_list else {}
+                    root_plan = top.get("Plan") or {}
+                    nodes: list[dict] = []
+                    warnings: list[str] = []
+                    if root_plan:
+                        _walk_plan_nodes(root_plan, nodes, warnings)
+                    return {
+                        "question_id": question_id,
+                        "planning_time_ms": top.get("Planning Time", 0),
+                        "execution_time_ms": top.get("Execution Time", 0),
+                        "total_cost": root_plan.get("Total Cost", 0),
+                        "plan_nodes": nodes,
+                        "warnings": warnings,
+                    }
     except Exception as exc:
         raise bad_request(str(exc))
 
