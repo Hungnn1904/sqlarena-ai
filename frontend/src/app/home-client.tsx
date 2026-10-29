@@ -76,7 +76,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
 export default function HomeClient() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<string>('workbench');
-  const [pitchOpen, setPitchOpen] = useState<boolean>(true);
+  const [pitchOpen, setPitchOpen] = useState<boolean>(false);
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
@@ -177,10 +177,9 @@ export default function HomeClient() {
         )}
       </main>
 
-      <footer className="border-t border-[#151d2c] bg-[#060911] py-3.5 px-5 text-xs text-[#64748b] font-mono relative z-10">
-        <div className="max-w-[1520px] mx-auto flex flex-wrap items-center justify-between gap-2">
-          <span>SQLArena Platform · Design v7 Clean Architecture</span>
-          <span>PostgreSQL 17 Read-Only Sandbox · FastAPI · Next.js 16</span>
+      <footer className="border-t border-[var(--line)] bg-[var(--paper)] py-3 px-5 text-xs text-[var(--muted)] font-mono relative z-10">
+        <div className="max-w-[1520px] mx-auto flex items-center justify-between">
+          <span>sqlarena · Nền tảng học & chấm thi SQL tự động trên PostgreSQL 17</span>
         </div>
       </footer>
     </div>

@@ -240,18 +240,27 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-4">
-      {/* Sub-navigation Bar */}
-      <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-end justify-between gap-2 pb-1">
+        <div>
+          <div className="text-[11px] font-bold tracking-[0.15em] uppercase text-[var(--copper)]">
+            QUẢN TRỊ HỆ THỐNG
+          </div>
+          <h2 className="text-2xl font-bold text-[var(--ink)] mt-0.5">
+            Điều phối &amp; <span className="editorial-serif text-[var(--green)]">duyệt đề AI.</span>
+          </h2>
+        </div>
+
+        {/* Sub-navigation Bar */}
+        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg p-1 flex flex-wrap items-center gap-1">
           {[
             {
               id: 'drafts',
-              label: 'Hàng đợi Kiểm duyệt Draft',
+              label: `Duyệt đề (${drafts.length})`,
               icon: GitPullRequest,
             },
-            { id: 'jobs', label: 'Pipeline Sinh đề AI', icon: Cpu },
-            { id: 'weekly', label: 'Quản lý Bộ đề tuần', icon: CalendarRange },
-            { id: 'users', label: 'Tài khoản & Phân quyền', icon: Users },
+            { id: 'jobs', label: 'Sinh đề AI', icon: Cpu },
+            { id: 'weekly', label: 'Bộ đề tuần', icon: CalendarRange },
+            { id: 'users', label: 'Người dùng', icon: Users },
           ].map((t) => {
             const Icon = t.icon;
             const active = subTab === t.id;
@@ -259,7 +268,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
               <button
                 key={t.id}
                 onClick={() => setSubTab(t.id as any)}
-                className={`px-3 py-1.5 rounded text-xs font-medium flex items-center gap-2 transition ${
+                className={`px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition ${
                   active
                     ? 'bg-[#162238] text-white border border-[#293f66]'
                     : 'text-[#64748b] hover:text-white border border-transparent'
@@ -271,10 +280,6 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
             );
           })}
         </div>
-
-        <span className="text-[11px] font-mono text-[#64748b]">
-          ADMINISTRATION & GOVERNANCE CONSOLE
-        </span>
       </div>
 
       {err && (
@@ -295,18 +300,18 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
           <div className="lg:col-span-4 bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
             <div className="p-3.5 bg-[#090d16] border-b border-[#1d283a] flex items-center justify-between">
               <span className="text-xs font-semibold text-white">
-                Danh sách Bản nháp ({drafts.length})
+                Bản nháp ({drafts.length})
               </span>
               <select
                 value={draftStatus}
                 onChange={(e) => setDraftStatus(e.target.value)}
                 className="px-2.5 py-1 rounded bg-[#0d1321] border border-[#22304a] text-xs text-[#cbd5e1] font-mono"
               >
-                <option value="">Tất cả trạng thái</option>
-                <option value="needs_human">needs_human (Cần duyệt)</option>
-                <option value="pending">pending (Chờ kiểm định)</option>
-                <option value="approved">approved (Đã duyệt)</option>
-                <option value="rejected">rejected (Đã từ chối)</option>
+                <option value="">Tất cả</option>
+                <option value="needs_human">Cần duyệt</option>
+                <option value="pending">Đang chờ</option>
+                <option value="approved">Đã duyệt</option>
+                <option value="rejected">Từ chối</option>
               </select>
             </div>
 
@@ -482,17 +487,14 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
             className="lg:col-span-5 bg-[#0d1321] border border-[#1d283a] rounded-lg p-5 space-y-4"
           >
             <div className="border-b border-[#1d283a] pb-3">
-              <div className="text-[11px] font-mono text-[#38bdf8]">
-                PIPELINE JOB DISPATCHER
-              </div>
-              <h3 className="text-sm font-semibold text-white mt-0.5">
-                Khởi tạo Tác vụ Sinh đề AI (Model A + Model B)
+              <h3 className="text-sm font-semibold text-white">
+                Sinh đề AI mới
               </h3>
             </div>
 
             <div>
               <label className="block text-xs text-[#94a3b8] mb-1">
-                Ngữ cảnh nghiệp vụ yêu cầu (Topic)
+                Chủ đề (Topic)
               </label>
               <input
                 value={jobTopic}
@@ -558,18 +560,18 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
               type="submit"
               className="w-full py-2.5 rounded bg-[#0284c7] hover:bg-[#0369a1] text-white font-medium text-xs transition"
             >
-              Đẩy tác vụ vào Hàng đợi Worker
+              Tạo đề AI
             </button>
           </form>
 
           <div className="lg:col-span-7 bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
             <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
-                Nhật ký Generation Jobs & Ngân sách LLM
+                Lịch sử sinh đề
               </h3>
               {llmUsage && (
                 <span className="text-xs font-mono text-[#38bdf8]">
-                  Daily Quota: {llmUsage.calls_used ?? 0} / {llmUsage.daily_call_cap ?? 200} calls
+                  Quota: {llmUsage.calls_used ?? 0}/{llmUsage.daily_call_cap ?? 200}
                 </span>
               )}
             </div>
@@ -581,10 +583,10 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                 >
                   <div>
                     <div className="font-medium text-white">
-                      Job #{j.job_id} — {j.topic || 'Enterprise SQL Generation'}
+                      #{j.job_id} · {j.topic || 'SQL Generation'}
                     </div>
                     <div className="font-mono text-[11px] text-[#64748b] mt-0.5">
-                      Difficulty: L{j.difficulty} · Created: {j.created_count}/{j.requested_count} · Failed: {j.failed_count}
+                      L{j.difficulty} · {j.created_count}/{j.requested_count} câu
                     </div>
                   </div>
                   <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#131c2e] border border-[#22304a] text-[#cbd5e1] uppercase">
@@ -602,7 +604,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
         <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
           <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a]">
             <h3 className="text-sm font-semibold text-white">
-              Quản lý Vòng đời Bộ đề Tuần (live.weekly_sets)
+              Bộ đề tuần
             </h3>
           </div>
           <div className="divide-y divide-[#162032]">

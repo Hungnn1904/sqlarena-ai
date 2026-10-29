@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-export type ThemeMode = 'hybrid' | 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark';
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -11,7 +11,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = React.createContext<ThemeContextValue>({
-  theme: 'hybrid',
+  theme: 'light',
   toggleTheme: () => {},
   setTheme: () => {},
 });
@@ -23,22 +23,15 @@ export function useTheme() {
 function applyHtmlThemeClasses(mode: ThemeMode) {
   const el = document.documentElement;
   el.classList.remove('dark', 'light', 'hybrid');
-  if (mode === 'dark') {
-    el.classList.add('dark');
-  } else if (mode === 'light') {
-    el.classList.add('light');
-  } else {
-    el.classList.add('light', 'hybrid');
-  }
+  el.classList.add(mode);
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = React.useState<ThemeMode>('hybrid');
+  const [theme, setThemeState] = React.useState<ThemeMode>('light');
 
   React.useEffect(() => {
-    const saved = window.localStorage.getItem('sqlarena_theme_v6') as ThemeMode | null;
-    const initial: ThemeMode =
-      saved === 'light' || saved === 'dark' || saved === 'hybrid' ? saved : 'hybrid';
+    const saved = window.localStorage.getItem('sqlarena_theme_v7') as ThemeMode | null;
+    const initial: ThemeMode = saved === 'dark' ? 'dark' : 'light';
     setThemeState(initial);
     applyHtmlThemeClasses(initial);
   }, []);
@@ -46,15 +39,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = React.useCallback((next: ThemeMode) => {
     setThemeState(next);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('sqlarena_theme_v6', next);
+      window.localStorage.setItem('sqlarena_theme_v7', next);
     }
     applyHtmlThemeClasses(next);
   }, []);
 
   const toggleTheme = React.useCallback(() => {
-    const order: ThemeMode[] = ['hybrid', 'light', 'dark'];
-    const next = order[(order.indexOf(theme) + 1) % order.length];
-    setTheme(next);
+    setTheme(theme === 'light' ? 'dark' : 'light');
   }, [theme, setTheme]);
 
   return (
