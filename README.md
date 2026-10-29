@@ -159,19 +159,27 @@ npm run dev -- -p 3000 -H 127.0.0.1
 - **Giao diện Next.js 16 (Chính)**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
 - **Giao diện HTML tĩnh tương thích ngược (`learner.html`)**: [http://127.0.0.1:5500/learner.html](http://127.0.0.1:5500/learner.html) *(chạy bằng `python3 -m http.server 5500`)*
 
-#### Bước 5: Chế độ Sinh Đề AI (Instant Demo Mode vs. Local Ollama Worker)
-Hệ thống hỗ trợ **2 chế độ vận hành linh hoạt** để bất kỳ thành viên nào trong nhóm cũng test được ngay mà không cần GPU rời:
-1. **Chế độ 1 — Instant Demo Mode (Mặc định trên Web UI, không cần cài Ollama)**:
-   - Khi bấm **"Tạo đề AI"** trên tab `04 · Quản trị -> Sinh đề AI`, Backend nhận cờ `auto_run: true` và tự động tổng hợp ngay các câu hỏi nháp (`draft.question_drafts` ở trạng thái `needs_human`) kèm bản ghi lời giải `draft.self_solve_runs` dựa trên kho Blueprint chuẩn.
-   - Admin có thể chuyển sang tab **`Duyệt đề`** ngay lập tức để kiểm tra, sửa đề hoặc bấm **Approve** đẩy vào ngân hàng câu hỏi `live.questions`.
-2. **Chế độ 2 — Local Ollama Worker (Chạy LLM thật 100% qua `ai/main.py` & `ai/review.py`)**:
-   - Nếu máy đã cài [Ollama](https://ollama.com) ở cổng `11434`, kéo 2 model về và bật Worker chạy ngầm:
-   ```bash
-   ollama pull llama3
-   ollama pull qwen2.5-coder:7b
-   cd backend && ../.venv/bin/python -m app.cli worker
-   ```
-   - Khi đó Worker sẽ lấy các Job `queued` trong `draft.generation_jobs` và gọi trực tiếp Ollama स्थानीय (`http://localhost:11434/api/generate`) để chạy Model A sinh đề + Model B tự giải kiểm chứng 7 cổng.
+#### Bước 5: Nguồn dữ liệu & Cơ chế Sinh Đề AI (2 Chế độ: Parametric SQL Synthesizer vs. Local Ollama 2-Model Worker)
+
+Khi Admin bấm nút **"Khởi chạy Job Sinh đề AI"** trên tab `04 · Quản trị -> Sinh đề AI`, hệ thống lấy **dữ liệu nguồn từ 3 tầng trong PostgreSQL 17**:
+1. **Tầng 1 — Enterprise Database (`enterprise_db` — 13 bảng dữ liệu thật, >13.400 dòng)**:
+   - Được nạp từ `postgre/enterprise_db/schema_code.sql` và `enterprise_seed_data.sql` (`categories`, `products`, `suppliers`, `warehouses`, `inventory`, `departments`, `employees`, `customers`, `orders`, `order_items`, `payments`, `shipments`, `refunds`).
+2. **Tầng 2 — World Metadata & 50 Seed Blueprints (`core.worlds`, `core.skills`, `core.source_questions`)**:
+   - Được nạp từ `backend/seed/core_seed.json` khi chạy `python -m app.cli seed-demo`, chứa mô tả schema, khóa ngoại (`fk_relations`), quy tắc nghiệp vụ (`business_rules`), bẫy dữ liệu (`planted_traps`) và 50 mẫu câu hỏi chuẩn theo 6 nhóm kỹ năng `S1–S6`.
+3. **Tầng 3 — Bộ tổng hợp câu hỏi có kiểm chứng thực thi (`backend/app/services/jobs.py` & `ai/main.py`)**:
+   - Hỗ trợ **2 chế độ hoạt động** để cả nhóm và giảng viên đều test được ngay lập tức:
+   - **Chế độ A — Parametric SQL Synthesizer + Live Sandbox Verifier (`auto_run: true`, mặc định trên Web UI — KHÔNG cần cài Ollama)**:
+     - Hệ thống sử dụng các khung truy vấn tham số hóa (`_PARAM_TEMPLATES` trong `backend/app/services/jobs.py`: lọc ngưỡng giá `list_price`, ngưỡng số đơn hàng `HAVING COUNT >= N`, phân nhóm `GROUP BY`, xếp hạng cửa sổ `DENSE_RANK() OVER (PARTITION BY ...)`), kết hợp với `topic`, `difficulty`, `skill_ids` do Admin chọn.
+     - Trước khi lưu, hệ thống **quét toàn bộ `live.questions` và `draft.question_drafts` để chống trùng lặp 100%** với 50 câu gốc, sau đó **chạy trực tiếp câu lệnh `reference_sql` trên `enterprise_db` thật** để kiểm chứng số dòng trả về (`row_count > 0`) rồi mới ghi vào `draft.question_drafts` (`status = 'needs_human'`) và `draft.self_solve_runs`.
+     - Khi Admin sang tab **`Duyệt đề`** và bấm **"Phê duyệt & Đưa vào Ngân hàng đề"**, Backend (`backend/app/services/drafts.py`) thực thi lại `reference_sql` trên `enterprise_db`, đóng gói kết quả chuẩn (`expected_columns`, `expected_rows`, `result_hash`) vào `live.test_cases` và phát hành câu hỏi sang `live.questions` (`status = 'ready'`).
+   - **Chế độ B — Local Ollama 2-Model Worker (`auto_run: false` + chạy tiến trình `python -m app.cli worker`)**:
+     - Nếu máy có cài [Ollama](https://ollama.com) ở cổng `11434`, kéo 2 model local về và bật Worker chạy ngầm:
+     ```bash
+     ollama pull llama3
+     ollama pull qwen2.5-coder:7b
+     cd backend && ../.venv/bin/python -m app.cli worker
+     ```
+     - Worker lấy `schema_description` + 2 câu mẫu từ `core.source_questions` làm Few-Shot Prompt gửi vào **Model A (Generator)** sinh đề mới, sau đó gọi **Model B (Self-Solver)** độc lập tự giải `k=3` lần trên Base + Mutant Datasets và chấm qua **7 cổng kiểm định** (`ai/review.py`).
 
 
 ---
@@ -233,17 +241,33 @@ Kết quả chuẩn:
 | **Luyện tập & Chấm bài** | `GET /api/v1/weekly/current` | Thông tin bộ đề tuần đang mở & tiến độ cá nhân |
 | | `GET /api/v1/weekly/current/questions` | Danh sách câu hỏi trong tuần (hỗ trợ lọc độ khó, kỹ năng, trạng thái `solved`) |
 | | `GET /api/v1/questions/{id}` | Chi tiết đề bài, bảng liên quan, số lần nộp & trạng thái giải |
+| | `GET /api/v1/questions/{id}/submissions` | Lịch sử các lần nộp bài của học viên cho từng câu hỏi |
 | | `GET /api/v1/dataset/schema` | Cấu trúc chi tiết 13 bảng của EnterpriseDB |
 | | `POST /api/v1/sql/run` | Chạy thử truy vấn SQL trong Read-Only Sandbox (không lưu điểm) |
+| | `POST /api/v1/sql/explain` | Phân tích `EXPLAIN (FORMAT JSON)` & phát hiện `Seq Scan` trên Sandbox |
+| | `POST /api/v1/sql/ai-coach` | Trợ lý AI SQL Coach 4 chế độ (`review`, `nl2sql`, `interview`, `autofix`) |
 | | `POST /api/v1/submissions` | Nộp bài SQL, chấm tự động với `live.test_cases` và lưu kết quả |
-| **Tiến độ & Xếp hạng** | `GET /api/v1/progress` | Thống kê tổng quan, độ thông thạo 6 kỹ năng `S1–S6` & 20 lần nộp gần nhất |
+| **Tiến độ & Xếp hạng** | `GET /api/v1/progress` | Thống kê tổng quan, Lộ trình Data Engineer (XP/Level/Badges/AI Advice), 6 kỹ năng `S1–S6` & 20 lần nộp gần nhất |
 | | `GET /api/v1/leaderboard/weekly` | Bảng xếp hạng bộ đề tuần hiện tại |
 | | `GET /api/v1/leaderboard/monthly` | Bảng xếp hạng tổng hợp theo tháng |
-| **Quản trị Admin** | `POST /api/v1/admin/generation-jobs` | Khởi chạy Job sinh đề AI (Model A + Model B) |
+| | `GET /api/v1/weekly/history` | Lịch sử các bộ đề tuần đã đóng |
+| **Quản trị Admin** | `POST /api/v1/admin/generation-jobs` | Khởi chạy Job sinh đề AI (hỗ trợ `auto_run` Parametric Synthesizer & Local Ollama Worker) |
 | | `GET /api/v1/admin/generation-jobs` | Xem tiến độ các Job sinh đề |
+| | `GET /api/v1/admin/llm-usage` | Thống kê hạn mức & chi phí gọi LLM trong ngày (`draft.llm_call_ledger`) |
 | | `GET /api/v1/admin/drafts` | Danh sách câu hỏi nháp (lọc `needs_human`, `pending`, `approved`, `rejected`) |
-| | `POST /api/v1/admin/drafts/{id}/approve` | Admin phê duyệt câu hỏi `needs_human` & promote sang `live.questions` |
+| | `POST /api/v1/admin/drafts/{id}/approve` | Admin phê duyệt câu hỏi `needs_human`, tự động sinh `test_cases` & promote sang `live.questions` |
 | | `POST /api/v1/admin/drafts/{id}/reject` | Admin từ chối câu hỏi nháp |
+| | `POST /api/v1/admin/drafts/{id}/requeue` | Đưa câu hỏi nháp quay lại hàng đợi kiểm định |
 | | `PATCH /api/v1/admin/drafts/{id}` | Admin chỉnh sửa tiêu đề/đề bài & đưa lại hàng đợi kiểm định |
+| | `GET /api/v1/admin/questions` | Ngân hàng câu hỏi chính thức (`live.questions`) |
+| | `PATCH /api/v1/admin/questions/{id}/source` | Bật/tắt đánh dấu câu hỏi làm Seed mẫu (`is_source`) |
+| | `POST /api/v1/admin/questions/{id}/retire` | Thu hồi câu hỏi khỏi ngân hàng đề |
+| | `POST /api/v1/admin/questions/{id}/restore` | Khôi phục câu hỏi đã thu hồi về trạng thái `ready` |
+| | `GET /api/v1/admin/weekly-sets` | Danh sách các bộ đề tuần (`draft` / `published` / `closed`) |
+| | `POST /api/v1/admin/weekly-sets` | Tạo bộ đề tuần mới (tự động chọn câu hỏi `ready` theo cấu hình độ khó) |
+| | `POST /api/v1/admin/weekly-sets/{id}/publish` | Phát hành bộ đề tuần cho học viên làm bài |
+| | `POST /api/v1/admin/weekly-sets/{id}/close` | Đóng chu kỳ bộ đề tuần hiện tại |
 | | `GET /api/v1/admin/users` | Danh sách người dùng hệ thống |
 | | `PATCH /api/v1/admin/users/{id}` | Đổi vai trò (`learner`/`admin`) hoặc khóa/mở khóa tài khoản |
+| | `GET /api/v1/admin/settings` | Xem cấu hình hệ thống (`core.system_settings`) |
+| | `PUT /api/v1/admin/settings/{key}` | Cập nhật cấu hình hệ thống |
