@@ -696,6 +696,43 @@ export default function LearnerWorkbench({
           </div>
         )}
 
+        {/* AI Co-Pilot & Mock Interview Banner (Visible above the fold) */}
+        <div className="p-3.5 rounded-lg bg-[var(--surface)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-full bg-[#5C7F71] text-[#F5EDDC] flex items-center justify-center text-xs font-bold">
+              AI
+            </span>
+            <div>
+              <div className="text-xs font-bold text-[var(--ink)]">
+                Trợ lý AI SQL Coach &amp; Luyện Phỏng vấn Data Engineer
+              </div>
+              <div className="text-[11px] text-[var(--muted)]">
+                Chấm điểm Clean SQL, dịch ý tưởng Tiếng Việt sang SQL chuẩn Schema, hoặc thử sức câu hỏi phỏng vấn thực chiến.
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => handleAiCoach('review')}
+              className="px-2.5 py-1.5 rounded bg-[#5C7F71] text-[#F5EDDC] text-xs font-semibold"
+            >
+              🔍 AI Review Code
+            </button>
+            <button
+              onClick={() => handleAiCoach('nl2sql')}
+              className="px-2.5 py-1.5 rounded bg-[var(--paper)] border border-[var(--copper)] text-[var(--copper)] text-xs font-semibold"
+            >
+              ✨ Tiếng Việt → SQL
+            </button>
+            <button
+              onClick={() => handleAiCoach('interview')}
+              className="px-2.5 py-1.5 rounded bg-[var(--paper)] border border-[var(--gold)] text-[var(--gold)] text-xs font-semibold"
+            >
+              🎙️ Phỏng vấn AI
+            </button>
+          </div>
+        </div>
+
         {/* Lower Card: Studio SQL Editor & Multi-Tab Execution Console */}
         <div className="bg-[var(--surface)] text-[var(--ink)] border border-[var(--line)] rounded-lg overflow-hidden card-interactive">
           {/* Editor Action Bar */}

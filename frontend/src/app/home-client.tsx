@@ -17,57 +17,74 @@ import type { PipelineStep } from '../components/types';
 const PIPELINE_STEPS: PipelineStep[] = [
   {
     id: 1,
-    title: 'Core World & Skill Taxonomy (core.worlds, core.skills, core.source_questions)',
+    title: 'Tầng Dữ Liệu Thật & Khung Năng Lực (core.worlds · core.skills · enterprise_db)',
     badges: [
       { label: 'PostgreSQL 17', variant: 'db' },
-      { label: '6 Skills S1–S6 · 50 Source Questions', variant: 'rule' },
+      { label: '13 Bảng · 6 Kỹ năng S1–S6', variant: 'rule' },
     ],
     status: 'completed',
     content: (
-      <div className="text-xs text-[#94a3b8] leading-relaxed">
-        Tầng tri thức nền tảng lưu trữ cấu trúc 13 bảng dữ liệu thật của EnterpriseDB, 6 kỹ năng SQL cốt lõi (SELECT, JOIN, GROUP BY, Subquery/CTE, Window Functions, Edge Cases) và 50 đề nguồn chuẩn.
+      <div className="text-xs text-[var(--text2)] leading-relaxed pt-2 space-y-1.5">
+        <div>
+          • <strong>Database Thực Tế (`enterprise_db`)</strong>: Gồm 13 bảng thương mại điện tử & nhân sự với hơn 13.400 dòng dữ liệu thật (khách hàng, đơn hàng, thanh toán, tồn kho, phòng ban).
+        </div>
+        <div>
+          • <strong>Khung 6 Kỹ Năng (`S1–S6`)</strong>: Phân loại bài tập từ <code>S1 SELECT/WHERE</code>, <code>S2 JOIN</code>, <code>S3 GROUP BY</code>, <code>S4 Subquery/CTE</code>, <code>S5 Window Functions</code> đến <code>S6 NULL & Edge Cases</code>.
+        </div>
       </div>
     ),
   },
   {
     id: 2,
-    title: 'Model A — Blueprint & Question Generator (draft.question_drafts)',
+    title: 'Model A — AI Sinh Đề & Khung Truy Vấn Chuẩn (draft.question_drafts)',
     badges: [
       { label: 'Model A (Generator)', variant: 'llm' },
       { label: 'Blueprint + Candidate SQL', variant: 'new' },
     ],
     status: 'completed',
     content: (
-      <div className="text-xs text-[#94a3b8] leading-relaxed">
-        Sinh câu hỏi tiếng Việt bám sát nghiệp vụ doanh nghiệp kèm Blueprint logic_signature, danh sách cột đầu ra và điều kiện biên.
+      <div className="text-xs text-[var(--text2)] leading-relaxed pt-2 space-y-1.5">
+        <div>
+          • Khi Admin bấm <strong>&quot;Chạy Job Sinh đề&quot;</strong> trong tab Quản trị, <strong>Model A</strong> tự động thiết kế <em>Blueprint</em> (chọn bảng, cột kết quả, độ khó) và viết câu hỏi nghiệp vụ tiếng Việt kèm câu lệnh SQL đáp án mẫu.
+        </div>
       </div>
     ),
   },
   {
     id: 3,
-    title: 'Model B — Independent Self-Solve & 7-Gate Verification (draft.self_solve_runs)',
+    title: 'Model B — AI Giải Độc Lập & Kiểm Định 7 Cổng (draft.self_solve_runs)',
     badges: [
       { label: 'Model B (Reviewer)', variant: 'llm' },
-      { label: 'Deterministic Hash Consensus', variant: 'db' },
+      { label: 'Đối chiếu Kết quả 3/3', variant: 'db' },
     ],
     status: 'running',
     content: (
-      <div className="text-xs text-[#94a3b8] leading-relaxed">
-        Model B độc lập giải lại đề trên Base + Mutant Datasets. Chỉ những đề khớp kết quả thực thi và vượt qua 7 cổng kiểm định mới được tự động duyệt hoặc chuyển sang trạng thái <code className="text-amber-400">needs_human</code> cho Admin.
+      <div className="text-xs text-[var(--text2)] leading-relaxed pt-2 space-y-1.5">
+        <div>
+          • Để chống ảo giác AI (Hallucination), <strong>Model B</strong> chỉ đọc đề bài (không được nhìn SQL của Model A) và tự viết SQL giải lại 3 lần trên PostgreSQL 17.
+        </div>
+        <div>
+          • Nếu kết quả chạy của Model B khớp 100% với Model A qua 7 cổng kiểm tra (cú pháp, hiệu năng, không rỗng, không mơ hồ), đề được gán nhãn <code>verified</code>. Nếu lệch, đề chuyển vào hàng đợi <code>needs_human</code> để Admin duyệt tay.
+        </div>
       </div>
     ),
   },
   {
     id: 4,
-    title: 'Promotion, Weekly Sets & Read-Only Grading Sandbox (live.*)',
+    title: 'Phát Hành Bộ Đề Tuần, Sandbox Chấm Điểm & AI SQL Coach (live.*)',
     badges: [
-      { label: 'sqlarena_ai_ro Sandbox', variant: 'db' },
-      { label: 'Real-Time Leaderboard', variant: 'free' },
+      { label: 'Read-Only Sandbox', variant: 'db' },
+      { label: 'AI Coach + Xếp hạng Tuần/Tháng', variant: 'free' },
     ],
     status: 'completed',
     content: (
-      <div className="text-xs text-[#94a3b8] leading-relaxed">
-        Câu hỏi đã duyệt được promote vào <code className="text-emerald-400">live.questions</code> kèm <code className="text-emerald-400">live.test_cases</code>. Học viên làm bài trên Monaco SQL Workbench, chấm điểm tức thì và xếp hạng Tuần/Tháng.
+      <div className="text-xs text-[var(--text2)] leading-relaxed pt-2 space-y-1.5">
+        <div>
+          • Đề đã duyệt được đưa vào <code>live.questions</code> kèm bộ <code>live.test_cases</code> chuẩn và phát hành thành <strong>Bộ đề tuần</strong>.
+        </div>
+        <div>
+          • Học viên luyện tập trên <strong>SQL Studio</strong> với quyền chỉ đọc (<code>sqlarena_ai_ro</code>), phân tích hiệu năng bằng <code>EXPLAIN ANALYZE</code>, hỏi <strong>🤖 AI Coach</strong> và đua Top Bảng Xếp Hạng.
+        </div>
       </div>
     ),
   },
@@ -165,7 +182,34 @@ export default function HomeClient() {
               {activeTab === 'leaderboard' && <LeaderboardView />}
               {activeTab === 'admin' && <AdminPortal isAdmin={user?.role === 'admin'} />}
               {activeTab === 'pipeline' && (
-                <div className="space-y-8">
+                <div className="space-y-6">
+                  <div className="p-5 rounded-lg bg-[var(--surface)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <div className="text-[11px] font-bold tracking-[0.15em] uppercase text-[var(--copper)]">
+                        05 · KIẾN TRÚC &amp; QUY TRÌNH SINH ĐỀ TỰ ĐỘNG
+                      </div>
+                      <h2 className="text-2xl font-bold text-[var(--ink)] mt-0.5">
+                        Pipeline <span className="editorial-serif text-[var(--green)]">2-Model AI kiểm chứng chéo.</span>
+                      </h2>
+                      <p className="text-xs text-[var(--text2)] mt-1 max-w-3xl">
+                        Giải quyết bài toán AI sinh đề SQL bị lỗi hoặc mơ hồ bằng cơ chế 2 mô hình độc lập (Model A sinh đề → Model B tự giải kiểm chứng trên PostgreSQL 17 → Admin duyệt → Mở bộ đề tuần cho Học viên).
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePitchAction('admin', 'admin')}
+                        className="px-3.5 py-2 rounded bg-[#B2653B] text-[#F5EDDC] text-xs font-semibold"
+                      >
+                        ⚡ Chạy thử Pipeline ở trang Quản trị →
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('workbench')}
+                        className="px-3.5 py-2 rounded bg-[#5C7F71] text-[#F5EDDC] text-xs font-semibold"
+                      >
+                        ▶ Mở Phòng Luyện SQL
+                      </button>
+                    </div>
+                  </div>
                   <PipelineTimeline steps={PIPELINE_STEPS} />
                   <FlowDiagram />
                   <ComparisonTable />
