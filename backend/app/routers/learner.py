@@ -43,6 +43,12 @@ def get_question(question_id: int, user: dict = Depends(current_user)):
         return weekly.learner_question(conn, question_id, user["user_id"])
 
 
+@router.get("/questions/{question_id}/submissions", tags=["learner-sandbox"])
+def get_question_submissions(question_id: int, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return sub_svc.question_submissions(conn, user["user_id"], question_id)
+
+
 @router.get("/dataset/schema")
 def dataset_schema():
     with begin() as conn:
@@ -53,6 +59,12 @@ def dataset_schema():
 def run_sql(body: SqlRunBody, user: dict = Depends(current_user)):
     with begin() as conn:
         return sub_svc.run_query(conn, user["user_id"], body.question_id, body.sql)
+
+
+@router.post("/sql/explain", tags=["learner-sandbox"])
+def explain_sql(body: SqlRunBody, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return sub_svc.explain_query(conn, body.question_id, body.sql)
 
 
 @router.post("/submissions", tags=["learner-sandbox"])

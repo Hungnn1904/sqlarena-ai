@@ -14,6 +14,8 @@ import {
   Lock,
   Unlock,
   UserCog,
+  Database,
+  Settings,
 } from 'lucide-react';
 import {
   getGenerationJobs,
@@ -24,11 +26,19 @@ import {
   editAdminDraft,
   approveAdminDraft,
   rejectAdminDraft,
+  requeueAdminDraft,
+  getAdminQuestions,
+  retireAdminQuestion,
+  restoreAdminQuestion,
+  toggleAdminQuestionSource,
   getAdminWeeklySets,
+  createAdminWeeklySet,
   publishAdminWeeklySet,
   closeAdminWeeklySet,
   getAdminUsers,
   updateAdminUser,
+  getAdminSettings,
+  updateAdminSetting,
 } from '../lib/api';
 
 const SKILL_OPTIONS = [
@@ -41,7 +51,9 @@ const SKILL_OPTIONS = [
 ];
 
 export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
-  const [subTab, setSubTab] = useState<'drafts' | 'jobs' | 'weekly' | 'users'>('drafts');
+  const [subTab, setSubTab] = useState<
+    'drafts' | 'questions' | 'jobs' | 'weekly' | 'users' | 'settings'
+  >('drafts');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -53,6 +65,10 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   const [editQuestion, setEditQuestion] = useState('');
   const [reviewNote, setReviewNote] = useState('');
 
+  // Live Questions Bank
+  const [qStatusFilter, setQStatusFilter] = useState<string>('');
+  const [liveQuestions, setLiveQuestions] = useState<any[]>([]);
+
   // Jobs
   const [jobs, setJobs] = useState<any[]>([]);
   const [llmUsage, setLlmUsage] = useState<any>(null);
@@ -63,10 +79,14 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   );
   const [jobSkills, setJobSkills] = useState<number[]>([2, 3]);
 
-  // Weekly & Users
+  // Weekly, Users & Settings
   const [weeklySets, setWeeklySets] = useState<any[]>([]);
+  const [newWeekTitle, setNewWeekTitle] = useState('Bộ đề tuần SQL nâng cao');
+  const [newWeekStart, setNewWeekStart] = useState('2026-11-02');
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
+  const [settingsList, setSettingsList] = useState<any[]>([]);
+  const [settingEdits, setSettingEdits] = useState<Record<string, string>>({});
 
   const loadDrafts = async () => {
     try {
@@ -113,14 +133,37 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     } catch {}
   };
 
+  const loadLiveQuestions = async () => {
+    try {
+      const q = await getAdminQuestions({ status: qStatusFilter || undefined });
+      setLiveQuestions(q.items || []);
+    } catch {}
+  };
+
+  const loadSettings = async () => {
+    try {
+      const s = await getAdminSettings();
+      const items = s.items || [];
+      setSettingsList(items);
+      const map: Record<string, string> = {};
+      items.forEach((it: any) => {
+        map[it.key] =
+          typeof it.value === 'string' ? it.value : JSON.stringify(it.value);
+      });
+      setSettingEdits(map);
+    } catch {}
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     setErr(null);
     if (subTab === 'drafts') loadDrafts();
+    if (subTab === 'questions') loadLiveQuestions();
     if (subTab === 'jobs') loadJobs();
     if (subTab === 'weekly') loadWeekly();
     if (subTab === 'users') loadUsers();
-  }, [subTab, draftStatus, isAdmin]);
+    if (subTab === 'settings') loadSettings();
+  }, [subTab, draftStatus, qStatusFilter, isAdmin]);
 
   if (!isAdmin) {
     return (
@@ -220,6 +263,58 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
+  const handleRequeueDraft = async () => {
+    if (!selectedDraft) return;
+    setMsg(null);
+    setErr(null);
+    try {
+      const d = await requeueAdminDraft(
+        selectedDraft.draft_id,
+        reviewNote || 'Đưa lại vào hàng đợi kiểm định tự động'
+      );
+      setSelectedDraft(d);
+      setMsg(`Đã Requeue Draft #${d.draft_id} (status: ${d.status}).`);
+      loadDrafts();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error?.message || 'Lỗi requeue draft');
+    }
+  };
+
+  const handleCreateWeeklySet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    setErr(null);
+    try {
+      const w = await createAdminWeeklySet({
+        title: newWeekTitle,
+        week_start: newWeekStart,
+      });
+      setMsg(`Đã tạo bộ đề tuần mới #${w.set_id} (${w.title}).`);
+      loadWeekly();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error?.message || 'Không tạo được bộ đề tuần');
+    }
+  };
+
+  const handleUpdateSetting = async (key: string) => {
+    setMsg(null);
+    setErr(null);
+    try {
+      const raw = settingEdits[key] ?? '';
+      let parsed: any = raw;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = raw;
+      }
+      await updateAdminSetting(key, parsed);
+      setMsg(`Đã cập nhật cấu hình ${key}.`);
+      loadSettings();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error?.message || 'Lỗi cập nhật cấu hình');
+    }
+  };
+
   const handleToggleUser = async (u: any, field: 'role' | 'status') => {
     try {
       const payload =
@@ -258,9 +353,11 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
               label: `Duyệt đề (${drafts.length})`,
               icon: GitPullRequest,
             },
+            { id: 'questions', label: 'Ngân hàng đề', icon: Database },
             { id: 'jobs', label: 'Sinh đề AI', icon: Cpu },
             { id: 'weekly', label: 'Bộ đề tuần', icon: CalendarRange },
             { id: 'users', label: 'Người dùng', icon: Users },
+            { id: 'settings', label: 'Cấu hình', icon: Settings },
           ].map((t) => {
             const Icon = t.icon;
             const active = subTab === t.id;
@@ -459,6 +556,13 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                         <span>Lưu hiệu đính & Kiểm định lại</span>
                       </button>
                       <button
+                        onClick={handleRequeueDraft}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded bg-amber-950/50 hover:bg-amber-900/60 border border-amber-800/60 text-amber-200 text-xs font-medium transition"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Requeue</span>
+                      </button>
+                      <button
                         onClick={handleRejectDraft}
                         disabled={selectedDraft.status !== 'needs_human'}
                         className="flex items-center gap-1.5 px-4 py-2 rounded bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60 text-rose-200 text-xs font-medium disabled:opacity-40 transition"
@@ -475,6 +579,102 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                 Chọn một bản nháp ở danh sách bên trái để kiểm tra.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 1B: LIVE QUESTIONS BANK */}
+      {subTab === 'questions' && (
+        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a] flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-white">
+              Ngân hàng đề Live ({liveQuestions.length})
+            </h3>
+            <select
+              value={qStatusFilter}
+              onChange={(e) => setQStatusFilter(e.target.value)}
+              className="px-2.5 py-1 rounded bg-[#0d1321] border border-[#22304a] text-xs text-[#cbd5e1] font-mono"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="ready">ready</option>
+              <option value="archived">archived</option>
+              <option value="retired">retired</option>
+            </select>
+          </div>
+
+          <div className="divide-y divide-[#162032]">
+            {liveQuestions.map((q: any) => (
+              <div
+                key={q.question_id}
+                className="p-4 flex flex-wrap items-center justify-between gap-3 text-xs"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-mono text-[11px] text-[#94a3b8]">
+                    <span>#{q.question_id}</span>
+                    <span>· L{q.difficulty}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-[#131c2e] border border-[#22304a] text-[#38bdf8]">
+                      {q.status}
+                    </span>
+                    {q.pass_rate !== undefined && (
+                      <span className="text-emerald-400">
+                        Pass rate: {Math.round(q.pass_rate)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-semibold text-white">{q.title}</div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() =>
+                      toggleAdminQuestionSource(q.question_id, !q.is_source)
+                        .then(() => {
+                          setMsg(`Đã cập nhật trạng thái Seed mẫu cho đề #${q.question_id}.`);
+                          loadLiveQuestions();
+                        })
+                        .catch(() => setErr('Lỗi cập nhật Seed mẫu'))
+                    }
+                    className={`px-2.5 py-1 rounded font-mono text-[11px] border ${
+                      q.is_source
+                        ? 'bg-emerald-950/60 border-emerald-800/60 text-emerald-300'
+                        : 'bg-[#162032] border-[#263552] text-[#94a3b8]'
+                    }`}
+                  >
+                    Seed mẫu: {q.is_source ? 'ON' : 'OFF'}
+                  </button>
+
+                  {q.status !== 'retired' ? (
+                    <button
+                      onClick={() =>
+                        retireAdminQuestion(q.question_id, 'Thu hồi bởi Admin')
+                          .then(() => {
+                            setMsg(`Đã thu hồi câu hỏi #${q.question_id}.`);
+                            loadLiveQuestions();
+                          })
+                          .catch(() => setErr('Lỗi thu hồi câu hỏi'))
+                      }
+                      className="px-2.5 py-1 rounded bg-rose-950/60 border border-rose-800/60 text-rose-200 font-medium"
+                    >
+                      Thu hồi (Retire)
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        restoreAdminQuestion(q.question_id)
+                          .then(() => {
+                            setMsg(`Đã khôi phục câu hỏi #${q.question_id}.`);
+                            loadLiveQuestions();
+                          })
+                          .catch(() => setErr('Lỗi khôi phục câu hỏi'))
+                      }
+                      className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
+                    >
+                      Khôi phục (Restore)
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -571,7 +771,9 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
               </h3>
               {llmUsage && (
                 <span className="text-xs font-mono text-[#38bdf8]">
-                  Quota: {llmUsage.calls_used ?? 0}/{llmUsage.daily_call_cap ?? 200}
+                  LLM Budget:{' '}
+                  {llmUsage.used_today ?? llmUsage.calls_used ?? 0}/
+                  {llmUsage.daily_cap ?? llmUsage.daily_call_cap ?? 200} calls
                 </span>
               )}
             </div>
@@ -601,7 +803,41 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
 
       {/* TAB 3: WEEKLY SETS */}
       {subTab === 'weekly' && (
-        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+        <div className="space-y-4">
+          <form
+            onSubmit={handleCreateWeeklySet}
+            className="bg-[#0d1321] border border-[#1d283a] rounded-lg p-4 flex flex-wrap items-end gap-3 text-xs"
+          >
+            <div className="flex-1 min-w-[200px]">
+              <label className="block font-mono text-[#94a3b8] mb-1">
+                Tiêu đề bộ đề tuần mới
+              </label>
+              <input
+                value={newWeekTitle}
+                onChange={(e) => setNewWeekTitle(e.target.value)}
+                className="w-full px-3 py-1.5 rounded bg-[#080c14] border border-[#1f2b42] text-white"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[#94a3b8] mb-1">
+                Ngày bắt đầu (week_start)
+              </label>
+              <input
+                type="date"
+                value={newWeekStart}
+                onChange={(e) => setNewWeekStart(e.target.value)}
+                className="px-3 py-1.5 rounded bg-[#080c14] border border-[#1f2b42] text-white font-mono"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-1.5 rounded bg-[#0284c7] hover:bg-[#0369a1] text-white font-medium"
+            >
+              + Tạo bộ đề tuần mới
+            </button>
+          </form>
+
+          <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
           <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a]">
             <h3 className="text-sm font-semibold text-white">
               Bộ đề tuần
@@ -642,6 +878,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
               </div>
             ))}
           </div>
+        </div>
         </div>
       )}
 
@@ -745,6 +982,52 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: SYSTEM SETTINGS */}
+      {subTab === 'settings' && (
+        <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#090d16] border-b border-[#1d283a]">
+            <h3 className="text-sm font-semibold text-white">
+              Cấu hình Hệ thống (live.system_settings)
+            </h3>
+          </div>
+          <div className="divide-y divide-[#162032]">
+            {settingsList.map((st: any) => (
+              <div
+                key={st.key}
+                className="p-4 flex flex-wrap items-center justify-between gap-3 text-xs font-mono"
+              >
+                <div>
+                  <div className="text-white font-semibold">{st.key}</div>
+                  {st.description && (
+                    <div className="text-[11px] text-[#64748b] mt-0.5">
+                      {st.description}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={settingEdits[st.key] ?? ''}
+                    onChange={(e) =>
+                      setSettingEdits((prev) => ({
+                        ...prev,
+                        [st.key]: e.target.value,
+                      }))
+                    }
+                    className="px-3 py-1.5 rounded bg-[#080c14] border border-[#1f2b42] text-white w-64"
+                  />
+                  <button
+                    onClick={() => handleUpdateSetting(st.key)}
+                    className="px-3 py-1.5 rounded bg-[#162238] hover:bg-[#1f304d] border border-[#293f66] text-[#38bdf8]"
+                  >
+                    Lưu
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

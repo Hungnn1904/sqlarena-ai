@@ -113,6 +113,107 @@ def compare_result(actual: dict, expected: dict, compare_mode_override: str | No
     return Counter(stable_json(row) for row in actual_rows) == Counter(stable_json(row) for row in expected_rows)
 
 
+def diagnose_mismatch(actual: dict, expected: dict, compare_mode_override: str | None = None) -> dict:
+    exp_cols = expected.get("columns") or []
+    act_cols = actual.get("columns") or []
+    if act_cols != exp_cols:
+        return {
+            "reason_code": "COLUMN_MISMATCH",
+            "hint": f"Sai tên hoặc thứ tự cột: cần {exp_cols}, nhưng truy vấn trả về {act_cols}.",
+        }
+    expected_rows = _normalize_expected_rows(expected)
+    actual_rows = actual.get("rows") or []
+    exp_count = expected.get("row_count", len(expected_rows))
+    act_count = actual.get("row_count", len(actual_rows))
+    if act_count != exp_count:
+        return {
+            "reason_code": "ROW_COUNT_DIFF",
+            "hint": f"Lệch số dòng kết quả: cần {exp_count} dòng, nhưng trả về {act_count} dòng (kiểm tra lại điều kiện WHERE / JOIN / GROUP BY).",
+        }
+    mode = compare_mode_override or expected.get("compare_mode") or "unordered"
+    unordered_match = Counter(stable_json(r) for r in actual_rows) == Counter(stable_json(r) for r in expected_rows)
+    if mode == "ordered" and unordered_match:
+        return {
+            "reason_code": "ORDER_MISMATCH",
+            "hint": "Dữ liệu đúng nhưng sai thứ tự sắp xếp! Hãy kiểm tra lại mệnh đề ORDER BY.",
+        }
+    return {
+        "reason_code": "VALUE_MISMATCH",
+        "hint": "Giá trị dữ liệu trong các dòng chưa khớp với đáp án chuẩn (kiểm tra công thức tính toán hoặc xử lý NULL).",
+    }
+
+
+def _walk_plan_nodes(plan_node: dict, out: list[dict], warnings: list[str]) -> None:
+    node_type = plan_node.get("Node Type", "Plan")
+    rel = plan_node.get("Relation Name") or plan_node.get("Alias") or "-"
+    actual_rows = plan_node.get("Actual Rows", 0)
+    out.append({
+        "node_type": node_type,
+        "relation_name": rel,
+        "startup_cost": plan_node.get("Startup Cost", 0),
+        "total_cost": plan_node.get("Total Cost", 0),
+        "plan_rows": plan_node.get("Plan Rows", 0),
+        "actual_rows": actual_rows,
+        "actual_total_time_ms": plan_node.get("Actual Total Time", 0),
+        "filter": plan_node.get("Filter") or plan_node.get("Hash Cond") or plan_node.get("Sort Key"),
+    })
+    if node_type == "Seq Scan" and actual_rows and actual_rows > 100:
+        warnings.append(f"Quét tuần tự (Seq Scan) trên bảng '{rel}' ({actual_rows} dòng) — cân nhắc lọc sớm hoặc dùng cột có Index.")
+    for child in plan_node.get("Plans") or []:
+        _walk_plan_nodes(child, out, warnings)
+
+
+def explain_query(conn: Connection, question_id: int, raw_sql: str) -> dict:
+    q_row = q1(conn, "SELECT question_id FROM live.questions WHERE question_id=:q", q=question_id)
+    if not q_row:
+        raise not_found("Không tìm thấy câu hỏi")
+    try:
+        clean_sql = guard_select(raw_sql)
+    except ValueError as exc:
+        raise bad_request(str(exc))
+    try:
+        with enterprise_connection() as econn:
+            with econn.cursor() as cur:
+                cur.execute("SET LOCAL TRANSACTION READ ONLY")
+                cur.execute("SET LOCAL statement_timeout = 3000")
+                cur.execute(f"EXPLAIN (ANALYZE, COSTS, FORMAT JSON) {clean_sql}")
+                raw = cur.fetchone()[0]
+                plan_list = raw if isinstance(raw, list) else json.loads(raw)
+                top = plan_list[0] if plan_list else {}
+                root_plan = top.get("Plan") or {}
+                nodes: list[dict] = []
+                warnings: list[str] = []
+                if root_plan:
+                    _walk_plan_nodes(root_plan, nodes, warnings)
+                return {
+                    "question_id": question_id,
+                    "planning_time_ms": top.get("Planning Time", 0),
+                    "execution_time_ms": top.get("Execution Time", 0),
+                    "total_cost": root_plan.get("Total Cost", 0),
+                    "plan_nodes": nodes,
+                    "warnings": warnings,
+                }
+    except Exception as exc:
+        raise bad_request(str(exc))
+
+
+def question_submissions(conn: Connection, user_id: int | None, question_id: int) -> dict:
+    if not user_id:
+        return {"items": []}
+    rows = q(
+        conn,
+        """SELECT submission_id, question_id, submitted_sql, submission_status,
+                  execution_status, score, runtime_ms, error_message, submitted_at
+           FROM live.submissions
+           WHERE user_id = :u AND question_id = :q
+           ORDER BY submitted_at DESC
+           LIMIT 15""",
+        u=user_id,
+        q=question_id,
+    )
+    return {"items": rows}
+
+
 def run_query(conn: Connection, user_id: int, question_id: int, raw_sql: str) -> dict:
     q_row = q1(conn, "SELECT question_id FROM live.questions WHERE question_id=:q", q=question_id)
     if not q_row:
@@ -160,6 +261,12 @@ def submit_query(conn: Connection, user_id: int, question_id: int, raw_sql: str)
         for tc in tcs:
             exp = tc["expected_result"] if isinstance(tc["expected_result"], dict) else json.loads(tc["expected_result"])
             tc_ok = compare_result(result, exp, q_row["compare_mode"])
+            diag = (
+                {"reason_code": "PASSED", "hint": "Khớp hoàn toàn với đáp án chuẩn."}
+                if tc_ok
+                else diagnose_mismatch(result, exp, q_row["compare_mode"])
+            )
+            exp_norm_rows = _normalize_expected_rows(exp)
             test_details.append({
                 "test_id": tc["test_id"],
                 "dataset_ref": tc["dataset_ref"],
@@ -167,6 +274,11 @@ def submit_query(conn: Connection, user_id: int, question_id: int, raw_sql: str)
                 "passed": tc_ok,
                 "expected_rows": exp.get("row_count"),
                 "actual_rows": result["row_count"],
+                "reason_code": diag["reason_code"],
+                "diagnostic_hint": diag["hint"],
+                "expected_columns": exp.get("columns") or [],
+                "actual_columns": result["columns"],
+                "expected_preview": exp_norm_rows[:5] if not tc.get("is_hidden") else [],
             })
             if not tc_ok:
                 all_ok = False

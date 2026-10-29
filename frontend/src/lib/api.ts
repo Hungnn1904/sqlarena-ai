@@ -65,6 +65,9 @@ export const changePassword = (current_password: string, new_password: string) =
 // 2. Learner Weekly Set, Questions & SQL Sandbox APIs
 export const getWeeklyCurrent = () => api.get('/api/v1/weekly/current').then((r) => r.data);
 
+export const getWeeklyHistory = (page = 1) =>
+  api.get(`/api/v1/weekly/history?page=${page}&page_size=20`).then((r) => r.data);
+
 export const getWeeklyQuestions = (params?: {
   difficulty?: number;
   skill_id?: number;
@@ -75,10 +78,16 @@ export const getWeeklyQuestions = (params?: {
 export const getQuestionDetail = (questionId: number) =>
   api.get(`/api/v1/questions/${questionId}`).then((r) => r.data);
 
+export const getQuestionSubmissions = (question_id: number) =>
+  api.get(`/api/v1/questions/${question_id}/submissions`).then((r) => r.data);
+
 export const getDatasetSchema = () => api.get('/api/v1/dataset/schema').then((r) => r.data);
 
 export const runSandboxSql = (question_id: number, sql: string) =>
   api.post('/api/v1/sql/run', { question_id, sql }).then((r) => r.data);
+
+export const explainSandboxSql = (question_id: number, sql: string) =>
+  api.post('/api/v1/sql/explain', { question_id, sql }).then((r) => r.data);
 
 export const submitGradingSql = (question_id: number, sql: string) =>
   api.post('/api/v1/submissions', { question_id, sql }).then((r) => r.data);
@@ -108,6 +117,30 @@ export const approveAdminDraft = (draftId: number, data?: { selected_run_id?: nu
 
 export const rejectAdminDraft = (draftId: number, reason: string) =>
   api.post(`/api/v1/admin/drafts/${draftId}/reject`, { reason }).then((r) => r.data);
+
+export const requeueAdminDraft = (draftId: number, note?: string) =>
+  api.post(`/api/v1/admin/drafts/${draftId}/requeue`, { note }).then((r) => r.data);
+
+export const getAdminQuestions = (params?: {
+  status?: string;
+  difficulty?: number;
+  q?: string;
+  page?: number;
+}) => api.get('/api/v1/admin/questions', { params }).then((r) => r.data);
+
+export const retireAdminQuestion = (questionId: number, reason: string) =>
+  api.post(`/api/v1/admin/questions/${questionId}/retire`, { reason }).then((r) => r.data);
+
+export const restoreAdminQuestion = (questionId: number) =>
+  api.post(`/api/v1/admin/questions/${questionId}/restore`).then((r) => r.data);
+
+export const toggleAdminQuestionSource = (questionId: number, is_source: boolean) =>
+  api.patch(`/api/v1/admin/questions/${questionId}/source`, { is_source }).then((r) => r.data);
+
+export const getAdminSettings = () => api.get('/api/v1/admin/settings').then((r) => r.data);
+
+export const updateAdminSetting = (key: string, value: any) =>
+  api.put(`/api/v1/admin/settings/${key}`, { value }).then((r) => r.data);
 
 export const getGenerationJobs = () => api.get('/api/v1/admin/generation-jobs').then((r) => r.data);
 

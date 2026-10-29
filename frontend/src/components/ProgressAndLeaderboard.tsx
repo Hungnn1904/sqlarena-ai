@@ -15,6 +15,7 @@ import {
   getMyProgress,
   getWeeklyLeaderboard,
   getMonthlyLeaderboard,
+  getWeeklyHistory,
 } from '../lib/api';
 
 export function LearnerProgressView() {
@@ -238,11 +239,24 @@ export function LeaderboardView() {
   const [mode, setMode] = useState<'weekly' | 'monthly'>('weekly');
   const [weeklyData, setWeeklyData] = useState<any>(null);
   const [monthlyData, setMonthlyData] = useState<any>(null);
+  const [historySets, setHistorySets] = useState<any[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | undefined>(undefined);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
 
   useEffect(() => {
-    getWeeklyLeaderboard().then(setWeeklyData).catch(() => null);
-    getMonthlyLeaderboard().then(setMonthlyData).catch(() => null);
+    getWeeklyHistory(1)
+      .then((res) => setHistorySets(res?.items || []))
+      .catch(() => null);
   }, []);
+
+  useEffect(() => {
+    getWeeklyLeaderboard(selectedSetId).then(setWeeklyData).catch(() => null);
+  }, [selectedSetId]);
+
+  useEffect(() => {
+    const [yr, mo] = selectedPeriod.split('-').map(Number);
+    getMonthlyLeaderboard(yr, mo).then(setMonthlyData).catch(() => null);
+  }, [selectedPeriod]);
 
   const currentItems =
     mode === 'weekly' ? weeklyData?.items || [] : monthlyData?.items || [];
@@ -261,29 +275,59 @@ export function LeaderboardView() {
           </h2>
         </div>
 
-        <div className="flex items-center bg-[#090d16] p-1 rounded-md border border-[#1d283a]">
-          <button
-            onClick={() => setMode('weekly')}
-            className={`px-3.5 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition ${
-              mode === 'weekly'
-                ? 'bg-[#162238] text-white border border-[#293f66]'
-                : 'text-[#64748b] hover:text-white'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5 text-[#38bdf8]" />
-            <span>BXH Tuần</span>
-          </button>
-          <button
-            onClick={() => setMode('monthly')}
-            className={`px-3.5 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition ${
-              mode === 'monthly'
-                ? 'bg-[#162238] text-white border border-[#293f66]'
-                : 'text-[#64748b] hover:text-white'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5 text-amber-400" />
-            <span>BXH Tháng</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {mode === 'weekly' && (
+            <select
+              value={selectedSetId ?? ''}
+              onChange={(e) =>
+                setSelectedSetId(e.target.value ? Number(e.target.value) : undefined)
+              }
+              className="px-2.5 py-1.5 rounded text-xs font-mono bg-[#090d16] text-white border border-[#1d283a] focus:outline-none"
+            >
+              <option value="">Tuần hiện tại (Live)</option>
+              {historySets.map((s: any) => (
+                <option key={s.set_id} value={s.set_id}>
+                  #{s.set_id} · {s.title} ({s.status})
+                </option>
+              ))}
+            </select>
+          )}
+          {mode === 'monthly' && (
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="px-2.5 py-1.5 rounded text-xs font-mono bg-[#090d16] text-white border border-[#1d283a] focus:outline-none"
+            >
+              <option value="2026-10">Tháng 10/2026</option>
+              <option value="2026-09">Tháng 09/2026</option>
+              <option value="2026-08">Tháng 08/2026</option>
+              <option value="2025-03">Tháng 03/2025</option>
+            </select>
+          )}
+          <div className="flex items-center bg-[#090d16] p-1 rounded-md border border-[#1d283a]">
+            <button
+              onClick={() => setMode('weekly')}
+              className={`px-3.5 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition ${
+                mode === 'weekly'
+                  ? 'bg-[#162238] text-white border border-[#293f66]'
+                  : 'text-[#64748b] hover:text-white'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5 text-[#38bdf8]" />
+              <span>BXH Tuần</span>
+            </button>
+            <button
+              onClick={() => setMode('monthly')}
+              className={`px-3.5 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition ${
+                mode === 'monthly'
+                  ? 'bg-[#162238] text-white border border-[#293f66]'
+                  : 'text-[#64748b] hover:text-white'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+              <span>BXH Tháng</span>
+            </button>
+          </div>
         </div>
       </div>
 
