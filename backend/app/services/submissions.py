@@ -214,6 +214,123 @@ def question_submissions(conn: Connection, user_id: int | None, question_id: int
     return {"items": rows}
 
 
+def ai_coach_assist(
+    conn: Connection, question_id: int, raw_sql: str, mode: str = "review", prompt: str | None = None
+) -> dict:
+    q_row = q1(
+        conn,
+        """SELECT question_id, title, question, difficulty, skill_ids, tables_used, compare_mode
+           FROM live.questions WHERE question_id=:q""",
+        q=question_id,
+    )
+    if not q_row:
+        raise not_found("Không tìm thấy câu hỏi")
+
+    tables = q_row.get("tables_used") or ["employees"]
+    primary_tbl = tables[0] if tables else "employees"
+    join_tbl = tables[1] if len(tables) > 1 else None
+    up_sql = (raw_sql or "").upper()
+    skills = set(q_row.get("skill_ids") or [])
+    tc_row = q1(
+        conn,
+        "SELECT expected_result FROM live.test_cases WHERE question_id=:q ORDER BY test_id LIMIT 1",
+        q=question_id,
+    )
+    exp = tc_row["expected_result"] if tc_row else {}
+    if isinstance(exp, str):
+        exp = json.loads(exp)
+    exp_cols = exp.get("columns") or ["*"]
+    col_str = ", ".join(exp_cols)
+
+    # Skeleton SQL template tailored to question metadata
+    skel_lines = [f"SELECT {col_str}", f"FROM {primary_tbl} t1"]
+    if join_tbl:
+        skel_lines.append(f"JOIN {join_tbl} t2 ON t1.<fk_id> = t2.<pk_id>")
+    if 2 in skills or "COUNT" in q_row["question"].upper() or "TỔNG" in q_row["question"].upper():
+        skel_lines.append(f"GROUP BY {exp_cols[0]}")
+    if q_row.get("compare_mode") == "ORDER_SENSITIVE":
+        skel_lines.append(f"ORDER BY {exp_cols[0]} ASC")
+    suggested_sql = "\n".join(skel_lines) + ";"
+
+    if mode == "nl2sql":
+        user_intent = (prompt or q_row["question"]).strip()
+        return {
+            "question_id": question_id,
+            "mode": "nl2sql",
+            "headline": "✨ AI Text-to-SQL Blueprint (Chuẩn Schema Thực Tế)",
+            "clean_score": 92,
+            "insights": [
+                f"Ý định phân tích: \"{user_intent[:140]}\"",
+                f"Bảng mục tiêu cần kết nối: {', '.join(tables)}",
+                f"Đầu ra chuẩn ({len(exp_cols)} cột): {col_str}",
+                "Mẹo thời đại AI: Khi viết prompt cho AI sinh SQL, luôn chỉ rõ tên cột output và chế độ sắp xếp (ORDER BY) để tránh sai lệch schema.",
+            ],
+            "suggested_sql": suggested_sql,
+            "interview_q": None,
+            "interview_answer": None,
+        }
+
+    if mode == "interview":
+        if 5 in skills:
+            iq = f"Nếu bảng {', '.join(tables)} tăng lên 50 triệu dòng, hàm cửa sổ (Window Function) hoặc CTE trong bài '{q_row['title']}' sẽ gây nghẽn ở bước nào?"
+            ia = "Window Function yêu cầu bước Sort trên Partition Key. Để tối ưu ở quy mô 50M dòng, cần đánh Composite B-Tree Index theo đúng thứ tự (PARTITION BY col, ORDER BY col) nhằm chuyển Sort sang Index Scan."
+        elif len(tables) > 1 or 3 in skills:
+            iq = f"Khi JOIN giữa {', '.join(tables)}, nếu xuất hiện bản ghi NULL hoặc nhân bản (fan-out) làm sai lệch phép cộng/đếm, bạn xử lý thế nào?"
+            ia = "Sử dụng LEFT JOIN kết hợp COALESCE(SUM(...), 0) nếu cần giữ bản ghi gốc có giá trị 0, hoặc gom nhóm (Pre-aggregate) trong CTE trước khi JOIN để chống hiện tượng fan-out nhân bản dòng."
+        else:
+            iq = f"Làm sao để tối ưu truy vấn trên bảng {primary_tbl} đạt thời gian phản hồi < 10ms mà không quét toàn bảng (Seq Scan)?"
+            ia = f"Tạo Covering Index (CREATE INDEX ON {primary_tbl} (<filter_col>) INCLUDE ({', '.join(exp_cols[:2])})) để PostgreSQL thực hiện Index-Only Scan mà không cần đọc Heap Page."
+        return {
+            "question_id": question_id,
+            "mode": "interview",
+            "headline": "🎙️ Phỏng vấn Data Engineer Thực Chiến (AI Mock Interviewer)",
+            "clean_score": 95,
+            "insights": [
+                f"Chủ đề trọng tâm: {q_row['title']} (Độ khó Lv.{q_row['difficulty']})",
+                "Trong phỏng vấn thực tế thời đại AI, nhà tuyển dụng không chỉ chấm đúng kết quả mà còn hỏi sâu về Index, Edge Cases (NULL/Ties) và Chi phí thực thi (Query Cost).",
+            ],
+            "suggested_sql": suggested_sql,
+            "interview_q": iq,
+            "interview_answer": ia,
+        }
+
+    # Default mode == "review"
+    score = 88
+    insights: list[str] = []
+    if "SELECT *" in up_sql:
+        score -= 15
+        insights.append(f"⚠️ Tránh dùng `SELECT *`: Bài toán yêu cầu chính xác các cột `{col_str}`. Chỉ lấy đúng cột giúp giảm I/O và khớp Test Case.")
+    else:
+        insights.append(f"✅ Cấu trúc SELECT rõ ràng: Đã chủ động chọn lọc cột hướng tới `{col_str}`.")
+
+    missing_tbls = [t for t in tables if t.upper() not in up_sql]
+    if missing_tbls:
+        score -= 18
+        insights.append(f"🔍 Thiếu bảng liên kết: Đề bài cần dữ liệu từ `{', '.join(missing_tbls)}`. Hãy kiểm tra khóa ngoại để JOIN đầy đủ.")
+    else:
+        insights.append(f"✅ Đã tham chiếu đầy đủ bảng dữ liệu mục tiêu (`{', '.join(tables)}`).")
+
+    if q_row.get("compare_mode") == "ORDER_SENSITIVE" and "ORDER BY" not in up_sql:
+        score -= 12
+        insights.append("📐 Chế độ chấm `ORDER_SENSITIVE`: Bạn cần thêm mệnh đề `ORDER BY` để đảm bảo thứ tự dòng khớp 100% với bộ chấm.")
+
+    if 5 in skills and "OVER" not in up_sql and "WITH " not in up_sql:
+        score -= 10
+        insights.append("💡 Gợi ý nâng cao: Bài này thuộc nhóm CTE & Window Functions (`S5`). Hãy cân nhắc dùng `WITH ... AS (...)` hoặc `OVER (PARTITION BY ...)` để code mạch lạc hơn.")
+
+    return {
+        "question_id": question_id,
+        "mode": "review",
+        "headline": f"🤖 AI Code Review · Điểm Clean SQL: {max(score, 45)}/100",
+        "clean_score": max(score, 45),
+        "insights": insights,
+        "suggested_sql": suggested_sql,
+        "interview_q": None,
+        "interview_answer": None,
+    }
+
+
+
 def run_query(conn: Connection, user_id: int, question_id: int, raw_sql: str) -> dict:
     q_row = q1(conn, "SELECT question_id FROM live.questions WHERE question_id=:q", q=question_id)
     if not q_row:
@@ -392,14 +509,68 @@ def user_progress(conn: Connection, user_id: int) -> dict:
     )
     total_sub = totals["total_submissions"] or 0
     passed_sub = totals["passed_submissions"] or 0
+    solved_q = totals["solved_questions"] or 0
+    acc_pct = round(passed_sub * 100 / total_sub) if total_sub else 0
+
+    xp_row = q1(
+        conn,
+        """SELECT COALESCE(SUM(qq.difficulty * 120), 0)::int AS base_xp,
+                  COALESCE(MIN(s.runtime_ms), 999) AS fastest_ms
+           FROM (
+             SELECT DISTINCT ON (question_id) question_id, runtime_ms
+             FROM live.submissions
+             WHERE user_id=:u AND submission_status='passed'
+             ORDER BY question_id, runtime_ms ASC
+           ) s
+           JOIN live.questions qq USING (question_id)""",
+        u=user_id,
+    )
+    xp = (xp_row["base_xp"] if xp_row else 0) + passed_sub * 15
+    tiers = [
+        (0, 1, "SQL Explorer", 300),
+        (300, 2, "Junior Data Analyst", 700),
+        (700, 3, "Analytics Engineer", 1200),
+        (1200, 4, "AI-Native Data Engineer", 2000),
+        (2000, 5, "Principal Data Architect", 3500),
+    ]
+    lvl, lvl_title, next_xp = 1, "SQL Explorer", 300
+    for min_x, lv, title, nx in tiers:
+        if xp >= min_x:
+            lvl, lvl_title, next_xp = lv, title, nx
+
+    badges = [
+        {"id": "first_blood", "icon": "⚡", "name": "First Query Passed", "desc": "Giải thành công bài SQL đầu tiên", "unlocked": solved_q >= 1},
+        {"id": "speed_demon", "icon": "🚀", "name": "Sub-15ms Optimizer", "desc": "Truy vấn thực thi dưới 15ms trên Sandbox", "unlocked": (xp_row["fastest_ms"] if xp_row else 999) <= 15 and solved_q >= 1},
+        {"id": "join_master", "icon": "🔗", "name": "Multi-Table Architect", "desc": "Hoàn thành ít nhất 3 bài truy vấn chuẩn", "unlocked": solved_q >= 3},
+        {"id": "high_precision", "icon": "🎯", "name": "AI-Era Precision", "desc": "Đạt tỷ lệ chính xác >= 70%", "unlocked": acc_pct >= 70 and total_sub >= 2},
+        {"id": "weekly_champion", "icon": "👑", "name": "Full-Stack Data Pro", "desc": "Chinh phục >= 6 thử thách SQL", "unlocked": solved_q >= 6},
+    ]
+    weakest = min(skill_items, key=lambda x: (x["percent"], -x["total_questions"])) if skill_items else None
+    ai_rec = {
+        "focus_skill": f"{weakest['code']} · {weakest['name']}" if weakest else "S3 · JOIN & Subquery",
+        "percent": weakest["percent"] if weakest else 0,
+        "advice": (
+            f"AI Coach nhận thấy kỹ năng {weakest['code']} ({weakest['name']}) đang ở mức {weakest['percent']}%. "
+            "Hãy ưu tiên luyện 1–2 bài thuộc nhóm này và bật chế độ '🤖 AI Coach → Phỏng vấn AI' để nắm vững cách tối ưu truy vấn thực chiến!"
+        ) if weakest else "Hãy bắt đầu với bài Dễ (Difficulty 1) và dùng AI Coach để kiểm tra Execution Plan.",
+    }
     return {
         "weekly_set": s,
         "summary": {
             "total_submissions": total_sub,
             "passed_submissions": passed_sub,
-            "solved_questions": totals["solved_questions"] or 0,
+            "solved_questions": solved_q,
             "attempted_questions": totals["attempted_questions"] or 0,
-            "accuracy_percent": round(passed_sub * 100 / total_sub) if total_sub else 0,
+            "accuracy_percent": acc_pct,
+        },
+        "career": {
+            "xp": xp,
+            "level": lvl,
+            "level_title": lvl_title,
+            "next_level_xp": next_xp,
+            "progress_percent": min(100, round(xp * 100 / max(next_xp, 1))),
+            "badges": badges,
+            "ai_recommendation": ai_rec,
         },
         "skills": skill_items,
         "recent_submissions": recent,

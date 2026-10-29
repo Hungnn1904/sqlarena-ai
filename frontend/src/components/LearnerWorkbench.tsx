@@ -27,6 +27,7 @@ import {
   getDatasetSchema,
   runSandboxSql,
   explainSandboxSql,
+  askAiSqlCoach,
   submitGradingSql,
 } from '../lib/api';
 import { useTheme } from './theme-provider';
@@ -93,10 +94,13 @@ export default function LearnerWorkbench({
   const [submitting, setSubmitting] = useState(false);
   const [output, setOutput] = useState<any>(null);
   const [explainData, setExplainData] = useState<any>(null);
+  const [aiCoachData, setAiCoachData] = useState<any>(null);
+  const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [showInterviewAns, setShowInterviewAns] = useState(false);
   const [qSubs, setQSubs] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [consoleTab, setConsoleTab] = useState<
-    'results' | 'tests' | 'explain' | 'history' | 'policy'
+    'results' | 'tests' | 'explain' | 'ai_coach' | 'history' | 'policy'
   >('results');
 
   const loadQuestions = async () => {
@@ -138,6 +142,8 @@ export default function LearnerWorkbench({
     if (!selectedId) return;
     setOutput(null);
     setExplainData(null);
+    setAiCoachData(null);
+    setShowInterviewAns(false);
     setErrorMsg(null);
     setHintStep(0);
     getQuestionDetail(selectedId)
@@ -194,6 +200,27 @@ export default function LearnerWorkbench({
       setExplainData(res);
     } catch (e: any) {
       setErrorMsg(e?.response?.data?.error?.message || 'Không phân tích được Explain Plan');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleAiCoach = async (mode: 'review' | 'nl2sql' | 'interview' = 'review') => {
+    if (!selectedId) return;
+    setRunning(true);
+    setErrorMsg(null);
+    setShowInterviewAns(false);
+    setConsoleTab('ai_coach');
+    try {
+      const res = await askAiSqlCoach({
+        question_id: selectedId,
+        sql,
+        mode,
+        prompt: aiPrompt || undefined,
+      });
+      setAiCoachData(res);
+    } catch (e: any) {
+      setErrorMsg(e?.response?.data?.error?.message || 'Không gọi được AI SQL Coach');
     } finally {
       setRunning(false);
     }
@@ -692,6 +719,14 @@ export default function LearnerWorkbench({
               </button>
 
               <button
+                onClick={() => handleAiCoach('review')}
+                disabled={running || submitting}
+                className="px-3 py-1.5 rounded bg-[var(--surface)] hover:bg-[var(--paper)] border border-[var(--gold)] text-[var(--gold)] text-xs font-semibold transition disabled:opacity-50"
+              >
+                🤖 AI Coach
+              </button>
+
+              <button
                 onClick={handleExplain}
                 disabled={running || submitting}
                 className="px-3 py-1.5 rounded bg-[var(--surface)] hover:bg-[var(--paper)] border border-[var(--copper)] text-[var(--copper)] text-xs font-semibold transition disabled:opacity-50"
@@ -746,6 +781,7 @@ export default function LearnerWorkbench({
                   id: 'tests',
                   label: `Test Cases (${output?.test_cases?.length || 1})`,
                 },
+                { id: 'ai_coach', label: '🤖 AI Coach' },
                 { id: 'explain', label: '⚡ Explain Plan' },
                 { id: 'history', label: `Lịch sử (${qSubs.length})` },
                 { id: 'policy', label: 'Sandbox' },
@@ -954,6 +990,118 @@ export default function LearnerWorkbench({
                 ) : (
                   <div className="py-8 text-center text-xs font-mono text-[#64748b]">
                     Nhấn &quot;Nộp bài chấm điểm&quot; để xem chi tiết đối chiếu từng Test Case.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!errorMsg && consoleTab === 'ai_coach' && (
+              <div className="space-y-3 text-xs font-mono">
+                <div className="p-3 rounded bg-[var(--surface)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleAiCoach('review')}
+                      className={`px-3 py-1.5 rounded border font-semibold transition ${
+                        aiCoachData?.mode === 'review' || !aiCoachData
+                          ? 'bg-[#5C7F71] text-[#F5EDDC] border-[#5C7F71]'
+                          : 'bg-[var(--paper)] text-[var(--ink)] border-[var(--line)]'
+                      }`}
+                    >
+                      🔍 Review & Tối ưu SQL
+                    </button>
+                    <button
+                      onClick={() => handleAiCoach('nl2sql')}
+                      className={`px-3 py-1.5 rounded border font-semibold transition ${
+                        aiCoachData?.mode === 'nl2sql'
+                          ? 'bg-[#B2653B] text-[#F5EDDC] border-[#B2653B]'
+                          : 'bg-[var(--paper)] text-[var(--ink)] border-[var(--line)]'
+                      }`}
+                    >
+                      ✨ Ý tưởng Tiếng Việt → SQL
+                    </button>
+                    <button
+                      onClick={() => handleAiCoach('interview')}
+                      className={`px-3 py-1.5 rounded border font-semibold transition ${
+                        aiCoachData?.mode === 'interview'
+                          ? 'bg-[#BA8530] text-[#F5EDDC] border-[#BA8530]'
+                          : 'bg-[var(--paper)] text-[var(--ink)] border-[var(--line)]'
+                      }`}
+                    >
+                      🎙️ Phỏng vấn Data AI
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-1 min-w-[220px]">
+                    <input
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="Nhập ý tưởng tiếng Việt (VD: lấy top 5 khách chi tiêu cao nhất)..."
+                      className="flex-1 px-2.5 py-1 rounded bg-[var(--paper)] border border-[var(--line)] text-[var(--ink)] text-xs focus:outline-none"
+                    />
+                    <button
+                      onClick={() => handleAiCoach('nl2sql')}
+                      className="px-2.5 py-1 rounded bg-[var(--soft)] hover:bg-[var(--paper)] border border-[var(--line)] text-[var(--ink)] font-semibold"
+                    >
+                      Sinh SQL
+                    </button>
+                  </div>
+                </div>
+
+                {aiCoachData ? (
+                  <div className="p-4 rounded bg-[var(--surface)] border border-[var(--line)] space-y-3 text-[var(--ink)]">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-2">
+                      <span className="font-bold text-sm text-[var(--ink)]">
+                        {aiCoachData.headline}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded bg-[var(--soft)] border border-[var(--line)] text-[var(--green)] font-bold">
+                        AI Readiness: {aiCoachData.clean_score}/100
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {(aiCoachData.insights || []).map((ins: string, i: number) => (
+                        <div key={i} className="text-xs leading-relaxed text-[var(--text2)]">
+                          {ins}
+                        </div>
+                      ))}
+                    </div>
+
+                    {aiCoachData.interview_q && (
+                      <div className="p-3 rounded bg-[var(--paper)] border border-[var(--gold)] space-y-2">
+                        <div className="font-bold text-[var(--ink)]">
+                          ❓ Câu hỏi phỏng vấn từ AI Tech Lead:
+                        </div>
+                        <div className="text-[var(--text2)]">{aiCoachData.interview_q}</div>
+                        <button
+                          onClick={() => setShowInterviewAns(!showInterviewAns)}
+                          className="px-2.5 py-1 rounded bg-[var(--surface)] border border-[var(--line)] text-[var(--copper)] font-semibold"
+                        >
+                          {showInterviewAns ? 'Ẩn gợi ý trả lời' : '💡 Xem gợi ý trả lời phỏng vấn'}
+                        </button>
+                        {showInterviewAns && (
+                          <div className="pt-1 text-[var(--green)] font-medium">
+                            👉 {aiCoachData.interview_answer}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {aiCoachData.suggested_sql && (
+                      <div className="p-3 rounded bg-[var(--paper)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-2">
+                        <pre className="text-[11px] text-[var(--ink)] overflow-x-auto">
+                          {aiCoachData.suggested_sql}
+                        </pre>
+                        <button
+                          onClick={() => setSql(aiCoachData.suggested_sql)}
+                          className="px-3 py-1 rounded bg-[#5C7F71] text-[#F5EDDC] font-semibold shrink-0"
+                        >
+                          ↺ Chèn khung SQL vào Editor
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-[var(--muted)]">
+                    Chọn 1 trong 3 chế độ AI Coach phía trên để Review code, dịch Tiếng Việt sang SQL hoặc luyện phỏng vấn Data Engineer thời đại AI.
                   </div>
                 )}
               </div>

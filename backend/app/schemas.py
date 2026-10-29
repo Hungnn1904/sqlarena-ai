@@ -105,3 +105,12 @@ class SqlRunBody(BaseModel):
     question_id: int
     sql: str = Field(min_length=1, max_length=20000)
 
+
+class AiCoachBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question_id: int
+    sql: str = Field(default="", max_length=20000)
+    mode: str = Field(default="review", pattern="^(review|nl2sql|interview)$")
+    prompt: str | None = Field(default=None, max_length=500)
+
+

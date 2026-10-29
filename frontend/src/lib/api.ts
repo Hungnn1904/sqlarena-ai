@@ -89,6 +89,14 @@ export const runSandboxSql = (question_id: number, sql: string) =>
 export const explainSandboxSql = (question_id: number, sql: string) =>
   api.post('/api/v1/sql/explain', { question_id, sql }).then((r) => r.data);
 
+export const askAiSqlCoach = (payload: {
+  question_id: number;
+  sql: string;
+  mode: 'review' | 'nl2sql' | 'interview';
+  prompt?: string;
+}) => api.post('/api/v1/sql/ai-coach', payload).then((r) => r.data);
+
+
 export const submitGradingSql = (question_id: number, sql: string) =>
   api.post('/api/v1/submissions', { question_id, sql }).then((r) => r.data);
 

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from ..db import begin
-from ..schemas import SqlRunBody
+from ..schemas import AiCoachBody, SqlRunBody
 from ..security import current_user
 from ..services import questions as qsvc
 from ..services import submissions as sub_svc
@@ -65,6 +65,13 @@ def run_sql(body: SqlRunBody, user: dict = Depends(current_user)):
 def explain_sql(body: SqlRunBody, user: dict = Depends(current_user)):
     with begin() as conn:
         return sub_svc.explain_query(conn, body.question_id, body.sql)
+
+
+@router.post("/sql/ai-coach", tags=["learner-sandbox"])
+def ai_coach_sql(body: AiCoachBody, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return sub_svc.ai_coach_assist(conn, body.question_id, body.sql, body.mode, body.prompt)
+
 
 
 @router.post("/submissions", tags=["learner-sandbox"])
