@@ -159,6 +159,21 @@ npm run dev -- -p 3000 -H 127.0.0.1
 - **Giao diện Next.js 16 (Chính)**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
 - **Giao diện HTML tĩnh tương thích ngược (`learner.html`)**: [http://127.0.0.1:5500/learner.html](http://127.0.0.1:5500/learner.html) *(chạy bằng `python3 -m http.server 5500`)*
 
+#### Bước 5: Chế độ Sinh Đề AI (Instant Demo Mode vs. Local Ollama Worker)
+Hệ thống hỗ trợ **2 chế độ vận hành linh hoạt** để bất kỳ thành viên nào trong nhóm cũng test được ngay mà không cần GPU rời:
+1. **Chế độ 1 — Instant Demo Mode (Mặc định trên Web UI, không cần cài Ollama)**:
+   - Khi bấm **"Tạo đề AI"** trên tab `04 · Quản trị -> Sinh đề AI`, Backend nhận cờ `auto_run: true` và tự động tổng hợp ngay các câu hỏi nháp (`draft.question_drafts` ở trạng thái `needs_human`) kèm bản ghi lời giải `draft.self_solve_runs` dựa trên kho Blueprint chuẩn.
+   - Admin có thể chuyển sang tab **`Duyệt đề`** ngay lập tức để kiểm tra, sửa đề hoặc bấm **Approve** đẩy vào ngân hàng câu hỏi `live.questions`.
+2. **Chế độ 2 — Local Ollama Worker (Chạy LLM thật 100% qua `ai/main.py` & `ai/review.py`)**:
+   - Nếu máy đã cài [Ollama](https://ollama.com) ở cổng `11434`, kéo 2 model về và bật Worker chạy ngầm:
+   ```bash
+   ollama pull llama3
+   ollama pull qwen2.5-coder:7b
+   cd backend && ../.venv/bin/python -m app.cli worker
+   ```
+   - Khi đó Worker sẽ lấy các Job `queued` trong `draft.generation_jobs` và gọi trực tiếp Ollama स्थानीय (`http://localhost:11434/api/generate`) để chạy Model A sinh đề + Model B tự giải kiểm chứng 7 cổng.
+
+
 ---
 
 ### Cách 2: Chạy toàn bộ bằng Docker Compose (Production / Staging)

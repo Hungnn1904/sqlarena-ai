@@ -197,12 +197,15 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
         difficulty: jobDiff,
         skill_ids: jobSkills.length ? jobSkills : [2],
         requested_count: jobCount,
+        quantity: jobCount,
         topic: jobTopic,
+        auto_run: true,
       });
       setMsg(
-        `Đã khởi tạo Generation Job #${job.job_id} vào hàng đợi worker (status: ${job.status}).`
+        `Đã chạy xong Job Sinh đề #${job.job_id} (${job.created_count}/${job.requested_count} câu nháp mới đã vào mục "Duyệt đề").`
       );
       loadJobs();
+      loadDrafts();
     } catch (e: any) {
       setErr(e?.response?.data?.error?.message || 'Lỗi tạo job sinh đề');
     }

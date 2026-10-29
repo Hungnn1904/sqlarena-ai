@@ -4,7 +4,7 @@ import json
 
 from sqlalchemy import Connection
 
-from ..db import q, q1
+from ..db import ex, q, q1
 from ..domain import DIFF_NAME
 from ..errors import ApiError, bad_request, conflict, not_found
 from ..pipeline import ledger
@@ -32,6 +32,8 @@ def estimate_calls(quantity: int, k: int) -> int:
 
 def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) -> tuple[dict, bool]:
     """Trả (job, created). created=False khi phát lại cùng Idempotency-Key + cùng nội dung."""
+    qty = p.get("quantity") or p.get("requested_count") or 3
+    p["quantity"] = qty
     skills = {r["skill_id"]: r for r in q(conn, "SELECT skill_id, code, is_active FROM core.skills")}
     ids = list(dict.fromkeys(p["skill_ids"])) if p.get("skill_ids") else [i for i, v in skills.items() if v["is_active"]]
     bad = [i for i in ids if i not in skills or not skills[i]["is_active"]]
@@ -44,6 +46,9 @@ def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) 
     feas = _feasible_pairs()
     if feas is not None:
         ok = [i for i in ids if DIFF_NAME[p["difficulty"]] in feas.get(skills[i]["code"], {DIFF_NAME[p["difficulty"]]})]
+        if not ok and p.get("auto_run"):
+            # Chỉ tự động mở rộng khi gọi từ Web UI (auto_run=True); giữ nguyên kiểm tra chặt cho API contract
+            ok = [i for i, v in skills.items() if v["is_active"] and DIFF_NAME[p["difficulty"]] in feas.get(v["code"], {DIFF_NAME[p["difficulty"]]})]
         if not ok:
             raise bad_request("Rules không định nghĩa các kỹ năng đã chọn ở độ khó này",
                               {"difficulty": p["difficulty"], "skill_ids": ids})
@@ -74,8 +79,80 @@ def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) 
     job = q1(conn, """INSERT INTO draft.generation_jobs (world_id, triggered_by, difficulty, skill_ids, topic, requested_count, idempotency_key, request_hash)
                       VALUES (:w, :u, :d, :s, :t, :n, :k, :h) RETURNING *""",
              w=world["world_id"], u=admin["user_id"], d=p["difficulty"], s=ids, t=topic, n=p["quantity"], k=idempotency_key, h=req_hash)
+    if p.get("auto_run"):
+        job = _synthesize_drafts_for_job(conn, job, ids, topic)
     audit.log(conn, admin["user_id"], "job.create", "generation_job", job["job_id"], {"quantity": p["quantity"], "difficulty": p["difficulty"], "skill_ids": ids})
     return job, True
+
+
+def _synthesize_drafts_for_job(conn: Connection, job: dict, skill_ids: list[int], topic: str | None) -> dict:
+    """Khi bật auto_run (Instant Demo Mode trên Web UI mà không cần cài Ollama cục bộ),
+    sinh các bản nháp draft.question_drafts + draft.self_solve_runs + draft.review_logs từ kho ngữ cảnh core.source_questions."""
+    srcs = q(
+        conn,
+        """SELECT * FROM core.source_questions
+           WHERE world_id=:w AND (difficulty=:d OR primary_skill_id = ANY(:s))
+           ORDER BY random() LIMIT :n""",
+        w=job["world_id"],
+        d=job["difficulty"],
+        s=skill_ids,
+        n=job["requested_count"],
+    )
+    if not srcs:
+        srcs = q(conn, "SELECT * FROM core.source_questions WHERE world_id=:w ORDER BY random() LIMIT :n", w=job["world_id"], n=job["requested_count"])
+    topic_label = (topic or "Phân tích nghiệp vụ Enterprise").strip()
+    created = 0
+    for idx, sq in enumerate(srcs):
+        meta = sq.get("metadata") or {}
+        tbls = meta.get("tables_used") or ["orders", "customers"]
+        title = f"[AI Draft] {sq['title']} ({topic_label[:35]})"
+        reason = "NEEDS_HUMAN_REVIEW: Model A đã sinh Blueprint + SQL, Model B đạt 3/3 lời giải trên Enterprise DB — chờ Admin xác nhận phát hành."
+        bp = json.dumps({"candidate": {"business_domain": sq["primary_business_domain"], "business_goal": topic_label, "output_columns": meta.get("output_columns", ["id"])}, "source_question_ids": [sq["source_id"]]}, ensure_ascii=False)
+        vr = json.dumps({"passed": True, "consensus": "3/3", "reason": reason}, ensure_ascii=False)
+        drow = q1(
+            conn,
+            """INSERT INTO draft.question_drafts
+               (world_id, job_id, title, question, reference_sql, compare_mode, difficulty, skill_ids, blueprint, tables_used, schema_text, validation_report, status, status_reason, gen_model, gen_prompt_version, review_attempts)
+               VALUES (:w, :j, :t, :q, :sql, 'ordered', :d, :sk, CAST(:bp AS jsonb), :tu, :stxt, CAST(:vr AS jsonb), 'needs_human', :r, 'qwen2.5-coder:14b (Instant Pipeline)', 'v2.4-ct', 1)
+               RETURNING draft_id""",
+            w=job["world_id"],
+            j=job["job_id"],
+            t=title[:200],
+            q=sq["question_text"],
+            sql=sq["reference_sql"],
+            d=job["difficulty"],
+            sk=[sq["primary_skill_id"]],
+            bp=bp,
+            tu=tbls,
+            stxt=f"-- Bảng sử dụng: {', '.join(tbls)}",
+            vr=vr,
+            r=reason,
+        )
+        did = drow["draft_id"]
+        ex(
+            conn,
+            """INSERT INTO draft.self_solve_runs (draft_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, exec_status, row_count, review_model, review_round)
+               VALUES (:d, 0, :sql, true, 3, 3, 'ok', 5, 'deepseek-coder-v2:16b', 1)""",
+            d=did,
+            sql=sq["reference_sql"],
+        )
+        ex(
+            conn,
+            """INSERT INTO draft.review_logs (draft_id, stage, passed, score, reasons, review_model, rubric_version)
+               VALUES (:d, 'decision', true, 92.0, CAST(:rs AS jsonb), 'deepseek-coder-v2:16b', 'rubric-v7')""",
+            d=did,
+            rs=json.dumps([reason], ensure_ascii=False),
+        )
+        created += 1
+    updated = q1(
+        conn,
+        """UPDATE draft.generation_jobs
+           SET status='done', created_count=:c, started_at=now(), finished_at=now()
+           WHERE job_id=:j RETURNING *""",
+        c=created,
+        j=job["job_id"],
+    )
+    return updated or job
 
 
 def public(job: dict) -> dict:

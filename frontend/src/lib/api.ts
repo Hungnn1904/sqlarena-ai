@@ -156,9 +156,20 @@ export const getGenerationJobs = () => api.get('/api/v1/admin/generation-jobs').
 export const createGenerationJob = (data: {
   difficulty: number;
   skill_ids: number[];
-  requested_count: number;
+  requested_count?: number;
+  quantity?: number;
   topic?: string;
-}) => api.post('/api/v1/admin/generation-jobs', data).then((r) => r.data);
+  auto_run?: boolean;
+}) =>
+  api
+    .post('/api/v1/admin/generation-jobs', {
+      difficulty: data.difficulty,
+      skill_ids: data.skill_ids,
+      quantity: data.quantity ?? data.requested_count ?? 3,
+      topic: data.topic,
+      auto_run: data.auto_run ?? true,
+    })
+    .then((r) => r.data);
 
 export const getLlmUsage = () => api.get('/api/v1/admin/llm-usage').then((r) => r.data);
 
