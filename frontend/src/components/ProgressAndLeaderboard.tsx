@@ -309,7 +309,8 @@ export function LeaderboardView() {
   const [monthlyData, setMonthlyData] = useState<any>(null);
   const [historySets, setHistorySets] = useState<any[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<number | undefined>(undefined);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
+  const currentMonthStr = new Date().toISOString().slice(0, 7);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(currentMonthStr);
 
   useEffect(() => {
     getWeeklyHistory(1)
@@ -366,9 +367,13 @@ export function LeaderboardView() {
               onChange={(e) => setSelectedPeriod(e.target.value)}
               className="px-2.5 py-1.5 rounded text-xs font-mono bg-[#090d16] text-white border border-[#1d283a] focus:outline-none"
             >
+              {!['2026-10', '2026-09', '2026-08', '2026-04', '2025-03'].includes(currentMonthStr) && (
+                <option value={currentMonthStr}>Tháng hiện tại ({currentMonthStr})</option>
+              )}
               <option value="2026-10">Tháng 10/2026</option>
               <option value="2026-09">Tháng 09/2026</option>
               <option value="2026-08">Tháng 08/2026</option>
+              <option value="2026-04">Tháng 04/2026</option>
               <option value="2025-03">Tháng 03/2025</option>
             </select>
           )}

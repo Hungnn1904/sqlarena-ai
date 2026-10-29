@@ -863,7 +863,21 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                 <div className="flex gap-2">
                   {w.status === 'draft' && (
                     <button
-                      onClick={() => publishAdminWeeklySet(w.set_id).then(loadWeekly)}
+                      onClick={() => {
+                        setMsg(null);
+                        setErr(null);
+                        publishAdminWeeklySet(w.set_id)
+                          .then(() => {
+                            setMsg(`Đã Publish bộ đề tuần #${w.set_id} (${w.title}).`);
+                            loadWeekly();
+                          })
+                          .catch((e: any) =>
+                            setErr(
+                              e?.response?.data?.error?.message ||
+                                'Không thể Publish (hãy đóng bộ đề đang mở trước)'
+                            )
+                          );
+                      }}
                       className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
                     >
                       Publish Bộ đề
@@ -871,7 +885,21 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                   )}
                   {w.status === 'published' && (
                     <button
-                      onClick={() => closeAdminWeeklySet(w.set_id).then(loadWeekly)}
+                      onClick={() => {
+                        setMsg(null);
+                        setErr(null);
+                        closeAdminWeeklySet(w.set_id)
+                          .then(() => {
+                            setMsg(`Đã đóng chu kỳ bộ đề tuần #${w.set_id} (${w.title}).`);
+                            loadWeekly();
+                          })
+                          .catch((e: any) =>
+                            setErr(
+                              e?.response?.data?.error?.message ||
+                                'Không thể đóng chu kỳ tuần'
+                            )
+                          );
+                      }}
                       className="px-3 py-1.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-200"
                     >
                       Đóng chu kỳ tuần
@@ -1014,20 +1042,29 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                 <div className="flex items-center gap-2">
                   <input
                     value={settingEdits[st.key] ?? ''}
+                    disabled={st.mutable === false}
                     onChange={(e) =>
                       setSettingEdits((prev) => ({
                         ...prev,
                         [st.key]: e.target.value,
                       }))
                     }
-                    className="px-3 py-1.5 rounded bg-[#080c14] border border-[#1f2b42] text-white w-64"
+                    className={`px-3 py-1.5 rounded bg-[#080c14] border border-[#1f2b42] text-white w-64 ${
+                      st.mutable === false ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   />
-                  <button
-                    onClick={() => handleUpdateSetting(st.key)}
-                    className="px-3 py-1.5 rounded bg-[#162238] hover:bg-[#1f304d] border border-[#293f66] text-[#38bdf8]"
-                  >
-                    Lưu
-                  </button>
+                  {st.mutable === false ? (
+                    <span className="px-2.5 py-1.5 rounded bg-[#162032] border border-[#263552] text-[#64748b] text-[11px]">
+                      Cố định
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleUpdateSetting(st.key)}
+                      className="px-3 py-1.5 rounded bg-[#162238] hover:bg-[#1f304d] border border-[#293f66] text-[#38bdf8]"
+                    >
+                      Lưu
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

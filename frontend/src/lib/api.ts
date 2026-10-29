@@ -140,8 +140,8 @@ export const getAdminQuestions = (params?: {
 export const retireAdminQuestion = (questionId: number, reason: string) =>
   api.post(`/api/v1/admin/questions/${questionId}/retire`, { reason }).then((r) => r.data);
 
-export const restoreAdminQuestion = (questionId: number) =>
-  api.post(`/api/v1/admin/questions/${questionId}/restore`).then((r) => r.data);
+export const restoreAdminQuestion = (questionId: number, note?: string) =>
+  api.post(`/api/v1/admin/questions/${questionId}/restore`, { note: note || 'Khôi phục câu hỏi bởi Admin' }).then((r) => r.data);
 
 export const toggleAdminQuestionSource = (questionId: number, is_source: boolean) =>
   api.patch(`/api/v1/admin/questions/${questionId}/source`, { is_source }).then((r) => r.data);
@@ -190,7 +190,7 @@ export const getAdminUsers = (params?: { role?: string; status?: string; q?: str
 export const updateAdminUser = (userId: number, data: { role?: 'learner' | 'admin'; status?: 'active' | 'locked' }) =>
   api.patch(`/api/v1/admin/users/${userId}`, data).then((r) => r.data);
 
-export const getHealth = () => api.get('/api/v1/healthz').then((r) => r.data);
+export const getHealth = () => api.get('/api/v1/health').then((r) => r.data);
 
 // Backward-compatible exports for legacy showcase components
 export interface GenerateRequest {

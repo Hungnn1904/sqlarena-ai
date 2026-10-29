@@ -6,6 +6,7 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
+@router.get("/healthz")
 def health():
     """Liveness + tình trạng hàng đợi (không chứa bí mật)."""
     with begin() as conn:
