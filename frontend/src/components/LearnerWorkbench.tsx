@@ -205,7 +205,10 @@ export default function LearnerWorkbench({
     }
   };
 
-  const handleAiCoach = async (mode: 'review' | 'nl2sql' | 'interview' = 'review') => {
+  const handleAiCoach = async (
+    mode: 'review' | 'nl2sql' | 'interview' | 'autofix' = 'review',
+    errCtx?: string
+  ) => {
     if (!selectedId) return;
     setRunning(true);
     setErrorMsg(null);
@@ -217,6 +220,7 @@ export default function LearnerWorkbench({
         sql,
         mode,
         prompt: aiPrompt || undefined,
+        error_context: errCtx || errorMsg || output?.error || undefined,
       });
       setAiCoachData(res);
     } catch (e: any) {
@@ -853,14 +857,22 @@ export default function LearnerWorkbench({
           {/* Console Body */}
           <div className="p-4 bg-[#070b12] min-h-[210px]">
             {errorMsg && (
-              <div className="p-3.5 rounded bg-red-950/30 border border-red-900/60 flex items-start gap-2.5 text-red-300 text-xs font-mono">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-semibold text-red-200 mb-0.5">
-                    SQL Execution Error
+              <div className="p-3.5 rounded bg-red-950/30 border border-red-900/60 flex flex-wrap items-center justify-between gap-2.5 text-red-300 text-xs font-mono">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-red-200 mb-0.5">
+                      SQL Execution Error
+                    </div>
+                    <div>{errorMsg}</div>
                   </div>
-                  <div>{errorMsg}</div>
                 </div>
+                <button
+                  onClick={() => handleAiCoach('autofix', errorMsg)}
+                  className="px-3 py-1.5 rounded bg-[#B2653B] text-[#F5EDDC] font-semibold shrink-0"
+                >
+                  🛠️ Nhờ AI Sửa Lỗi (Auto-Fix)
+                </button>
               </div>
             )}
 
@@ -886,9 +898,19 @@ export default function LearnerWorkbench({
                           : `WRONG ANSWER — ${output.error || 'Chưa khớp kết quả chuẩn'}`}
                       </span>
                     </div>
-                    <div className="font-mono text-xs">
-                      Score: <strong>{output.score}/100</strong> · Latency:{' '}
-                      <strong>{output.runtime_ms} ms</strong>
+                    <div className="flex items-center gap-2 font-mono text-xs">
+                      {!output.passed && (
+                        <button
+                          onClick={() => handleAiCoach('autofix', output.error)}
+                          className="px-2.5 py-1 rounded bg-[#B2653B] text-[#F5EDDC] font-semibold"
+                        >
+                          🛠️ AI Chẩn đoán &amp; Sửa lỗi
+                        </button>
+                      )}
+                      <span>
+                        Score: <strong>{output.score}/100</strong> · Latency:{' '}
+                        <strong>{output.runtime_ms} ms</strong>
+                      </span>
                     </div>
                   </div>
                 )}

@@ -218,7 +218,12 @@ def question_submissions(conn: Connection, user_id: int | None, question_id: int
 
 
 def ai_coach_assist(
-    conn: Connection, question_id: int, raw_sql: str, mode: str = "review", prompt: str | None = None
+    conn: Connection,
+    question_id: int,
+    raw_sql: str,
+    mode: str = "review",
+    prompt: str | None = None,
+    error_context: str | None = None,
 ) -> dict:
     q_row = q1(
         conn,
@@ -251,9 +256,28 @@ def ai_coach_assist(
         skel_lines.append(f"JOIN {join_tbl} t2 ON t1.<fk_id> = t2.<pk_id>")
     if 2 in skills or "COUNT" in q_row["question"].upper() or "TỔNG" in q_row["question"].upper():
         skel_lines.append(f"GROUP BY {exp_cols[0]}")
-    if q_row.get("compare_mode") == "ORDER_SENSITIVE":
+    if q_row.get("compare_mode") in ("ORDER_SENSITIVE", "ordered"):
         skel_lines.append(f"ORDER BY {exp_cols[0]} ASC")
     suggested_sql = "\n".join(skel_lines) + ";"
+
+    if mode == "autofix":
+        err_txt = (error_context or "Sai cấu trúc cột hoặc điều kiện lọc").strip()
+        return {
+            "question_id": question_id,
+            "mode": "autofix",
+            "headline": "🛠️ AI Auto-Fix & Root-Cause Debugger",
+            "clean_score": 90,
+            "insights": [
+                f"Chẩn đoán lỗi: {err_txt[:180]}",
+                f"Cột đầu ra chuẩn cần khớp 100%: `{col_str}`",
+                f"Bảng bắt buộc tham gia truy vấn: `{', '.join(tables)}`",
+                "Giải pháp khắc phục: Thay thế `SELECT *` bằng đúng danh sách cột yêu cầu, kiểm tra điều kiện JOIN/GROUP BY và thứ tự sắp xếp ORDER BY.",
+            ],
+            "suggested_sql": suggested_sql,
+            "interview_q": None,
+            "interview_answer": None,
+        }
+
 
     if mode == "nl2sql":
         user_intent = (prompt or q_row["question"]).strip()

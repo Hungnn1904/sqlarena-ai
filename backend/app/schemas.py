@@ -110,7 +110,9 @@ class AiCoachBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question_id: int
     sql: str = Field(default="", max_length=20000)
-    mode: str = Field(default="review", pattern="^(review|nl2sql|interview)$")
+    mode: str = Field(default="review", pattern="^(review|nl2sql|interview|autofix)$")
     prompt: str | None = Field(default=None, max_length=500)
+    error_context: str | None = Field(default=None, max_length=1000)
+
 
 

@@ -92,8 +92,9 @@ export const explainSandboxSql = (question_id: number, sql: string) =>
 export const askAiSqlCoach = (payload: {
   question_id: number;
   sql: string;
-  mode: 'review' | 'nl2sql' | 'interview';
+  mode: 'review' | 'nl2sql' | 'interview' | 'autofix';
   prompt?: string;
+  error_context?: string;
 }) => api.post('/api/v1/sql/ai-coach', payload).then((r) => r.data);
 
 

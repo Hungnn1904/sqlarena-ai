@@ -70,7 +70,10 @@ def explain_sql(body: SqlRunBody, user: dict = Depends(current_user)):
 @router.post("/sql/ai-coach", tags=["learner-sandbox"])
 def ai_coach_sql(body: AiCoachBody, user: dict = Depends(current_user)):
     with begin() as conn:
-        return sub_svc.ai_coach_assist(conn, body.question_id, body.sql, body.mode, body.prompt)
+        return sub_svc.ai_coach_assist(
+            conn, body.question_id, body.sql, body.mode, body.prompt, body.error_context
+        )
+
 
 
 

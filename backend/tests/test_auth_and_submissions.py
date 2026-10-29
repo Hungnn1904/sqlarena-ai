@@ -119,11 +119,17 @@ def test_sql_sandbox_grading_progress_and_leaderboard(client, learner_h):
     assert hist_res.status_code == 200
     assert len(hist_res.json()["items"]) == 2
 
-    for mode in ("review", "nl2sql", "interview"):
+    for mode in ("review", "nl2sql", "interview", "autofix"):
         coach_res = client.post(
             "/api/v1/sql/ai-coach",
             headers=learner_h,
-            json={"question_id": qid, "sql": "SELECT * FROM categories", "mode": mode, "prompt": "Đếm tổng số danh mục"},
+            json={
+                "question_id": qid,
+                "sql": "SELECT * FROM categories",
+                "mode": mode,
+                "prompt": "Đếm tổng số danh mục",
+                "error_context": "Sai tên cột cnt",
+            },
         )
         assert coach_res.status_code == 200
         cdata = coach_res.json()
