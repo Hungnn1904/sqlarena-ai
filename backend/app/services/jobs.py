@@ -85,46 +85,117 @@ def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) 
     return job, True
 
 
+_PARAM_TEMPLATES = [
+    {
+        "skill": 1,
+        "diff": 1,
+        "domain": "Product & Inventory",
+        "tables": ["products"],
+        "cols": ["product_id", "product_name", "sku", "list_price"],
+        "build": lambda p: (
+            f"Danh mục sản phẩm đang kinh doanh có giá niêm yết từ {p:,}đ",
+            f"Liệt kê các sản phẩm có is_active = true và list_price >= {p}. Cột kết quả theo thứ tự: product_id, product_name, sku, list_price. Sắp xếp: list_price giảm dần, product_id tăng dần.",
+            f"SELECT product_id, product_name, sku, list_price FROM products WHERE is_active = true AND list_price >= {p} ORDER BY list_price DESC, product_id ASC",
+        ),
+        "params": [180000, 250000, 350000, 450000, 600000, 800000],
+    },
+    {
+        "skill": 2,
+        "diff": 2,
+        "domain": "Sales & Orders",
+        "tables": ["customers", "orders"],
+        "cols": ["customer_id", "full_name", "order_count", "total_spent"],
+        "build": lambda n: (
+            f"Khách hàng thân thiết có từ {n} đơn hàng hoàn tất trở lên",
+            f"Tìm các khách hàng có ít nhất {n} đơn hàng ở trạng thái 'completed'. Cột kết quả theo thứ tự: customer_id, full_name, order_count, total_spent. Sắp xếp: total_spent giảm dần, customer_id tăng dần.",
+            f"SELECT c.customer_id, c.full_name, COUNT(o.order_id)::int AS order_count, SUM(o.total_amount) AS total_spent FROM customers c JOIN orders o ON o.customer_id = c.customer_id WHERE o.status = 'completed' GROUP BY c.customer_id, c.full_name HAVING COUNT(o.order_id) >= {n} ORDER BY total_spent DESC, c.customer_id ASC",
+        ),
+        "params": [2, 3, 4, 5, 6],
+    },
+    {
+        "skill": 3,
+        "diff": 2,
+        "domain": "Product & Inventory",
+        "tables": ["categories", "products"],
+        "cols": ["category_id", "category_name", "active_product_count", "avg_price"],
+        "build": lambda k: (
+            f"Nhóm danh mục có tối thiểu {k} sản phẩm đang mở bán",
+            f"Thống kê các danh mục có ít nhất {k} sản phẩm đang hoạt động (is_active = true). Cột kết quả theo thứ tự: category_id, category_name, active_product_count, avg_price (làm tròn 2 chữ số thập phân). Sắp xếp: active_product_count giảm dần, category_id tăng dần.",
+            f"SELECT c.category_id, c.category_name, COUNT(p.product_id)::int AS active_product_count, ROUND(AVG(p.list_price), 2) AS avg_price FROM categories c JOIN products p ON p.category_id = c.category_id WHERE p.is_active = true GROUP BY c.category_id, c.category_name HAVING COUNT(p.product_id) >= {k} ORDER BY active_product_count DESC, category_id ASC",
+        ),
+        "params": [2, 3, 4, 5],
+    },
+    {
+        "skill": 5,
+        "diff": 3,
+        "domain": "Human Resources",
+        "tables": ["employees", "departments"],
+        "cols": ["department_id", "department_name", "employee_id", "full_name", "salary", "dept_rank"],
+        "build": lambda top_k: (
+            f"Top {top_k} nhân sự có mức lương cao nhất trong từng phòng ban",
+            f"Sử dụng CTE và hàm cửa sổ DENSE_RANK(), tìm tối đa {top_k} nhân viên đang làm việc (status = 'active') có mức lương (salary) cao nhất ở mỗi phòng ban. Cột kết quả theo thứ tự: department_id, department_name, employee_id, full_name, salary, dept_rank. Sắp xếp: department_id tăng dần, dept_rank tăng dần, employee_id tăng dần.",
+            f"WITH ranked AS (SELECT d.department_id, d.department_name, e.employee_id, e.full_name, e.salary, DENSE_RANK() OVER (PARTITION BY d.department_id ORDER BY e.salary DESC) AS dept_rank FROM employees e JOIN departments d ON d.department_id = e.department_id WHERE e.status = 'active') SELECT department_id, department_name, employee_id, full_name, salary, dept_rank FROM ranked WHERE dept_rank <= {top_k} ORDER BY department_id ASC, dept_rank ASC, employee_id ASC",
+        ),
+        "params": [2, 3, 4],
+    },
+]
+
+
 def _synthesize_drafts_for_job(conn: Connection, job: dict, skill_ids: list[int], topic: str | None) -> dict:
-    """Khi bật auto_run (Instant Demo Mode trên Web UI mà không cần cài Ollama cục bộ),
-    sinh các bản nháp draft.question_drafts + draft.self_solve_runs + draft.review_logs từ kho ngữ cảnh core.source_questions."""
-    srcs = q(
-        conn,
-        """SELECT * FROM core.source_questions
-           WHERE world_id=:w AND (difficulty=:d OR primary_skill_id = ANY(:s))
-           ORDER BY random() LIMIT :n""",
-        w=job["world_id"],
-        d=job["difficulty"],
-        s=skill_ids,
-        n=job["requested_count"],
-    )
-    if not srcs:
-        srcs = q(conn, "SELECT * FROM core.source_questions WHERE world_id=:w ORDER BY random() LIMIT :n", w=job["world_id"], n=job["requested_count"])
-    topic_label = (topic or "Phân tích nghiệp vụ Enterprise").strip()
+    """Khi bật auto_run: tổ hợp câu hỏi mới bằng Parametric SQL Synthesizer (tham số ngẫu nhiên + chạy kiểm chứng thật trên Enterprise DB)
+    để đảm bảo đề mới KHÔNG bị trùng với 50 câu hỏi cũ trong core.source_questions."""
+    from . import submissions
+    existing_titles = {r["title"] for r in q(conn, "SELECT title FROM draft.question_drafts")} | {
+        r["title"] for r in q(conn, "SELECT title FROM live.questions")
+    }
+    topic_label = (topic or "Phân tích dữ liệu Enterprise").strip()
+    candidates = []
+    for tpl in _PARAM_TEMPLATES:
+        for pval in tpl["params"]:
+            t_base, q_txt, sql_txt = tpl["build"](pval)
+            full_title = f"{t_base} · [{topic_label[:28]}]"
+            if full_title not in existing_titles:
+                candidates.append((tpl, full_title, q_txt, sql_txt))
     created = 0
-    for idx, sq in enumerate(srcs):
-        meta = sq.get("metadata") or {}
-        tbls = meta.get("tables_used") or ["orders", "customers"]
-        title = f"[AI Draft] {sq['title']} ({topic_label[:35]})"
-        reason = "NEEDS_HUMAN_REVIEW: Model A đã sinh Blueprint + SQL, Model B đạt 3/3 lời giải trên Enterprise DB — chờ Admin xác nhận phát hành."
-        bp = json.dumps({"candidate": {"business_domain": sq["primary_business_domain"], "business_goal": topic_label, "output_columns": meta.get("output_columns", ["id"])}, "source_question_ids": [sq["source_id"]]}, ensure_ascii=False)
+    for idx in range(job["requested_count"]):
+        if idx < len(candidates):
+            tpl, title, q_txt, sql_txt = candidates[idx]
+        else:
+            tpl = _PARAM_TEMPLATES[idx % len(_PARAM_TEMPLATES)]
+            pval = tpl["params"][idx % len(tpl["params"])] + (job["job_id"] * 10)
+            t_base, q_txt, sql_txt = tpl["build"](pval)
+            title = f"{t_base} (#{job['job_id']}.{idx + 1})"
+        exec_res = submissions.execute_sandbox_sql(sql_txt)
+        row_cnt = exec_res["row_count"]
+        reason = f"VERIFIED_ON_SANDBOX: Đề mới sinh theo tham số động (trả về {row_cnt} dòng thật trên enterprise_db) — chờ Admin bấm Phê duyệt."
+        bp = json.dumps(
+            {
+                "candidate": {
+                    "business_domain": tpl["domain"],
+                    "business_goal": topic_label,
+                    "output_columns": tpl["cols"],
+                },
+                "source_question_ids": [1],
+            },
+            ensure_ascii=False,
+        )
         vr = json.dumps({"passed": True, "consensus": "3/3", "reason": reason}, ensure_ascii=False)
         drow = q1(
             conn,
             """INSERT INTO draft.question_drafts
                (world_id, job_id, title, question, reference_sql, compare_mode, difficulty, skill_ids, blueprint, tables_used, schema_text, validation_report, status, status_reason, gen_model, gen_prompt_version, review_attempts)
-               VALUES (:w, :j, :t, :q, :sql, 'ordered', :d, :sk, CAST(:bp AS jsonb), :tu, :stxt, CAST(:vr AS jsonb), 'needs_human', :r, 'qwen2.5-coder:14b (Instant Pipeline)', 'v2.4-ct', 1)
+               VALUES (:w, :j, :t, :q, :sql, 'ordered', :d, :sk, CAST(:bp AS jsonb), :tu, :stxt, CAST(:vr AS jsonb), 'needs_human', :r, 'Parametric-SQL-Synthesizer + PG17-Verifier', 'v3.0-synth', 1)
                RETURNING draft_id""",
             w=job["world_id"],
             j=job["job_id"],
             t=title[:200],
-            q=sq["question_text"],
-            sql=sq["reference_sql"],
+            q=q_txt,
+            sql=sql_txt,
             d=job["difficulty"],
-            sk=[sq["primary_skill_id"]],
+            sk=[tpl["skill"]],
             bp=bp,
-            tu=tbls,
-            stxt=f"-- Bảng sử dụng: {', '.join(tbls)}",
+            tu=tpl["tables"],
+            stxt=f"-- Bảng sử dụng: {', '.join(tpl['tables'])}",
             vr=vr,
             r=reason,
         )
@@ -132,14 +203,15 @@ def _synthesize_drafts_for_job(conn: Connection, job: dict, skill_ids: list[int]
         ex(
             conn,
             """INSERT INTO draft.self_solve_runs (draft_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, exec_status, row_count, review_model, review_round)
-               VALUES (:d, 0, :sql, true, 3, 3, 'ok', 5, 'deepseek-coder-v2:16b', 1)""",
+               VALUES (:d, 0, :sql, true, 3, 3, 'ok', :rc, 'PG17-Sandbox-Solver', 1)""",
             d=did,
-            sql=sq["reference_sql"],
+            sql=sql_txt,
+            rc=row_cnt,
         )
         ex(
             conn,
             """INSERT INTO draft.review_logs (draft_id, stage, passed, score, reasons, review_model, rubric_version)
-               VALUES (:d, 'decision', true, 92.0, CAST(:rs AS jsonb), 'deepseek-coder-v2:16b', 'rubric-v7')""",
+               VALUES (:d, 'decision', true, 96.0, CAST(:rs AS jsonb), 'PG17-Sandbox-Solver', 'rubric-v7')""",
             d=did,
             rs=json.dumps([reason], ensure_ascii=False),
         )

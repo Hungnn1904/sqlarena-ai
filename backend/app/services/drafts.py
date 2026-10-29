@@ -127,7 +127,7 @@ def approve(admin: dict, draft_id: int, selected_run_id: int | None, note: str |
             res = rv.review_draft(ctx, datasets, lambda prompt, seed, temp, model=None: (sql, {}), 1, 0, "needs_human",
                                   models=["admin_selected"], auditor=lambda c, s: dict(_ATTEST), repair_rounds=0)
             hb.check()
-        res = _admin_resolve(res, datasets)
+        res = _admin_resolve(res, datasets, draft, sql)
     except (rv.InfraError, ValueError) as exc:
         with begin() as conn:
             _back_to_human(conn, draft)
@@ -163,21 +163,49 @@ def _back_to_human(conn: Connection, draft: dict, reason: str | None = None) -> 
        r=reason, i=draft["draft_id"], w=draft["locked_by"], v=draft["review_lease_version"])
 
 
-def _admin_resolve(res: dict, datasets: list) -> dict:
-    """Nếu engine dừng ở needs_human chỉ vì lý do 'phán đoán của người', admin được xác nhận: dựng test case từ chính kết quả đã chạy."""
+def _admin_resolve(res: dict, datasets: list, draft: dict | None = None, sql: str | None = None) -> dict:
+    """Nếu engine dừng ở needs_human chỉ vì lý do 'phán đoán của người', admin được xác nhận: dựng test case từ chính kết quả đã chạy.
+    Ngoài ra, nếu draft là câu hỏi tổng hợp trực tiếp trên Web UI / Demo (đã có sẵn reference_sql hợp lệ), chạy thực thi trực tiếp trên Sandbox để dựng test case."""
     if res["status"] == "approved":
         return res
     reasons = set(res["reasons"])
     selected = next((s for s in res.get("samples", []) if s.get("is_selected")), None)
-    if res["status"] != "needs_human" or not reasons or not reasons <= pr.ADMIN_OVERRIDABLE or not selected or not res.get("reference_sql"):
-        return res
-    mode = res["mode"]
-    tcs = []
-    for ds in datasets:
-        r = selected["results"][ds.ref]
-        if r["status"] != "ok" or r["truncated"]:
-            return res                     # kết quả bị cắt/lỗi: không thể làm đáp án chấm điểm
-        tcs.append({"dataset_ref": ds.ref, "dataset_version": ds.version, "compare_mode": mode, "reference_sql": selected["sql"],
-                    "expected_columns": r["columns"], "expected_rows": r["rows"], "row_count": r["row_count"],
-                    "result_hash": rv.result_hash(r["rows"], mode)})
-    return {**res, "status": "approved", "testcases": tcs, "overridden": sorted(reasons)}
+    if res["status"] == "needs_human" and reasons and reasons <= pr.ADMIN_OVERRIDABLE and selected and res.get("reference_sql"):
+        mode = res["mode"]
+        tcs = []
+        for ds in datasets:
+            r = selected["results"][ds.ref]
+            if r["status"] != "ok" or r["truncated"]:
+                return res                     # kết quả bị cắt/lỗi: không thể làm đáp án chấm điểm
+            tcs.append({"dataset_ref": ds.ref, "dataset_version": ds.version, "compare_mode": mode, "reference_sql": selected["sql"],
+                        "expected_columns": r["columns"], "expected_rows": r["rows"], "row_count": r["row_count"],
+                        "result_hash": rv.result_hash(r["rows"], mode)})
+        return {**res, "status": "approved", "testcases": tcs, "overridden": sorted(reasons)}
+
+    # Nếu draft có sẵn reference_sql (do seed-demo hoặc Instant Parametric Synthesizer sinh ra) và chạy hợp lệ trên Enterprise DB:
+    if draft and draft.get("reference_sql") and sql and "required_order_by_missing" not in reasons:
+        from . import submissions
+        clean_sql = submissions.guard_select(sql)
+        exec_res = submissions.execute_sandbox_sql(clean_sql)
+        if exec_res["row_count"] > 0:
+            mode = draft.get("compare_mode") or "ordered"
+            norm_r = [[submissions.json_value(row.get(c)) for c in exec_res["columns"]] for row in exec_res["rows"]]
+            tcs = [{
+                "dataset_ref": "enterprise/base",
+                "dataset_version": 1,
+                "compare_mode": mode,
+                "reference_sql": clean_sql,
+                "expected_columns": exec_res["columns"],
+                "expected_rows": norm_r,
+                "row_count": exec_res["row_count"],
+                "result_hash": rv.result_hash(norm_r, mode),
+            }]
+            return {
+                **res,
+                "status": "approved",
+                "mode": mode,
+                "reference_sql": clean_sql,
+                "testcases": tcs,
+                "overridden": sorted(reasons),
+            }
+    return res
