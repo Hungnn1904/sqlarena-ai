@@ -526,14 +526,14 @@ export default function LearnerWorkbench({
         )}
 
         {/* Lower Card: Studio SQL Editor & Multi-Tab Execution Console */}
-        <div className="dark-zone-hybrid bg-[#181818] text-[#F5EDDC] border border-[#2c352f] rounded-lg overflow-hidden card-interactive">
+        <div className="bg-[var(--surface)] text-[var(--ink)] border border-[var(--line)] rounded-lg overflow-hidden card-interactive">
           {/* Editor Action Bar */}
-          <div className="px-4 py-2.5 bg-[#202722] border-b border-[#2c352f] flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs font-mono text-[#a3aea6]">
-              <FileCode2 className="w-4 h-4 text-[#5C7F71]" />
-              <span className="text-[#F5EDDC] font-medium">query.sql</span>
-              <span className="text-[#525e56]">·</span>
-              <span className="text-[11px] text-[#8d9a91]">PostgreSQL 17</span>
+          <div className="px-4 py-2.5 bg-[var(--soft)] border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-mono text-[var(--muted)]">
+              <FileCode2 className="w-4 h-4 text-[var(--green)]" />
+              <span className="text-[var(--ink)] font-semibold">query.sql</span>
+              <span>·</span>
+              <span className="text-[11px]">PostgreSQL 17</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -542,7 +542,7 @@ export default function LearnerWorkbench({
                   const firstTable = questionDetail?.tables_used?.[0] || 'categories';
                   setSql(`SELECT *\nFROM ${firstTable}\nLIMIT 10;`);
                 }}
-                className="px-2.5 py-1.5 rounded bg-[#181818] hover:bg-[#2a332d] border border-[#354039] text-[#d5cfc0] hover:text-[#F5EDDC] text-xs font-mono transition"
+                className="px-2.5 py-1.5 rounded bg-[var(--surface)] hover:bg-[var(--paper)] border border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)] text-xs font-mono transition"
               >
                 ↺ Đặt lại
               </button>
@@ -550,7 +550,7 @@ export default function LearnerWorkbench({
               <button
                 onClick={handleRunSandbox}
                 disabled={running || submitting}
-                className="px-3.5 py-1.5 rounded bg-[#2a332d] hover:bg-[#354039] border border-[#46544b] text-[#F5EDDC] text-xs font-medium transition disabled:opacity-50"
+                className="px-3.5 py-1.5 rounded bg-[var(--surface)] hover:bg-[var(--paper)] border border-[var(--green)] text-[var(--green)] text-xs font-semibold transition disabled:opacity-50"
               >
                 {running ? 'Đang chạy...' : '▶ Chạy thử'}
               </button>
@@ -558,7 +558,7 @@ export default function LearnerWorkbench({
               <button
                 onClick={handleSubmitGrade}
                 disabled={running || submitting}
-                className="px-4 py-1.5 rounded bg-[#5C7F71] hover:bg-[#496B5D] text-[#F5EDDC] text-xs font-medium transition disabled:opacity-50"
+                className="px-4 py-1.5 rounded bg-[#5C7F71] hover:bg-[#496B5D] text-[#F5EDDC] text-xs font-semibold transition disabled:opacity-50"
               >
                 {submitting ? 'Đang chấm...' : 'Nộp bài →'}
               </button>
@@ -566,11 +566,11 @@ export default function LearnerWorkbench({
           </div>
 
           {/* Monaco Code Editor */}
-          <div className="h-[260px] border-b border-[#2c352f] bg-[#181818]">
+          <div className="h-[260px] border-b border-[var(--line)] bg-[var(--surface)]">
             <MonacoEditor
               height="260px"
               defaultLanguage="sql"
-              theme="vs-dark"
+              theme={theme === 'dark' ? 'vs-dark' : 'light'}
               value={sql}
               onChange={(val) => setSql(val || '')}
               options={{
@@ -586,7 +586,7 @@ export default function LearnerWorkbench({
           </div>
 
           {/* Console Tabs Header */}
-          <div className="px-4 bg-[#202722] border-b border-[#2c352f] flex items-center justify-between">
+          <div className="px-4 bg-[var(--soft)] border-b border-[var(--line)] flex items-center justify-between">
             <div className="flex items-center gap-4">
               {[
                 { id: 'results', label: 'Kết quả' },
@@ -599,10 +599,10 @@ export default function LearnerWorkbench({
                 <button
                   key={t.id}
                   onClick={() => setConsoleTab(t.id as any)}
-                  className={`py-2.5 text-xs font-medium border-b-2 transition ${
+                  className={`py-2.5 text-xs font-semibold border-b-2 transition ${
                     consoleTab === t.id
-                      ? 'border-[#5C7F71] text-[#F5EDDC]'
-                      : 'border-transparent text-[#8d9a91] hover:text-[#d5cfc0]'
+                      ? 'border-[var(--copper)] text-[var(--ink)]'
+                      : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
                   {t.label}

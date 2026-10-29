@@ -228,6 +228,8 @@ html.dark .bg-\[\#060911\] {
   background-image: none !important;
 }
 
+html.light .bg-\[\#060a10\],
+html.dark .bg-\[\#060a10\],
 html.light .bg-\[\#070b12\],
 html.dark .bg-\[\#070b12\],
 html.light .bg-\[\#080c14\],
@@ -245,6 +247,8 @@ html.dark .bg-\[\#0e1525\] {
   background-color: var(--paper) !important;
 }
 
+html.light .bg-\[\#0d1320\],
+html.dark .bg-\[\#0d1320\],
 html.light .bg-\[\#0d1321\],
 html.dark .bg-\[\#0d1321\],
 html.light .bg-\[\#0f1624\],
@@ -259,6 +263,8 @@ html.light .bg-\[\#111a2e\],
 html.dark .bg-\[\#111a2e\],
 html.light .bg-\[\#131c2e\],
 html.dark .bg-\[\#131c2e\],
+html.light .bg-\[\#131d31\],
+html.dark .bg-\[\#131d31\],
 html.light .bg-\[\#141f35\],
 html.dark .bg-\[\#141f35\],
 html.light .bg-\[\#152036\],
@@ -270,7 +276,9 @@ html.dark .bg-\[\#162238\],
 html.light .bg-\[\#17253d\],
 html.dark .bg-\[\#17253d\],
 html.light .hover\:bg-\[\#101829\]:hover,
-html.dark .hover\:bg-\[\#101829\]:hover {
+html.dark .hover\:bg-\[\#101829\]:hover,
+html.light .hover\:bg-\[\#111827\]:hover,
+html.dark .hover\:bg-\[\#111827\]:hover {
   background-color: var(--soft) !important;
 }
 
@@ -300,8 +308,12 @@ html.light .border-\[\#1f2b42\],
 html.dark .border-\[\#1f2b42\],
 html.light .border-\[\#22304a\],
 html.dark .border-\[\#22304a\],
+html.light .border-\[\#223456\],
+html.dark .border-\[\#223456\],
 html.light .border-\[\#223459\],
 html.dark .border-\[\#223459\],
+html.light .border-\[\#243550\],
+html.dark .border-\[\#243550\],
 html.light .border-\[\#263859\],
 html.dark .border-\[\#263859\],
 html.light .border-\[\#293f66\],
@@ -318,6 +330,8 @@ html.light .text-white,
 html.dark .text-white,
 html.light .text-\[\#e2e8f0\],
 html.dark .text-\[\#e2e8f0\],
+html.light .text-\[\#e2eaf6\],
+html.dark .text-\[\#e2eaf6\],
 html.light .text-\[\#cbd5e1\],
 html.dark .text-\[\#cbd5e1\] {
   color: var(--ink) !important;
@@ -326,7 +340,9 @@ html.dark .text-\[\#cbd5e1\] {
 html.light .text-\[\#94a3b8\],
 html.dark .text-\[\#94a3b8\],
 html.light .text-\[\#8ba3c7\],
-html.dark .text-\[\#8ba3c7\] {
+html.dark .text-\[\#8ba3c7\],
+html.light .text-\[\#a8c4e8\],
+html.dark .text-\[\#a8c4e8\] {
   color: var(--text2) !important;
 }
 

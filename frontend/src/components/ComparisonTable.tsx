@@ -6,9 +6,9 @@ type BadgeType = 'ok' | 'warn' | 'bad';
 
 function StatusBadge({ type, children }: { type: BadgeType; children: React.ReactNode }) {
   const map: Record<BadgeType, string> = {
-    ok: 'text-[#00e5a0]',
-    warn: 'text-[#ffb830]',
-    bad: 'text-[#ff4d6d]',
+    ok: 'text-[var(--green)]',
+    warn: 'text-[var(--gold)]',
+    bad: 'text-[var(--red)]',
   };
   return <span className={`${map[type]} font-semibold`}>{children}</span>;
 }
