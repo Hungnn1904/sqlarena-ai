@@ -159,27 +159,19 @@ npm run dev -- -p 3000 -H 127.0.0.1
 - **Giao diện Next.js 16 (Chính)**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
 - **Giao diện HTML tĩnh tương thích ngược (`learner.html`)**: [http://127.0.0.1:5500/learner.html](http://127.0.0.1:5500/learner.html) *(chạy bằng `python3 -m http.server 5500`)*
 
-#### Bước 5: Nguồn dữ liệu & Cơ chế Sinh Đề AI (2 Chế độ: Parametric SQL Synthesizer vs. Local Ollama 2-Model Worker)
+#### Bước 5: Nguồn dữ liệu & Cơ chế Sinh Đề AI 2-Model (`ai/main.py` Model A + `ai/review.py` Model B qua `apithat.dev` hoặc Local Ollama)
 
-Khi Admin bấm nút **"Khởi chạy Job Sinh đề AI"** trên tab `04 · Quản trị -> Sinh đề AI`, hệ thống lấy **dữ liệu nguồn từ 3 tầng trong PostgreSQL 17**:
+Khi Admin bấm nút **"Khởi chạy Job Sinh đề"** trên tab `Quản trị -> Sinh đề AI`, hệ thống chạy đúng **Pipeline AI 2-Model gốc trong thư mục `ai/` (`ai/main.py`, `ai/validator.py`, `ai/review.py`)** thông qua `Worker` (`GenerationRunner` + `ReviewRunner`):
 1. **Tầng 1 — Enterprise Database (`enterprise_db` — 13 bảng dữ liệu thật, >13.400 dòng)**:
    - Được nạp từ `postgre/enterprise_db/schema_code.sql` và `enterprise_seed_data.sql` (`categories`, `products`, `suppliers`, `warehouses`, `inventory`, `departments`, `employees`, `customers`, `orders`, `order_items`, `payments`, `shipments`, `refunds`).
 2. **Tầng 2 — World Metadata & 50 Seed Blueprints (`core.worlds`, `core.skills`, `core.source_questions`)**:
-   - Được nạp từ `backend/seed/core_seed.json` khi chạy `python -m app.cli seed-demo`, chứa mô tả schema, khóa ngoại (`fk_relations`), quy tắc nghiệp vụ (`business_rules`), bẫy dữ liệu (`planted_traps`) và 50 mẫu câu hỏi chuẩn theo 6 nhóm kỹ năng `S1–S6`.
-3. **Tầng 3 — Bộ tổng hợp câu hỏi có kiểm chứng thực thi (`backend/app/services/jobs.py` & `ai/main.py`)**:
-   - Hỗ trợ **2 chế độ hoạt động** để cả nhóm và giảng viên đều test được ngay lập tức:
-   - **Chế độ A — Parametric SQL Synthesizer + Live Sandbox Verifier (`auto_run: true`, mặc định trên Web UI — KHÔNG cần cài Ollama)**:
-     - Hệ thống sử dụng các khung truy vấn tham số hóa (`_PARAM_TEMPLATES` trong `backend/app/services/jobs.py`: lọc ngưỡng giá `list_price`, ngưỡng số đơn hàng `HAVING COUNT >= N`, phân nhóm `GROUP BY`, xếp hạng cửa sổ `DENSE_RANK() OVER (PARTITION BY ...)`), kết hợp với `topic`, `difficulty`, `skill_ids` do Admin chọn.
-     - Trước khi lưu, hệ thống **quét toàn bộ `live.questions` và `draft.question_drafts` để chống trùng lặp 100%** với 50 câu gốc, sau đó **chạy trực tiếp câu lệnh `reference_sql` trên `enterprise_db` thật** để kiểm chứng số dòng trả về (`row_count > 0`) rồi mới ghi vào `draft.question_drafts` (`status = 'needs_human'`) và `draft.self_solve_runs`.
-     - Khi Admin sang tab **`Duyệt đề`** và bấm **"Phê duyệt & Đưa vào Ngân hàng đề"**, Backend (`backend/app/services/drafts.py`) thực thi lại `reference_sql` trên `enterprise_db`, đóng gói kết quả chuẩn (`expected_columns`, `expected_rows`, `result_hash`) vào `live.test_cases` và phát hành câu hỏi sang `live.questions` (`status = 'ready'`).
-   - **Chế độ B — Local Ollama 2-Model Worker (`auto_run: false` + chạy tiến trình `python -m app.cli worker`)**:
-     - Nếu máy có cài [Ollama](https://ollama.com) ở cổng `11434`, kéo 2 model local về và bật Worker chạy ngầm:
-     ```bash
-     ollama pull llama3
-     ollama pull qwen2.5-coder:7b
-     cd backend && ../.venv/bin/python -m app.cli worker
-     ```
-     - Worker lấy `schema_description` + 2 câu mẫu từ `core.source_questions` làm Few-Shot Prompt gửi vào **Model A (Generator)** sinh đề mới, sau đó gọi **Model B (Self-Solver)** độc lập tự giải `k=3` lần trên Base + Mutant Datasets và chấm qua **7 cổng kiểm định** (`ai/review.py`).
+   - Được nạp từ `backend/seed/core_seed.json`, chứa mô tả schema vật lý, khóa ngoại (`fk_relations`), quy tắc nghiệp vụ (`business_rules`), bẫy dữ liệu (`planted_traps`) và 50 câu hỏi gốc theo 6 nhóm kỹ năng `S1–S6` để làm ngữ cảnh Few-Shot cho AI.
+3. **Tầng 3 — Thực thi 2-Model Pipeline (`backend/app/pipeline/engine.py`)**:
+   - **Model A (`ai/main.py` — Generator) + Validator (`ai/validator.py`)**: Nhận schema của các bảng liên quan + 2 câu mẫu từ `core.source_questions`, sinh JSON câu hỏi tiếng Việt + Blueprint (`business_goal`, `tables_used`, `output_columns`, `logic_signature`) và kiểm tra chống trùng lặp ngữ nghĩa với toàn bộ kho đề.
+   - **Model B (`ai/review.py` — Independent Self-Solver & 7-Gate Auditor)**: Độc lập đọc đề bài của Model A, tự viết câu lệnh SQL giải bài `k=3` lần trên `enterprise_db`, đối chiếu kết quả (`result_hash`), kiểm tra AST/Code Check, chạy **Semantic Audit 5 nhóm yêu cầu**, lưu đầy đủ vào `draft.self_solve_runs` và `draft.review_logs`.
+   - **Hỗ trợ song song 2 hạ tầng Model (`backend/.env`)**:
+     - **Chế độ Cloud Gateway `apithat.dev` (Khi cấu hình `APITHAT_API_KEY` trong `backend/.env`)**: Tự động xoay tua (Round-Robin + Auto-Failover) qua pool 5 model (`gpt-6-sol` cho Model A sinh đề, `gemini-3.8-flash` cho Model B giải đề 3 mẫu, `gpt-6.1-sol` / `gpt-6-astra` / `claude-sonnet-5` cho Semantic Auditor) qua `https://apithat.dev/v1/chat/completions`.
+     - **Chế độ Local Ollama (Khi không đặt `APITHAT_API_KEY`)**: Gọi trực tiếp Ollama local (`http://localhost:11434/api/generate`) với `MODEL_NAME=llama3` (sinh đề) và `REVIEW_MODEL_NAME=qwen2.5-coder:7b` (duyệt đề) đúng nguyên bản của nhóm.
 
 
 ---

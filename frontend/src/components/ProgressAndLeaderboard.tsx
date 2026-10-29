@@ -38,88 +38,11 @@ export function LearnerProgressView() {
   }
 
   const summary = data?.summary || {};
-  const career = data?.career || null;
   const skills = data?.skills || [];
   const recent = data?.recent_submissions || [];
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="text-[11px] font-bold tracking-[0.15em] uppercase text-[var(--copper)]">
-          THEO DÕI NĂNG LỰC
-        </div>
-        <h2 className="text-2xl font-bold text-[var(--ink)] mt-0.5">
-          Tiến độ <span className="editorial-serif text-[var(--green)]">kỹ năng SQL.</span>
-        </h2>
-      </div>
-
-      {/* AI-Era Career Rank, XP & Next-Step Mentor Card */}
-      {career && (
-        <div className="p-5 rounded-lg bg-[var(--surface)] border border-[var(--line)] space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-mono uppercase text-[var(--copper)] font-bold">
-                LỘ TRÌNH DATA ENGINEER THỜI ĐẠI AI · LEVEL {career.level}
-              </div>
-              <div className="text-xl font-bold text-[var(--ink)] mt-0.5 flex items-center gap-2">
-                <span>🏆 {career.level_title}</span>
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-[var(--soft)] border border-[var(--line)] text-[var(--green)]">
-                  {career.xp} / {career.next_level_xp} XP
-                </span>
-              </div>
-            </div>
-            <div className="w-full md:w-64">
-              <div className="flex justify-between text-[11px] font-mono text-[var(--muted)] mb-1">
-                <span>Tiến trình thăng hạng</span>
-                <span>{career.progress_percent}%</span>
-              </div>
-              <div className="w-full h-2.5 rounded-full bg-[var(--soft)] overflow-hidden border border-[var(--line)]">
-                <div
-                  className="h-full bg-[#5C7F71] transition-all duration-500"
-                  style={{ width: `${career.progress_percent}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Badges */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
-            {(career.badges || []).map((b: any) => (
-              <div
-                key={b.id}
-                className={`p-2.5 rounded border text-xs transition ${
-                  b.unlocked
-                    ? 'bg-[var(--paper)] border-[var(--green)] text-[var(--ink)]'
-                    : 'bg-[var(--soft)] border-[var(--line)] text-[var(--muted)] opacity-60'
-                }`}
-              >
-                <div className="font-bold flex items-center justify-between">
-                  <span>
-                    {b.icon} {b.name}
-                  </span>
-                  {b.unlocked && <span className="text-[10px] text-[var(--green)]">✔</span>}
-                </div>
-                <div className="text-[11px] text-[var(--muted)] mt-0.5 leading-snug">
-                  {b.desc}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* AI Personalized Mentor Advice */}
-          {career.ai_recommendation && (
-            <div className="p-3.5 rounded bg-[var(--paper)] border border-[var(--gold)] flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="space-y-0.5">
-                <div className="font-bold text-[var(--copper)]">
-                  🤖 Lộ trình AI Coach đề xuất tiếp theo: {career.ai_recommendation.focus_skill}
-                </div>
-                <div className="text-[var(--text2)]">{career.ai_recommendation.advice}</div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Clean Telemetry Summary Strip */}
       <div className="bg-[#0d1321] border border-[#1d283a] rounded-lg divide-y md:divide-y-0 md:divide-x divide-[#1d283a] grid grid-cols-1 md:grid-cols-4">
         <div className="p-4">
@@ -333,17 +256,8 @@ export function LeaderboardView() {
 
   return (
     <div className="space-y-5">
-      {/* Header & Period Switcher */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-bold tracking-[0.15em] uppercase text-[var(--copper)]">
-            BẢNG VÀNG HỌC VIÊN
-          </div>
-          <h2 className="text-2xl font-bold text-[var(--ink)] mt-0.5">
-            Xếp hạng <span className="editorial-serif text-[var(--green)]">cộng đồng.</span>
-          </h2>
-        </div>
-
+      {/* Period Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           {mode === 'weekly' && (
             <select
@@ -377,30 +291,29 @@ export function LeaderboardView() {
               <option value="2025-03">Tháng 03/2025</option>
             </select>
           )}
-          <div className="flex items-center bg-[#090d16] p-1 rounded-md border border-[#1d283a]">
-            <button
-              onClick={() => setMode('weekly')}
-              className={`px-3.5 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition ${
-                mode === 'weekly'
-                  ? 'bg-[#162238] text-white border border-[#293f66]'
-                  : 'text-[#64748b] hover:text-white'
-              }`}
-            >
-              <Award className="w-3.5 h-3.5 text-[#38bdf8]" />
-              <span>BXH Tuần</span>
-            </button>
-            <button
-              onClick={() => setMode('monthly')}
-              className={`px-3.5 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition ${
-                mode === 'monthly'
-                  ? 'bg-[#162238] text-white border border-[#293f66]'
-                  : 'text-[#64748b] hover:text-white'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 text-amber-400" />
-              <span>BXH Tháng</span>
-            </button>
-          </div>
+        </div>
+
+        <div className="flex items-center bg-[#090d16] p-1 rounded-md border border-[#1d283a]">
+          <button
+            onClick={() => setMode('weekly')}
+            className={`px-3.5 py-1.5 rounded text-xs font-medium transition ${
+              mode === 'weekly'
+                ? 'bg-[#162238] text-white border border-[#293f66]'
+                : 'text-[#64748b] hover:text-white'
+            }`}
+          >
+            BXH Tuần
+          </button>
+          <button
+            onClick={() => setMode('monthly')}
+            className={`px-3.5 py-1.5 rounded text-xs font-medium transition ${
+              mode === 'monthly'
+                ? 'bg-[#162238] text-white border border-[#293f66]'
+                : 'text-[#64748b] hover:text-white'
+            }`}
+          >
+            BXH Tháng
+          </button>
         </div>
       </div>
 

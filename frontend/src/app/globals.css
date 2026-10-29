@@ -32,8 +32,8 @@
   --color-surface: var(--surface);
   --color-surface2: var(--surface2);
 
-  --font-sans: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
 
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
@@ -166,11 +166,11 @@ body::before {
   z-index: 0;
 }
 
-/* ── EDITORIAL TYPOGRAPHY HELPERS ── */
+/* ── EDITORIAL TYPOGRAPHY HELPERS (SINGLE FONT FAMILY) ── */
 .editorial-serif {
-  font-family: Georgia, Cambria, "Times New Roman", serif;
-  font-style: italic;
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 700;
 }
 
 .eyebrow-copper {

@@ -25,6 +25,13 @@ def create_job(body: JobCreate, response: Response, admin: dict = Depends(requir
     return jobs.public(job)
 
 
+@router.post("/generation-jobs/run-worker", tags=["admin-jobs"])
+def trigger_worker_once(admin: dict = Depends(require_admin)):
+    """Kích hoạt 1 nhịp Worker thật (Model A + Model B) theo yêu cầu Admin."""
+    stats = jobs.run_worker_until_idle()
+    return {"status": "ok", "stats": stats}
+
+
 @router.get("/generation-jobs", tags=["admin-jobs"])
 def list_jobs(status: str | None = Query(None, pattern="^(queued|running|done|failed)$"), page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
     with begin() as conn:

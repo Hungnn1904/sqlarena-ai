@@ -183,32 +183,19 @@ export default function HomeClient() {
               {activeTab === 'admin' && <AdminPortal isAdmin={user?.role === 'admin'} />}
               {activeTab === 'pipeline' && (
                 <div className="space-y-6">
-                  <div className="p-5 rounded-lg bg-[var(--surface)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <div className="text-[11px] font-bold tracking-[0.15em] uppercase text-[var(--copper)]">
-                        05 · KIẾN TRÚC &amp; QUY TRÌNH SINH ĐỀ TỰ ĐỘNG
-                      </div>
-                      <h2 className="text-2xl font-bold text-[var(--ink)] mt-0.5">
-                        Pipeline <span className="editorial-serif text-[var(--green)]">2-Model AI kiểm chứng chéo.</span>
-                      </h2>
-                      <p className="text-xs text-[var(--text2)] mt-1 max-w-3xl">
-                        Giải quyết bài toán AI sinh đề SQL bị lỗi hoặc mơ hồ bằng cơ chế 2 mô hình độc lập (Model A sinh đề → Model B tự giải kiểm chứng trên PostgreSQL 17 → Admin duyệt → Mở bộ đề tuần cho Học viên).
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handlePitchAction('admin', 'admin')}
-                        className="px-3.5 py-2 rounded bg-[#B2653B] text-[#F5EDDC] text-xs font-semibold"
-                      >
-                        ⚡ Chạy thử Pipeline ở trang Quản trị →
-                      </button>
-                      <button
-                        onClick={() => setActiveTab('workbench')}
-                        className="px-3.5 py-2 rounded bg-[#5C7F71] text-[#F5EDDC] text-xs font-semibold"
-                      >
-                        ▶ Mở Phòng Luyện SQL
-                      </button>
-                    </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      onClick={() => handlePitchAction('admin', 'admin')}
+                      className="px-3.5 py-2 rounded bg-[#B2653B] text-[#F5EDDC] text-xs font-semibold"
+                    >
+                      Chạy thử Pipeline ở trang Quản trị
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('workbench')}
+                      className="px-3.5 py-2 rounded bg-[#5C7F71] text-[#F5EDDC] text-xs font-semibold"
+                    >
+                      Mở danh sách đề SQL
+                    </button>
                   </div>
                   <PipelineTimeline steps={PIPELINE_STEPS} />
                   <FlowDiagram />

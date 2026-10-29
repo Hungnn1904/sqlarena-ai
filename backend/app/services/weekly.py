@@ -282,14 +282,14 @@ def learner_questions(conn: Connection, difficulty, skill_id, solved, search, pa
         conds.append("NOT EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed')")
     where = " AND ".join(conds)
     total = q1(conn, f"SELECT count(*) AS n FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE {where}", **p)["n"]
-    rows = q(conn, f"""SELECT i.position, i.is_voided, qq.question_id, qq.title, qq.difficulty, qq.skill_ids,
+    rows = q(conn, f"""SELECT i.position, i.is_voided, qq.question_id, qq.title, qq.difficulty, qq.skill_ids, qq.tables_used,
                               EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed') AS solved,
                               (SELECT count(*) FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id) AS attempt_count
                        FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE {where}
                        ORDER BY i.position LIMIT :l OFFSET :o""", l=size, o=(page - 1) * size, **p)
     names = {r["skill_id"]: r["name"] for r in q(conn, "SELECT skill_id, name FROM core.skills")}
     return {"items": [{"question_id": r["question_id"], "position": r["position"], "title": r["title"], "difficulty": r["difficulty"],
-                       "skills": [names[i] for i in r["skill_ids"] if i in names], "solved": bool(r["solved"]), "attempt_count": r["attempt_count"], "is_voided": r["is_voided"]} for r in rows],
+                       "skills": [names[i] for i in r["skill_ids"] if i in names], "tables_used": r["tables_used"] or [], "solved": bool(r["solved"]), "attempt_count": r["attempt_count"], "is_voided": r["is_voided"]} for r in rows],
             "total": total, "page": page, "page_size": size}
 
 

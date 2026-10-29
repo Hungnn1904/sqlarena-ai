@@ -145,11 +145,11 @@ export default function AuthBar({
   };
 
   const tabs = [
-    { id: 'workbench', label: 'Làm bài', code: '01', icon: Terminal },
-    { id: 'progress', label: 'Tiến độ', code: '02', icon: BarChart3 },
-    { id: 'leaderboard', label: 'Xếp hạng', code: '03', icon: Trophy },
-    { id: 'admin', label: 'Quản trị', code: '04', icon: ShieldCheck },
-    { id: 'pipeline', label: 'Kiến trúc', code: '05', icon: GitBranch },
+    { id: 'workbench', label: 'Làm bài' },
+    { id: 'progress', label: 'Tiến độ' },
+    { id: 'leaderboard', label: 'Xếp hạng' },
+    { id: 'admin', label: 'Quản trị' },
+    { id: 'pipeline', label: 'Kiến trúc' },
   ];
 
   return (
@@ -174,13 +174,12 @@ export default function AuthBar({
 
             <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
               {tabs.map((t) => {
-                const Icon = t.icon;
                 const active = activeTab === t.id;
                 return (
                   <button
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
-                    className={`relative group flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                    className={`relative group flex items-center px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                       active
                         ? 'text-[var(--on-accent)]'
                         : 'text-[var(--text2)] hover:text-[var(--ink)] hover:bg-[var(--soft)]'
@@ -193,11 +192,6 @@ export default function AuthBar({
                         className="absolute inset-0 rounded-lg bg-[var(--green)] -z-10"
                       />
                     )}
-                    <Icon
-                      className={`w-3.5 h-3.5 ${
-                        active ? 'text-[var(--on-accent)]' : 'text-[var(--muted)] group-hover:text-[var(--ink)]'
-                      }`}
-                    />
                     <span>{t.label}</span>
                   </button>
                 );
@@ -254,21 +248,6 @@ export default function AuthBar({
               </span>
             </button>
 
-            {onTogglePitch && (
-              <button
-                onClick={onTogglePitch}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition ${
-                  pitchOpen
-                    ? 'bg-[var(--green)] text-[var(--on-accent)] border-[var(--green)]'
-                    : 'bg-[var(--surface)] hover:bg-[var(--soft)] text-[var(--text2)] border-[var(--line)]'
-                }`}
-                title="Mở hướng dẫn"
-              >
-                <Presentation className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Hướng dẫn</span>
-              </button>
-            )}
-
             {user ? (
               <div className="flex items-center gap-1.5">
                 <button
@@ -290,9 +269,9 @@ export default function AuthBar({
                 <button
                   onClick={onLogout}
                   title="Đăng xuất"
-                  className="p-1.5 rounded-lg bg-[var(--surface)] hover:bg-[var(--red)]/15 border border-[var(--line)] text-[var(--muted)] hover:text-[var(--red)] transition"
+                  className="px-2.5 py-1.5 rounded-lg bg-[var(--surface)] hover:bg-[var(--red)]/15 border border-[var(--line)] text-xs font-medium text-[var(--muted)] hover:text-[var(--red)] transition"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  Đăng xuất
                 </button>
               </div>
             ) : (
@@ -316,10 +295,10 @@ export default function AuthBar({
           <div className="bg-[#F5EDDC] text-[#181818] border border-[rgba(24,24,24,0.16)] rounded-2xl max-w-3xl w-full p-2.5 shadow-2xl grid grid-cols-1 md:grid-cols-12 gap-2 relative">
             <button
               onClick={() => setModal('none')}
-              className="absolute top-5 right-5 text-[#6F6B60] hover:text-[#181818] p-1 z-10"
+              className="absolute top-5 right-5 text-xs font-medium text-[#6F6B60] hover:text-[#181818] px-2 py-1 rounded z-10"
               title="Đóng"
             >
-              <X className="w-4 h-4" />
+              Đóng
             </button>
 
             {/* Left Editorial Sage Panel */}
@@ -493,17 +472,14 @@ export default function AuthBar({
         <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[var(--surface)] border border-[var(--line)] rounded-xl max-w-md w-full p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-[var(--line)]">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-[var(--green)]" />
-                <h3 className="text-sm font-semibold text-[var(--ink)]">
-                  Thiết lập hồ sơ & bảo mật
-                </h3>
-              </div>
+              <h3 className="text-sm font-semibold text-[var(--ink)]">
+                Thiết lập hồ sơ & bảo mật
+              </h3>
               <button
                 onClick={() => setModal('none')}
-                className="text-[var(--muted)] hover:text-[var(--ink)] p-1"
+                className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] px-2 py-1"
               >
-                <X className="w-4 h-4" />
+                Đóng
               </button>
             </div>
             {err && (

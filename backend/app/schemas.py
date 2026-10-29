@@ -12,6 +12,7 @@ class JobCreate(BaseModel):
     quantity: int | None = Field(default=None, ge=1, le=30)
     requested_count: int | None = Field(default=None, ge=1, le=30)
     auto_run: bool = False
+    sync_run: bool = False
 
 
 

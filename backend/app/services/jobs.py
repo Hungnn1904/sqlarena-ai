@@ -1,17 +1,45 @@
 """Tạo/xem job sinh đề: validate, idempotency, kiểm tra trần ngân sách LLM trước khi enqueue."""
 import hashlib
 import json
+import logging
+import threading
+import time
 
 from sqlalchemy import Connection
 
-from ..db import ex, q, q1
+from ..db import begin, ex, q, q1
 from ..domain import DIFF_NAME
 from ..errors import ApiError, bad_request, conflict, not_found
 from ..pipeline import ledger
 from . import audit
 from . import settings_registry as sr
 
+log = logging.getLogger("jobs")
 _FEASIBLE: dict | None = None
+_worker_lock = threading.Lock()
+
+
+def run_worker_until_idle() -> dict:
+    """Chạy Worker().run_once() thật (Model A ai/main.py + Model B ai/review.py) cho tới khi hết job/draft trong hàng đợi."""
+    from ..worker import Worker
+    last_stats = {"job": None, "reviewed": []}
+    with _worker_lock:
+        worker = Worker()
+        while True:
+            s = worker.run_once()
+            if s["job"] is not None or s["reviewed"]:
+                last_stats = s
+            if s["job"] is None and not s["reviewed"]:
+                break
+    return last_stats
+
+
+def _run_worker_in_background() -> None:
+    time.sleep(0.15)
+    try:
+        run_worker_until_idle()
+    except Exception:
+        log.exception("Lỗi khi thực thi Worker nền cho generation job")
 
 
 def _feasible_pairs() -> dict | None:
@@ -79,152 +107,15 @@ def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) 
     job = q1(conn, """INSERT INTO draft.generation_jobs (world_id, triggered_by, difficulty, skill_ids, topic, requested_count, idempotency_key, request_hash)
                       VALUES (:w, :u, :d, :s, :t, :n, :k, :h) RETURNING *""",
              w=world["world_id"], u=admin["user_id"], d=p["difficulty"], s=ids, t=topic, n=p["quantity"], k=idempotency_key, h=req_hash)
-    if p.get("auto_run"):
-        job = _synthesize_drafts_for_job(conn, job, ids, topic)
     audit.log(conn, admin["user_id"], "job.create", "generation_job", job["job_id"], {"quantity": p["quantity"], "difficulty": p["difficulty"], "skill_ids": ids})
+    if p.get("sync_run"):
+        conn.commit()
+        run_worker_until_idle()
+        with begin() as c2:
+            job = q1(c2, "SELECT * FROM draft.generation_jobs WHERE job_id=:j", j=job["job_id"]) or job
+    elif p.get("auto_run"):
+        threading.Thread(target=_run_worker_in_background, name=f"sqlarena-worker-{job['job_id']}", daemon=True).start()
     return job, True
-
-
-_PARAM_TEMPLATES = [
-    {
-        "skill": 1,
-        "diff": 1,
-        "domain": "Product & Inventory",
-        "tables": ["products"],
-        "cols": ["product_id", "product_name", "sku", "list_price"],
-        "build": lambda p: (
-            f"Danh mục sản phẩm đang kinh doanh có giá niêm yết từ {p:,}đ",
-            f"Liệt kê các sản phẩm có is_active = true và list_price >= {p}. Cột kết quả theo thứ tự: product_id, product_name, sku, list_price. Sắp xếp: list_price giảm dần, product_id tăng dần.",
-            f"SELECT product_id, product_name, sku, list_price FROM products WHERE is_active = true AND list_price >= {p} ORDER BY list_price DESC, product_id ASC",
-        ),
-        "params": [180000, 250000, 350000, 450000, 600000, 800000],
-    },
-    {
-        "skill": 2,
-        "diff": 2,
-        "domain": "Sales & Orders",
-        "tables": ["customers", "orders"],
-        "cols": ["customer_id", "full_name", "order_count", "total_spent"],
-        "build": lambda n: (
-            f"Khách hàng thân thiết có từ {n} đơn hàng hoàn tất trở lên",
-            f"Tìm các khách hàng có ít nhất {n} đơn hàng ở trạng thái 'completed'. Cột kết quả theo thứ tự: customer_id, full_name, order_count, total_spent. Sắp xếp: total_spent giảm dần, customer_id tăng dần.",
-            f"SELECT c.customer_id, c.full_name, COUNT(o.order_id)::int AS order_count, SUM(o.total_amount) AS total_spent FROM customers c JOIN orders o ON o.customer_id = c.customer_id WHERE o.status = 'completed' GROUP BY c.customer_id, c.full_name HAVING COUNT(o.order_id) >= {n} ORDER BY total_spent DESC, c.customer_id ASC",
-        ),
-        "params": [2, 3, 4, 5, 6],
-    },
-    {
-        "skill": 3,
-        "diff": 2,
-        "domain": "Product & Inventory",
-        "tables": ["categories", "products"],
-        "cols": ["category_id", "category_name", "active_product_count", "avg_price"],
-        "build": lambda k: (
-            f"Nhóm danh mục có tối thiểu {k} sản phẩm đang mở bán",
-            f"Thống kê các danh mục có ít nhất {k} sản phẩm đang hoạt động (is_active = true). Cột kết quả theo thứ tự: category_id, category_name, active_product_count, avg_price (làm tròn 2 chữ số thập phân). Sắp xếp: active_product_count giảm dần, category_id tăng dần.",
-            f"SELECT c.category_id, c.category_name, COUNT(p.product_id)::int AS active_product_count, ROUND(AVG(p.list_price), 2) AS avg_price FROM categories c JOIN products p ON p.category_id = c.category_id WHERE p.is_active = true GROUP BY c.category_id, c.category_name HAVING COUNT(p.product_id) >= {k} ORDER BY active_product_count DESC, category_id ASC",
-        ),
-        "params": [2, 3, 4, 5],
-    },
-    {
-        "skill": 5,
-        "diff": 3,
-        "domain": "Human Resources",
-        "tables": ["employees", "departments"],
-        "cols": ["department_id", "department_name", "employee_id", "full_name", "salary", "dept_rank"],
-        "build": lambda top_k: (
-            f"Top {top_k} nhân sự có mức lương cao nhất trong từng phòng ban",
-            f"Sử dụng CTE và hàm cửa sổ DENSE_RANK(), tìm tối đa {top_k} nhân viên đang làm việc (status = 'active') có mức lương (salary) cao nhất ở mỗi phòng ban. Cột kết quả theo thứ tự: department_id, department_name, employee_id, full_name, salary, dept_rank. Sắp xếp: department_id tăng dần, dept_rank tăng dần, employee_id tăng dần.",
-            f"WITH ranked AS (SELECT d.department_id, d.department_name, e.employee_id, e.full_name, e.salary, DENSE_RANK() OVER (PARTITION BY d.department_id ORDER BY e.salary DESC) AS dept_rank FROM employees e JOIN departments d ON d.department_id = e.department_id WHERE e.status = 'active') SELECT department_id, department_name, employee_id, full_name, salary, dept_rank FROM ranked WHERE dept_rank <= {top_k} ORDER BY department_id ASC, dept_rank ASC, employee_id ASC",
-        ),
-        "params": [2, 3, 4],
-    },
-]
-
-
-def _synthesize_drafts_for_job(conn: Connection, job: dict, skill_ids: list[int], topic: str | None) -> dict:
-    """Khi bật auto_run: tổ hợp câu hỏi mới bằng Parametric SQL Synthesizer (tham số ngẫu nhiên + chạy kiểm chứng thật trên Enterprise DB)
-    để đảm bảo đề mới KHÔNG bị trùng với 50 câu hỏi cũ trong core.source_questions."""
-    from . import submissions
-    existing_titles = {r["title"] for r in q(conn, "SELECT title FROM draft.question_drafts")} | {
-        r["title"] for r in q(conn, "SELECT title FROM live.questions")
-    }
-    topic_label = (topic or "Phân tích dữ liệu Enterprise").strip()
-    candidates = []
-    for tpl in _PARAM_TEMPLATES:
-        for pval in tpl["params"]:
-            t_base, q_txt, sql_txt = tpl["build"](pval)
-            full_title = f"{t_base} · [{topic_label[:28]}]"
-            if full_title not in existing_titles:
-                candidates.append((tpl, full_title, q_txt, sql_txt))
-    created = 0
-    for idx in range(job["requested_count"]):
-        if idx < len(candidates):
-            tpl, title, q_txt, sql_txt = candidates[idx]
-        else:
-            tpl = _PARAM_TEMPLATES[idx % len(_PARAM_TEMPLATES)]
-            pval = tpl["params"][idx % len(tpl["params"])] + (job["job_id"] * 10)
-            t_base, q_txt, sql_txt = tpl["build"](pval)
-            title = f"{t_base} (#{job['job_id']}.{idx + 1})"
-        exec_res = submissions.execute_sandbox_sql(sql_txt)
-        row_cnt = exec_res["row_count"]
-        reason = f"VERIFIED_ON_SANDBOX: Đề mới sinh theo tham số động (trả về {row_cnt} dòng thật trên enterprise_db) — chờ Admin bấm Phê duyệt."
-        bp = json.dumps(
-            {
-                "candidate": {
-                    "business_domain": tpl["domain"],
-                    "business_goal": topic_label,
-                    "output_columns": tpl["cols"],
-                },
-                "source_question_ids": [1],
-            },
-            ensure_ascii=False,
-        )
-        vr = json.dumps({"passed": True, "consensus": "3/3", "reason": reason}, ensure_ascii=False)
-        drow = q1(
-            conn,
-            """INSERT INTO draft.question_drafts
-               (world_id, job_id, title, question, reference_sql, compare_mode, difficulty, skill_ids, blueprint, tables_used, schema_text, validation_report, status, status_reason, gen_model, gen_prompt_version, review_attempts)
-               VALUES (:w, :j, :t, :q, :sql, 'ordered', :d, :sk, CAST(:bp AS jsonb), :tu, :stxt, CAST(:vr AS jsonb), 'needs_human', :r, 'Parametric-SQL-Synthesizer + PG17-Verifier', 'v3.0-synth', 1)
-               RETURNING draft_id""",
-            w=job["world_id"],
-            j=job["job_id"],
-            t=title[:200],
-            q=q_txt,
-            sql=sql_txt,
-            d=job["difficulty"],
-            sk=[tpl["skill"]],
-            bp=bp,
-            tu=tpl["tables"],
-            stxt=f"-- Bảng sử dụng: {', '.join(tpl['tables'])}",
-            vr=vr,
-            r=reason,
-        )
-        did = drow["draft_id"]
-        ex(
-            conn,
-            """INSERT INTO draft.self_solve_runs (draft_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, exec_status, row_count, review_model, review_round)
-               VALUES (:d, 0, :sql, true, 3, 3, 'ok', :rc, 'PG17-Sandbox-Solver', 1)""",
-            d=did,
-            sql=sql_txt,
-            rc=row_cnt,
-        )
-        ex(
-            conn,
-            """INSERT INTO draft.review_logs (draft_id, stage, passed, score, reasons, review_model, rubric_version)
-               VALUES (:d, 'decision', true, 96.0, CAST(:rs AS jsonb), 'PG17-Sandbox-Solver', 'rubric-v7')""",
-            d=did,
-            rs=json.dumps([reason], ensure_ascii=False),
-        )
-        created += 1
-    updated = q1(
-        conn,
-        """UPDATE draft.generation_jobs
-           SET status='done', created_count=:c, started_at=now(), finished_at=now()
-           WHERE job_id=:j RETURNING *""",
-        c=created,
-        j=job["job_id"],
-    )
-    return updated or job
 
 
 def public(job: dict) -> dict:
