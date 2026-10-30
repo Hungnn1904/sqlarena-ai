@@ -30,4 +30,10 @@ def promote(conn: Connection, draft: dict, world_dataset_version: int, mode: str
         ex(conn, """INSERT INTO live.test_cases (question_id, dataset_ref, dataset_version, type, expected_result, is_hidden)
                     VALUES (:q, :ref, :ver, 'standard', CAST(:e AS jsonb), :h) ON CONFLICT DO NOTHING""",
            q=qid, ref=t["dataset_ref"], ver=world_dataset_version, e=_j(expected), h=t["dataset_ref"] != BASE_REF)
+    pub = q1(conn, "SELECT set_id FROM live.weekly_sets WHERE status='published' ORDER BY set_id DESC LIMIT 1")
+    if pub:
+        next_pos = q1(conn, "SELECT COALESCE(MAX(position), 0) + 1 AS pos FROM live.weekly_set_items WHERE set_id=:s", s=pub["set_id"])["pos"]
+        ex(conn, """INSERT INTO live.weekly_set_items (set_id, question_id, position)
+                    VALUES (:s, :q, :p) ON CONFLICT DO NOTHING""",
+           s=pub["set_id"], q=qid, p=next_pos)
     return qid

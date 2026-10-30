@@ -178,8 +178,36 @@ def put_setting(key: str, body: SettingBody, admin: dict = Depends(require_admin
 
 @router.get("/llm-usage", tags=["admin-settings"])
 def llm_usage():
+    active_provider = "local-ai-pipeline"
+    models = {
+        "generator": "llama3",
+        "reviewer": "qwen2.5-coder:7b",
+        "auditor": "qwen2.5-coder:7b",
+    }
     with begin() as conn:
         cap = sr.get(conn, "generation.daily_budget_calls")
         by = q(conn, "SELECT stage, status, count(*) AS n FROM draft.llm_call_ledger WHERE (created_at AT TIME ZONE :tz)::date = (now() AT TIME ZONE :tz)::date "
                      "GROUP BY stage, status ORDER BY stage, status", tz=__import__("app.config", fromlist=["x"]).get_settings().app_timezone)
-        return {"daily_cap": cap, "used_today": ledger.used_today(conn), "by_stage_status": by}
+        recent = q(conn, """SELECT l.call_id, l.job_id, l.draft_id, l.stage, l.attempt_no, l.model, l.status,
+                                   l.started_at, l.finished_at, l.latency_ms, l.input_tokens, l.output_tokens, l.error_code,
+                                   d.title AS title, d.title AS draft_title
+                            FROM draft.llm_call_ledger l
+                            LEFT JOIN draft.question_drafts d ON d.draft_id = l.draft_id
+                            ORDER BY l.call_id DESC
+                            LIMIT 15""")
+        recent_drafts = q(conn, """SELECT d.draft_id, d.job_id, d.title, d.difficulty, d.status, d.created_at, d.updated_at,
+                                          lq.question_id AS live_question_id,
+                                          (SELECT wsi.position FROM live.weekly_set_items wsi WHERE wsi.question_id = lq.question_id ORDER BY wsi.set_id DESC LIMIT 1) AS weekly_position
+                                   FROM draft.question_drafts d
+                                   LEFT JOIN live.questions lq ON lq.source_draft_id = d.draft_id
+                                   ORDER BY d.draft_id DESC
+                                   LIMIT 10""")
+        return {
+            "daily_cap": cap,
+            "used_today": ledger.used_today(conn),
+            "by_stage_status": by,
+            "active_provider": active_provider,
+            "models": models,
+            "recent_calls": recent,
+            "recent_drafts": recent_drafts,
+        }

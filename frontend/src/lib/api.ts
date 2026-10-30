@@ -173,6 +173,9 @@ export const createGenerationJob = (data: {
 
 export const getLlmUsage = () => api.get('/api/v1/admin/llm-usage').then((r) => r.data);
 
+export const runAdminWorker = () =>
+  api.post('/api/v1/admin/generation-jobs/run-worker').then((r) => r.data);
+
 export const getAdminWeeklySets = () => api.get('/api/v1/admin/weekly-sets').then((r) => r.data);
 
 export const createAdminWeeklySet = (data: { title: string; week_start: string; question_ids?: number[] }) =>

@@ -17,15 +17,15 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false 
 
 const DIFF_META: Record<number, { label: string; badge: string }> = {
   1: {
-    label: 'Dễ',
+    label: 'Dễ (L1)',
     badge: 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60',
   },
   2: {
-    label: 'Trung bình',
+    label: 'Trung bình (L2)',
     badge: 'bg-amber-950/60 text-amber-300 border-amber-800/60',
   },
   3: {
-    label: 'Khó',
+    label: 'Khó (L3)',
     badge: 'bg-rose-950/60 text-rose-300 border-rose-800/60',
   },
 };
@@ -38,6 +38,51 @@ const SKILL_MAP: Record<number, string> = {
   5: 'S5 · Window Functions',
   6: 'S6 · NULL & Edge Cases',
 };
+
+const DOMAIN_CATEGORIES = [
+  'Tài chính & Chi phí',
+  'Nhân sự & Phòng ban',
+  'Đơn hàng & Doanh thu',
+  'Kho vận & Tồn kho',
+  'Khách hàng (CRM)',
+  'Sản phẩm & Nhà cung cấp',
+];
+
+function isAiQuestion(q: any): boolean {
+  if (!q) return false;
+  return (
+    q.source_type === 'ai_generated' ||
+    Boolean(q.source_draft_id) ||
+    Number(q.position || q.question_id) > 20
+  );
+}
+
+function getDomainCategory(q: any): string {
+  if (!q) return 'Nghiệp vụ chuẩn';
+  if (q.domain_category && DOMAIN_CATEGORIES.includes(q.domain_category)) {
+    return q.domain_category;
+  }
+  const raw = `${q.domain_category || ''} ${q.topic || ''} ${q.job_topic || ''} ${(q.tables_used || []).join(' ')} ${q.title || ''}`.toLowerCase();
+  if (raw.includes('department_expenses') || raw.includes('chi phí') || raw.includes('ngân sách') || raw.includes('finance')) {
+    return 'Tài chính & Chi phí';
+  }
+  if (raw.includes('employees') || raw.includes('salary') || raw.includes('nhân sự') || raw.includes('phòng ban') || raw.includes('lương')) {
+    return 'Nhân sự & Phòng ban';
+  }
+  if (raw.includes('warehouses') || raw.includes('inventory') || raw.includes('stock_movements') || raw.includes('tồn kho') || raw.includes('kho vận')) {
+    return 'Kho vận & Tồn kho';
+  }
+  if (raw.includes('customers') || raw.includes('reviews') || raw.includes('khách hàng') || raw.includes('crm')) {
+    return 'Khách hàng (CRM)';
+  }
+  if (raw.includes('products') || raw.includes('categories') || raw.includes('suppliers') || raw.includes('sản phẩm') || raw.includes('nhà cung cấp')) {
+    return 'Sản phẩm & Nhà cung cấp';
+  }
+  if (raw.includes('orders') || raw.includes('payments') || raw.includes('shipments') || raw.includes('đơn hàng') || raw.includes('doanh thu')) {
+    return 'Đơn hàng & Doanh thu';
+  }
+  return q.domain_category || 'Đơn hàng & Doanh thu';
+}
 
 export default function LearnerWorkbench({
   onSubmissionComplete,
@@ -52,7 +97,10 @@ export default function LearnerWorkbench({
   const [questionDetail, setQuestionDetail] = useState<any>(null);
   const [schemaInfo, setSchemaInfo] = useState<any>(null);
 
-  // Filters
+  // Filters & Classification
+  const [sourceFilter, setSourceFilter] = useState<'ALL' | 'ai_generated' | 'seed'>('ALL');
+  const [domainFilter, setDomainFilter] = useState<string>('ALL');
+  const [sortOrder, setSortOrder] = useState<'newest_ai_first' | 'code_asc'>('newest_ai_first');
   const [diffFilter, setDiffFilter] = useState<number | undefined>(undefined);
   const [skillFilter, setSkillFilter] = useState<number | undefined>(undefined);
   const [solvedFilter, setSolvedFilter] = useState<boolean | undefined>(undefined);
@@ -188,11 +236,33 @@ export default function LearnerWorkbench({
         )
       : allTables.slice(0, 2);
 
-  const currentIdx = questions.findIndex((q) => q.question_id === selectedId);
-  const prevQuestionId = currentIdx > 0 ? questions[currentIdx - 1]?.question_id : null;
+  const aiCount = questions.filter((q) => isAiQuestion(q)).length;
+  const seedCount = questions.length - aiCount;
+
+  const filteredQuestions = questions
+    .filter((q) => {
+      if (sourceFilter === 'ai_generated' && !isAiQuestion(q)) return false;
+      if (sourceFilter === 'seed' && isAiQuestion(q)) return false;
+      if (domainFilter !== 'ALL' && getDomainCategory(q) !== domainFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const posA = Number(a.position || a.question_id || 0);
+      const posB = Number(b.position || b.question_id || 0);
+      if (sortOrder === 'newest_ai_first') {
+        const aiA = isAiQuestion(a) ? 1 : 0;
+        const aiB = isAiQuestion(b) ? 1 : 0;
+        if (aiA !== aiB) return aiB - aiA;
+        return aiA ? posB - posA : posA - posB;
+      }
+      return posA - posB;
+    });
+
+  const currentIdx = filteredQuestions.findIndex((q) => q.question_id === selectedId);
+  const prevQuestionId = currentIdx > 0 ? filteredQuestions[currentIdx - 1]?.question_id : null;
   const nextQuestionId =
-    currentIdx >= 0 && currentIdx < questions.length - 1
-      ? questions[currentIdx + 1]?.question_id
+    currentIdx >= 0 && currentIdx < filteredQuestions.length - 1
+      ? filteredQuestions[currentIdx + 1]?.question_id
       : null;
   const solvedCount = weeklyMeta?.solved_count || 0;
   const totalCount = weeklyMeta?.question_count || questions.length || 20;
@@ -201,9 +271,90 @@ export default function LearnerWorkbench({
   if (viewMode === 'list') {
     return (
       <div className="space-y-4">
-        {/* Filter Bar */}
-        <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2.5 flex-1">
+        {/* Thanh phân loại nguồn đề & Chủ đề */}
+        <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--line)] space-y-3">
+          {/* Row 1: Quick Source Type Tabs + Sort Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-[var(--line)]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-[var(--ink)] mr-1">
+                Thanh phân loại nguồn đề &amp; Chủ đề:
+              </span>
+              <button
+                onClick={() => setSourceFilter('ALL')}
+                className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
+                  sourceFilter === 'ALL'
+                    ? 'bg-[var(--green)] border-[var(--green)] text-[var(--on-accent)]'
+                    : 'bg-[var(--paper)] border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)]'
+                }`}
+              >
+                Tất cả bài tập ({questions.length})
+              </button>
+              <button
+                onClick={() => setSourceFilter('ai_generated')}
+                className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
+                  sourceFilter === 'ai_generated'
+                    ? 'bg-emerald-600 border-emerald-500 text-white'
+                    : 'bg-emerald-950/50 border-emerald-800/70 text-emerald-300 hover:bg-emerald-900/50'
+                }`}
+              >
+                Đề AI mới sinh ({aiCount})
+              </button>
+              <button
+                onClick={() => setSourceFilter('seed')}
+                className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
+                  sourceFilter === 'seed'
+                    ? 'bg-[var(--green)] border-[var(--green)] text-[var(--on-accent)]'
+                    : 'bg-[var(--paper)] border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)]'
+                }`}
+              >
+                Đề gốc chuẩn ({seedCount})
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() =>
+                  setSortOrder(
+                    sortOrder === 'newest_ai_first' ? 'code_asc' : 'newest_ai_first'
+                  )
+                }
+                className="px-3 py-1.5 rounded bg-[var(--paper)] hover:bg-[var(--soft)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
+              >
+                {sortOrder === 'newest_ai_first'
+                  ? 'Sắp xếp: Đề mới sinh lên đầu'
+                  : 'Sắp xếp: Mã bài SQL01 -> SQL26'}
+              </button>
+              <div className="text-xs font-medium text-[var(--text2)]">
+                {weeklyMeta?.title || 'Tuần #42'} · Đã giải{' '}
+                <strong className="text-[var(--green)]">
+                  {solvedCount}/{totalCount}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Domain Category Pills */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {['ALL', ...DOMAIN_CATEGORIES].map((cat) => {
+              const active = domainFilter === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setDomainFilter(cat)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium border transition ${
+                    active
+                      ? 'bg-[var(--copper)] border-[var(--copper)] text-white'
+                      : 'bg-[var(--paper)] border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  {cat === 'ALL' ? 'Tất cả chủ đề' : cat}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Row 3: Search + Difficulty + Skill + Solved Filters */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
             <input
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
@@ -221,9 +372,9 @@ export default function LearnerWorkbench({
             <div className="flex items-center gap-1">
               {[
                 { label: 'Tất cả', val: undefined },
-                { label: 'Dễ', val: 1 },
-                { label: 'Trung bình', val: 2 },
-                { label: 'Khó', val: 3 },
+                { label: 'Dễ (L1)', val: 1 },
+                { label: 'Trung bình (L2)', val: 2 },
+                { label: 'Khó (L3)', val: 3 },
               ].map((b) => (
                 <button
                   key={b.label}
@@ -269,16 +420,9 @@ export default function LearnerWorkbench({
               className="px-2.5 py-1.5 rounded bg-[var(--paper)] border border-[var(--line)] text-xs text-[var(--ink)] focus:outline-none"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="solved">Đã giải</option>
+              <option value="solved">Đã giải (AC)</option>
               <option value="unsolved">Chưa làm</option>
             </select>
-          </div>
-
-          <div className="text-xs font-medium text-[var(--text2)]">
-            {weeklyMeta?.title || 'Tuần #42'} · Đã giải{' '}
-            <strong className="text-[var(--green)]">
-              {solvedCount}/{totalCount}
-            </strong>
           </div>
         </div>
 
@@ -288,29 +432,29 @@ export default function LearnerWorkbench({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-[var(--soft)] border-b border-[var(--line)] text-[var(--text2)] font-semibold">
-                  <th className="py-3 px-4 w-28">Trạng thái</th>
-                  <th className="py-3 px-4 w-24">Mã bài</th>
-                  <th className="py-3 px-4">Tiêu đề bài tập</th>
-                  <th className="py-3 px-4 w-52">Nhóm kỹ năng</th>
-                  <th className="py-3 px-4 w-48">Bảng dữ liệu</th>
-                  <th className="py-3 px-4 w-28">Độ khó</th>
+                  <th className="py-3 px-4 w-32">Trạng thái</th>
+                  <th className="py-3 px-4 w-28">Mã bài</th>
+                  <th className="py-3 px-4">Tiêu đề bài tập &amp; Nguồn đề</th>
+                  <th className="py-3 px-4 w-64">Phân loại (Type / Kỹ năng)</th>
+                  <th className="py-3 px-4 w-32">Độ khó</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
-                {questions.length > 0 ? (
-                  questions.map((q: any) => {
+                {filteredQuestions.length > 0 ? (
+                  filteredQuestions.map((q: any) => {
                     const diff = DIFF_META[q.difficulty] || DIFF_META[1];
                     const code = `SQL${String(q.position || q.question_id).padStart(2, '0')}`;
+                    const ai = isAiQuestion(q);
+                    const domainCat = getDomainCategory(q);
                     const skillLabel =
-                      Array.isArray(q.skills) && q.skills.length > 0
+                      Array.isArray(q.skill_codes) && q.skill_codes.length > 0
+                        ? `${q.skill_codes.join(', ')} · ${(q.skills || []).join(', ')}`
+                        : Array.isArray(q.skills) && q.skills.length > 0
                         ? q.skills.join(', ')
                         : q.skill_code && q.skill_name
                         ? `${q.skill_code} · ${q.skill_name}`
-                        : SKILL_MAP[q.skill_id] || 'SELECT / WHERE';
-                    const tablesText =
-                      Array.isArray(q.tables_used) && q.tables_used.length > 0
-                        ? q.tables_used.join(', ')
-                        : 'enterprise_db';
+                        : SKILL_MAP[q.skill_id] || 'S1 · SELECT / WHERE';
+                    const tablesArr = Array.isArray(q.tables_used) ? q.tables_used : [];
                     return (
                       <tr
                         key={q.question_id}
@@ -320,7 +464,11 @@ export default function LearnerWorkbench({
                         <td className="py-3 px-4">
                           {q.solved ? (
                             <span className="inline-block px-2 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)] font-semibold text-[11px]">
-                              Đã giải
+                              Đã giải (AC)
+                            </span>
+                          ) : q.attempted || Number(q.submission_count || 0) > 0 ? (
+                            <span className="inline-block px-2 py-0.5 rounded bg-amber-950/50 text-amber-300 border border-amber-800/50 font-semibold text-[11px]">
+                              Đang thử
                             </span>
                           ) : (
                             <span className="inline-block px-2 py-0.5 rounded bg-[var(--soft)] text-[var(--muted)] text-[11px]">
@@ -328,17 +476,40 @@ export default function LearnerWorkbench({
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-semibold text-[var(--copper)]">
-                          {code}
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[var(--copper)]">{code}</div>
+                          {ai ? (
+                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-[10px] font-semibold">
+                              Đề AI #{q.source_draft_id || q.question_id}
+                            </span>
+                          ) : (
+                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-[var(--soft)] border border-[var(--line)] text-[var(--muted)] text-[10px] font-medium">
+                              Đề gốc
+                            </span>
+                          )}
                         </td>
-                        <td className="py-3 px-4 font-semibold text-[var(--ink)] hover:text-[var(--green)]">
-                          {q.title}
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-[var(--ink)] hover:text-[var(--green)]">
+                            {q.title}
+                          </div>
+                          <div className="text-[11px] text-[var(--muted)] mt-1">
+                            {ai
+                              ? `Chủ đề AI: ${q.topic || q.job_topic || domainCat} · Sinh từ Bản nháp #${q.source_draft_id || q.question_id} (Job #${q.job_id || 1})`
+                              : `Phân loại: ${domainCat || 'Nghiệp vụ chuẩn'} · Bảng: ${tablesArr.join(', ') || 'enterprise_db'}`}
+                          </div>
                         </td>
-                        <td className="py-3 px-4 text-[var(--text2)]">
-                          {skillLabel}
-                        </td>
-                        <td className="py-3 px-4 text-[var(--muted)]">
-                          {tablesText}
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)]">
+                              {domainCat}
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-[var(--soft)] text-[10px] text-[var(--text2)]">
+                              {skillLabel}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] text-[10px] text-[var(--muted)]">
+                              {tablesArr.length} bảng
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <span
@@ -353,7 +524,7 @@ export default function LearnerWorkbench({
                 ) : (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={5}
                       className="py-10 text-center text-xs text-[var(--muted)]"
                     >
                       Không tìm thấy bài tập phù hợp với bộ lọc hiện tại.
@@ -369,14 +540,24 @@ export default function LearnerWorkbench({
   }
 
   // VIEW 2: SOLVE WORKSPACE (PROBLEM + INLINE RELEVANT SCHEMA ON LEFT, EDITOR + CONSOLE ON RIGHT)
-  const diff = DIFF_META[questionDetail?.difficulty || 1] || DIFF_META[1];
-  const qCode = selectedId ? `SQL${String(selectedId).padStart(2, '0')}` : 'SQL01';
+  const activeListItem = questions.find((q) => q.question_id === selectedId);
+  const mergedQ = { ...(activeListItem || {}), ...(questionDetail || {}) };
+  const diff = DIFF_META[mergedQ?.difficulty || 1] || DIFF_META[1];
+  const qCode = `SQL${String(mergedQ?.position || selectedId || 1).padStart(2, '0')}`;
+  const isDetailAi = isAiQuestion(mergedQ);
+  const detailDomain = getDomainCategory(mergedQ);
+  const detailSkills =
+    Array.isArray(mergedQ?.skill_codes) && mergedQ.skill_codes.length > 0
+      ? `${mergedQ.skill_codes.join(', ')} · ${(mergedQ.skills || []).join(', ')}`
+      : Array.isArray(mergedQ?.skills) && mergedQ.skills.length > 0
+      ? mergedQ.skills.join(', ')
+      : SKILL_MAP[mergedQ?.skill_id] || 'S1 · SELECT / WHERE';
 
   return (
     <div className="space-y-4">
       {/* Top Navigation Bar */}
       <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setViewMode('list')}
             className="px-3 py-1.5 rounded bg-[var(--soft)] hover:bg-[var(--paper)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)]"
@@ -384,12 +565,21 @@ export default function LearnerWorkbench({
             Quay lại danh sách đề
           </button>
           <span className="text-xs font-bold text-[var(--copper)]">{qCode}</span>
+          {isDetailAi ? (
+            <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-[11px] font-semibold">
+              [Đề AI mới sinh · Draft #{mergedQ?.source_draft_id || selectedId}]
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded bg-[var(--soft)] border border-[var(--line)] text-[var(--text2)] text-[11px] font-semibold">
+              [Đề gốc chuẩn]
+            </span>
+          )}
           <span className={`px-2 py-0.5 rounded border text-[11px] font-medium ${diff.badge}`}>
             {diff.label}
           </span>
           {questionDetail?.solved && (
             <span className="px-2 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)] text-[11px] font-semibold">
-              Đã giải
+              Đã giải (AC)
             </span>
           )}
         </div>
@@ -417,6 +607,17 @@ export default function LearnerWorkbench({
         {/* Left Column: Problem Statement + Inline Relevant Table Schema */}
         <div className="lg:col-span-5 space-y-4">
           <div className="p-5 rounded-lg bg-[var(--surface)] border border-[var(--line)] space-y-3">
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] font-semibold text-[var(--ink)]">
+                Chủ đề (Domain): {detailDomain}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-[var(--soft)] text-[var(--text2)] font-medium">
+                Kỹ năng (Skill): {detailSkills}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] text-[var(--muted)]">
+                Các bảng sử dụng (Tables): {usedTableNames.join(', ') || 'enterprise_db'}
+              </span>
+            </div>
             <h1 className="text-lg font-bold text-[var(--ink)] leading-snug">
               {questionDetail?.title || 'Đang tải đề bài...'}
             </h1>

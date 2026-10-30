@@ -28,3 +28,4 @@ frontend/dist/
 .ponytail/
 .serena/
 graphify-out/
+.ck.json

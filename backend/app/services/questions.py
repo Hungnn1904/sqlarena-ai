@@ -30,28 +30,81 @@ def dataset_schema(conn: Connection) -> dict:
 def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int, size: int) -> dict:
     conds, p = [], {}
     if status:
-        conds.append("status=:st"); p["st"] = status
+        conds.append("q.status=:st"); p["st"] = status
     if difficulty:
-        conds.append("difficulty=:d"); p["d"] = difficulty
+        conds.append("q.difficulty=:d"); p["d"] = difficulty
     if skill_id:
-        conds.append("skill_ids @> ARRAY[:s]::int[]"); p["s"] = skill_id
+        conds.append("q.skill_ids @> ARRAY[:s]::int[]"); p["s"] = skill_id
     if search:
-        conds.append("title ILIKE :t"); p["t"] = f"%{search}%"
+        conds.append("q.title ILIKE :t"); p["t"] = f"%{search}%"
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
-    total = q1(conn, f"SELECT count(*) AS n FROM live.questions {where}", **p)["n"]
-    rows = q(conn, f"SELECT question_id, title, difficulty, skill_ids, status, is_source, is_flagged, pass_rate, source_draft_id, created_at, retired_at, "
-                   "(SELECT i.set_id FROM live.weekly_set_items i WHERE i.question_id = live.questions.question_id) AS weekly_set_id "
-                   f"FROM live.questions {where} ORDER BY question_id DESC LIMIT :l OFFSET :o", l=size, o=(page - 1) * size, **p)
-    return {"items": rows, "total": total, "page": page, "page_size": size}
+    total = q1(conn, f"SELECT count(*) AS n FROM live.questions q {where}", **p)["n"]
+    rows = q(
+        conn,
+        f"""SELECT q.question_id, q.title, q.difficulty, q.skill_ids, q.tables_used, q.status,
+                   q.is_source, q.is_flagged, q.pass_rate, q.source_draft_id, q.created_at, q.retired_at,
+                   d.job_id, j.topic AS job_topic,
+                   COALESCE(d.blueprint->'candidate'->>'business_domain', d.blueprint->>'business_domain') AS blueprint_domain,
+                   (SELECT i.set_id FROM live.weekly_set_items i WHERE i.question_id = q.question_id LIMIT 1) AS weekly_set_id,
+                   (SELECT i.position FROM live.weekly_set_items i
+                    JOIN live.weekly_sets ws ON ws.set_id = i.set_id
+                    WHERE i.question_id = q.question_id AND ws.status = 'published'
+                    ORDER BY ws.week_start DESC, ws.set_id DESC LIMIT 1) AS weekly_position
+            FROM live.questions q
+            LEFT JOIN draft.question_drafts d ON d.draft_id = q.source_draft_id
+            LEFT JOIN draft.generation_jobs j ON j.job_id = d.job_id
+            {where}
+            ORDER BY q.question_id DESC LIMIT :l OFFSET :o""",
+        l=size,
+        o=(page - 1) * size,
+        **p,
+    )
+    smap = _skills(conn)
+    items = []
+    for r in rows:
+        domain_category, topic = weekly._infer_domain_and_topic(r["tables_used"], r["job_topic"], r["blueprint_domain"])
+        sids = r["skill_ids"] or []
+        items.append({
+            **r,
+            "tables_used": r["tables_used"] or [],
+            "source_type": "ai_generated" if r["source_draft_id"] is not None else "seed",
+            "job_id": r["job_id"],
+            "job_topic": r["job_topic"],
+            "topic": topic,
+            "domain_category": domain_category,
+            "weekly_position": r["weekly_position"],
+            "skill_codes": [smap[i]["code"] for i in sids if i in smap],
+            "skills": [smap[i]["name"] for i in sids if i in smap],
+        })
+    return {"items": items, "total": total, "page": page, "page_size": size}
 
 
 def admin_detail(conn: Connection, question_id: int) -> dict:
-    r = q1(conn, "SELECT * FROM live.questions WHERE question_id=:i", i=question_id)
+    r = q1(
+        conn,
+        """SELECT q.*, d.job_id, j.topic AS job_topic,
+                  COALESCE(d.blueprint->'candidate'->>'business_domain', d.blueprint->>'business_domain') AS blueprint_domain,
+                  (SELECT i.position FROM live.weekly_set_items i
+                   JOIN live.weekly_sets ws ON ws.set_id = i.set_id
+                   WHERE i.question_id = q.question_id AND ws.status = 'published'
+                   ORDER BY ws.week_start DESC, ws.set_id DESC LIMIT 1) AS weekly_position
+           FROM live.questions q
+           LEFT JOIN draft.question_drafts d ON d.draft_id = q.source_draft_id
+           LEFT JOIN draft.generation_jobs j ON j.job_id = d.job_id
+           WHERE q.question_id=:i""",
+        i=question_id,
+    )
     if not r:
         raise not_found("Không tìm thấy câu hỏi")
     tests = q(conn, "SELECT test_id, dataset_ref, dataset_version, type, is_hidden, expected_result->>'row_count' AS row_count, "
                     "expected_result->>'result_hash' AS result_hash, expected_result->>'compare_mode' AS compare_mode FROM live.test_cases WHERE question_id=:i ORDER BY test_id", i=question_id)
-    r["skills"] = [s for s in q(conn, "SELECT skill_id, code, name FROM core.skills WHERE skill_id = ANY(:s)", s=list(r["skill_ids"]))]
+    skill_rows = [s for s in q(conn, "SELECT skill_id, code, name FROM core.skills WHERE skill_id = ANY(:s)", s=list(r["skill_ids"] or []))]
+    domain_category, topic = weekly._infer_domain_and_topic(r["tables_used"], r["job_topic"], r["blueprint_domain"])
+    r["skills"] = skill_rows
+    r["skill_codes"] = [s["code"] for s in skill_rows]
+    r["source_type"] = "ai_generated" if r["source_draft_id"] is not None else "seed"
+    r["domain_category"] = domain_category
+    r["topic"] = topic
     r["test_cases"] = tests
     r["weekly"] = q1(conn, "SELECT i.set_id, i.position, i.is_voided, s.status AS set_status FROM live.weekly_set_items i JOIN live.weekly_sets s USING (set_id) "
                            "WHERE i.question_id=:i", i=question_id)

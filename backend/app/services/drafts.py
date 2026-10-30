@@ -21,13 +21,24 @@ _ATTEST = {"verdict": "pass", "issues": [], "checks": [{"requirement": r, "statu
 
 def list_drafts(conn: Connection, status, job_id, difficulty, page: int, size: int) -> dict:
     conds, p = [], {}
-    for col, val in (("status", status), ("job_id", job_id), ("difficulty", difficulty)):
+    for col, val in (("d.status", status), ("d.job_id", job_id), ("d.difficulty", difficulty)):
         if val is not None:
-            conds.append(f"{col}=:{col}")
-            p[col] = val
+            key = col.split(".")[1]
+            conds.append(f"{col}=:{key}")
+            p[key] = val
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
-    total = q1(conn, f"SELECT count(*) AS n FROM draft.question_drafts {where}", **p)["n"]
-    rows = q(conn, f"SELECT {LIST_COLS} FROM draft.question_drafts {where} ORDER BY draft_id DESC LIMIT :l OFFSET :o", l=size, o=(page - 1) * size, **p)
+    total = q1(conn, f"SELECT count(*) AS n FROM draft.question_drafts d {where}", **p)["n"]
+    rows = q(conn, f"""SELECT d.draft_id, d.job_id, d.title, d.difficulty, d.skill_ids, d.status, d.status_reason,
+                              d.tables_used, d.gen_model, d.retry_count, d.review_attempts, d.created_at, d.updated_at,
+                              j.topic AS job_topic, d.blueprint->'candidate'->>'business_domain' AS business_domain,
+                              lq.question_id AS live_question_id,
+                              (SELECT i.position FROM live.weekly_set_items i JOIN live.weekly_sets ws ON ws.set_id=i.set_id
+                               WHERE i.question_id=lq.question_id AND ws.status='published' ORDER BY i.position LIMIT 1) AS weekly_position
+                       FROM draft.question_drafts d
+                       LEFT JOIN draft.generation_jobs j ON j.job_id = d.job_id
+                       LEFT JOIN live.questions lq ON lq.source_draft_id = d.draft_id
+                       {where}
+                       ORDER BY d.draft_id DESC LIMIT :l OFFSET :o""", l=size, o=(page - 1) * size, **p)
     return {"items": rows, "total": total, "page": page, "page_size": size}
 
 
@@ -40,11 +51,16 @@ def detail(conn: Connection, draft_id: int) -> dict:
     runs = q(conn, "SELECT run_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, mismatch_detail, exec_status, row_count, "
                    "result_hash, error, review_model, review_round FROM draft.self_solve_runs WHERE draft_id=:i ORDER BY review_round, sample_index", i=draft_id)
     logs = q(conn, "SELECT log_id, stage, passed, score, reasons, review_model, rubric_version, created_at FROM draft.review_logs WHERE draft_id=:i ORDER BY log_id", i=draft_id)
-    question = q1(conn, "SELECT question_id, status FROM live.questions WHERE source_draft_id=:i", i=draft_id)
+    question = q1(conn, """SELECT lq.question_id, lq.status,
+                                  (SELECT i.position FROM live.weekly_set_items i JOIN live.weekly_sets ws ON ws.set_id=i.set_id
+                                   WHERE i.question_id=lq.question_id AND ws.status='published' ORDER BY i.position LIMIT 1) AS weekly_position
+                           FROM live.questions lq WHERE lq.source_draft_id=:i""", i=draft_id)
+    job_row = q1(conn, "SELECT job_id, topic, created_at FROM draft.generation_jobs WHERE job_id=:j", j=d["job_id"]) if d.get("job_id") else None
     skills = q(conn, "SELECT skill_id, code, name FROM core.skills WHERE skill_id = ANY(:s) ORDER BY skill_id", s=list(d["skill_ids"]))
     out = {k: d[k] for k in ("draft_id", "world_id", "job_id", "title", "question", "reference_sql", "compare_mode", "difficulty", "tables_used", "schema_text",
                              "status", "status_reason", "gen_model", "gen_prompt_version", "retry_count", "review_attempts", "created_at", "updated_at")}
     out.update(skills=skills, source_question_ids=bp.get("source_question_ids", []),
+               job_topic=job_row["topic"] if job_row else cand.get("business_domain"),
                blueprint={k: cand.get(k) for k in ("business_domain", "business_goal", "difficulty_reason", "output_columns", "required_columns",
                                                     "table_roles", "logic_signature", "join_relations")},
                validation_report=d["validation_report"], self_solve_runs=runs, review_logs=logs, promoted_question=question)

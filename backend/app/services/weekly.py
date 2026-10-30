@@ -242,6 +242,71 @@ def on_question_retired(conn: Connection, question_id: int) -> str | None:
 
 
 # ------------------------------------------------------------------------------------------- người học
+def _infer_domain_and_topic(
+    tables_used: list[str] | None,
+    job_topic: str | None = None,
+    blueprint_domain: str | None = None,
+) -> tuple[str, str]:
+    tbls = [str(t).strip() for t in (tables_used or []) if str(t).strip()]
+    tset = {t.lower() for t in tbls}
+    txt = (job_topic or "").lower()
+    bp = (blueprint_domain or "").lower()
+
+    if (
+        tset & {"operating_expenses", "payments", "refunds"}
+        or any(k in txt for k in ("finance", "tài chính", "chi phí", "ngân sách", "hoàn tiền"))
+    ):
+        domain_category = "Tài chính & Chi phí"
+    elif (
+        tset & {"employees", "departments", "salary_history"}
+        or any(k in txt for k in ("hr", "human resources", "nhân sự", "phòng ban", "lương"))
+    ):
+        domain_category = "Nhân sự & Phòng ban"
+    elif (
+        tset & {"warehouses", "inventory_transactions"}
+        or any(k in txt for k in ("inventory", "kho vận", "tồn kho", "nhập xuất"))
+    ):
+        domain_category = "Kho vận & Tồn kho"
+    elif (
+        tset & {"orders", "order_items", "order_status_history"}
+        or any(k in txt for k in ("sales", "đơn hàng", "doanh thu"))
+    ):
+        domain_category = "Đơn hàng & Doanh thu"
+    elif (
+        tset & {"customers", "customer_addresses"}
+        or any(k in txt for k in ("crm", "customer", "khách hàng"))
+    ):
+        domain_category = "Khách hàng (CRM)"
+    elif (
+        tset & {"products", "categories", "suppliers"}
+        or any(k in txt for k in ("product", "supplier", "sản phẩm", "nhà cung cấp"))
+    ):
+        domain_category = "Sản phẩm & Nhà cung cấp"
+    elif any(k in bp for k in ("finance", "chi phí")):
+        domain_category = "Tài chính & Chi phí"
+    elif any(k in bp for k in ("hr", "human resources", "nhân sự")):
+        domain_category = "Nhân sự & Phòng ban"
+    elif any(k in bp for k in ("customer", "crm")):
+        domain_category = "Khách hàng (CRM)"
+    elif any(k in bp for k in ("product", "supplier")):
+        domain_category = "Sản phẩm & Nhà cung cấp"
+    elif any(k in bp for k in ("inventory", "warehouse")):
+        domain_category = "Kho vận & Tồn kho"
+    elif any(k in bp for k in ("sales", "order")):
+        domain_category = "Đơn hàng & Doanh thu"
+    else:
+        domain_category = "Nghiệp vụ tổng hợp"
+
+    clean_job_topic = (job_topic or "").strip()
+    if clean_job_topic:
+        topic = clean_job_topic
+    elif tbls:
+        topic = f"Truy vấn nghiệp vụ chuẩn trên bảng {', '.join(tbls)}"
+    else:
+        topic = domain_category
+    return domain_category, topic
+
+
 def current_set(conn: Connection) -> dict:
     s = q1(conn, "SELECT * FROM live.weekly_sets WHERE status='published'")
     if not s:
@@ -283,28 +348,67 @@ def learner_questions(conn: Connection, difficulty, skill_id, solved, search, pa
     where = " AND ".join(conds)
     total = q1(conn, f"SELECT count(*) AS n FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE {where}", **p)["n"]
     rows = q(conn, f"""SELECT i.position, i.is_voided, qq.question_id, qq.title, qq.difficulty, qq.skill_ids, qq.tables_used,
+                              qq.source_draft_id, qq.created_at, d.job_id, j.topic AS job_topic,
+                              COALESCE(d.blueprint->'candidate'->>'business_domain', d.blueprint->>'business_domain') AS blueprint_domain,
                               EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed') AS solved,
                               (SELECT count(*) FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id) AS attempt_count
-                       FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE {where}
+                       FROM live.weekly_set_items i
+                       JOIN live.questions qq USING (question_id)
+                       LEFT JOIN draft.question_drafts d ON d.draft_id = qq.source_draft_id
+                       LEFT JOIN draft.generation_jobs j ON j.job_id = d.job_id
+                       WHERE {where}
                        ORDER BY i.position LIMIT :l OFFSET :o""", l=size, o=(page - 1) * size, **p)
-    names = {r["skill_id"]: r["name"] for r in q(conn, "SELECT skill_id, name FROM core.skills")}
-    return {"items": [{"question_id": r["question_id"], "position": r["position"], "title": r["title"], "difficulty": r["difficulty"],
-                       "skills": [names[i] for i in r["skill_ids"] if i in names], "tables_used": r["tables_used"] or [], "solved": bool(r["solved"]), "attempt_count": r["attempt_count"], "is_voided": r["is_voided"]} for r in rows],
-            "total": total, "page": page, "page_size": size}
+    smap = {r["skill_id"]: r for r in q(conn, "SELECT skill_id, code, name FROM core.skills")}
+    items = []
+    for r in rows:
+        domain_category, topic = _infer_domain_and_topic(r["tables_used"], r["job_topic"], r["blueprint_domain"])
+        sids = r["skill_ids"] or []
+        items.append({
+            "question_id": r["question_id"],
+            "position": r["position"],
+            "title": r["title"],
+            "difficulty": r["difficulty"],
+            "skills": [smap[i]["name"] for i in sids if i in smap],
+            "skill_codes": [smap[i]["code"] for i in sids if i in smap],
+            "tables_used": r["tables_used"] or [],
+            "source_type": "ai_generated" if r["source_draft_id"] is not None else "seed",
+            "source_draft_id": r["source_draft_id"],
+            "job_id": r["job_id"],
+            "job_topic": r["job_topic"],
+            "topic": topic,
+            "domain_category": domain_category,
+            "created_at": r["created_at"],
+            "solved": bool(r["solved"]),
+            "attempt_count": r["attempt_count"],
+            "is_voided": r["is_voided"],
+        })
+    return {"items": items, "total": total, "page": page, "page_size": size}
 
 
 def learner_question(conn: Connection, question_id: int, user_id: int | None = None) -> dict:
     s = current_set(conn)
-    r = q1(conn, """SELECT qq.question_id, qq.title, qq.question, qq.difficulty, qq.skill_ids, qq.tables_used, qq.schema_text, i.is_voided,
+    r = q1(conn, """SELECT i.position, qq.question_id, qq.title, qq.question, qq.difficulty, qq.skill_ids, qq.tables_used, qq.schema_text, i.is_voided,
+                           qq.source_draft_id, qq.created_at, d.job_id, j.topic AS job_topic,
+                           COALESCE(d.blueprint->'candidate'->>'business_domain', d.blueprint->>'business_domain') AS blueprint_domain,
                            EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed') AS solved,
                            (SELECT count(*) FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id) AS attempt_count
-                    FROM live.weekly_set_items i JOIN live.questions qq USING (question_id) WHERE i.set_id=:s AND i.question_id=:q""",
+                    FROM live.weekly_set_items i
+                    JOIN live.questions qq USING (question_id)
+                    LEFT JOIN draft.question_drafts d ON d.draft_id = qq.source_draft_id
+                    LEFT JOIN draft.generation_jobs j ON j.job_id = d.job_id
+                    WHERE i.set_id=:s AND i.question_id=:q""",
            s=s["set_id"], q=question_id, u=user_id or 0)
     if not r:
         raise not_found("Không tìm thấy câu hỏi")          # không thuộc bộ đề đang mở ⇒ 404 (không lộ tồn tại)
-    names = {x["skill_id"]: x["name"] for x in q(conn, "SELECT skill_id, name FROM core.skills")}
-    return {"question_id": r["question_id"], "title": r["title"], "question": r["question"], "difficulty": r["difficulty"],
-            "skills": [names[i] for i in r["skill_ids"] if i in names], "tables_used": r["tables_used"], "schema_text": r["schema_text"],
+    smap = {x["skill_id"]: x for x in q(conn, "SELECT skill_id, code, name FROM core.skills")}
+    sids = r["skill_ids"] or []
+    domain_category, topic = _infer_domain_and_topic(r["tables_used"], r["job_topic"], r["blueprint_domain"])
+    return {"question_id": r["question_id"], "position": r["position"], "title": r["title"], "question": r["question"], "difficulty": r["difficulty"],
+            "skills": [smap[i]["name"] for i in sids if i in smap], "skill_codes": [smap[i]["code"] for i in sids if i in smap],
+            "tables_used": r["tables_used"] or [], "schema_text": r["schema_text"],
+            "source_type": "ai_generated" if r["source_draft_id"] is not None else "seed",
+            "source_draft_id": r["source_draft_id"], "job_id": r["job_id"], "job_topic": r["job_topic"],
+            "topic": topic, "domain_category": domain_category, "created_at": r["created_at"],
             "solved": bool(r["solved"]), "is_voided": r["is_voided"], "attempt_count": r["attempt_count"]}
 
 

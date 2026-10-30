@@ -17,6 +17,8 @@ from . import settings_registry as sr
 log = logging.getLogger("jobs")
 _FEASIBLE: dict | None = None
 _worker_lock = threading.Lock()
+_daemon_started = False
+_wake_event = threading.Event()
 
 
 def run_worker_until_idle() -> dict:
@@ -34,8 +36,51 @@ def run_worker_until_idle() -> dict:
     return last_stats
 
 
+def _background_worker_daemon() -> None:
+    while True:
+        try:
+            run_worker_until_idle()
+        except Exception:
+            log.exception("Lỗi trong vòng lặp Worker nền tự động")
+        _wake_event.wait(timeout=2.0)
+        _wake_event.clear()
+
+
+def _release_dead_reload_leases() -> None:
+    """Khi Uvicorn --reload khởi động lại process mới, giải phóng ngay các lease của PID cũ đã tắt."""
+    import os
+    pid_tag = f"-{os.getpid()}-"
+    try:
+        with begin() as conn:
+            ex(conn, """UPDATE draft.generation_jobs
+                        SET status='queued', locked_by=NULL, lease_expires_at=NULL,
+                            attempt_count=GREATEST(attempt_count - 1, 0)
+                        WHERE status='running' AND (locked_by IS NULL OR position(:p in locked_by) = 0)""", p=pid_tag)
+            ex(conn, """UPDATE draft.question_drafts
+                        SET status='pending', locked_by=NULL, review_lease_expires_at=NULL,
+                            review_attempts=GREATEST(review_attempts - 1, 0)
+                        WHERE status='reviewing' AND (locked_by IS NULL OR position(:p in locked_by) = 0)""", p=pid_tag)
+            ex(conn, """UPDATE draft.llm_call_ledger
+                        SET status='cancelled', error_code='reload_restart', finished_at=now()
+                        WHERE status IN ('reserved', 'running')""")
+    except Exception:
+        log.exception("Không thể giải phóng lease cũ khi khởi động Worker")
+
+
+def start_background_worker_loop() -> None:
+    """Khởi chạy daemon thread quét job/draft mỗi 2 giây (chỉ 1 loop trên mỗi tiến trình)."""
+    global _daemon_started
+    if _daemon_started:
+        _wake_event.set()
+        return
+    _daemon_started = True
+    _release_dead_reload_leases()
+    threading.Thread(target=_background_worker_daemon, name="sqlarena-worker-daemon", daemon=True).start()
+
+
 def _run_worker_in_background() -> None:
     time.sleep(0.15)
+    _wake_event.set()
     try:
         run_worker_until_idle()
     except Exception:
@@ -114,7 +159,10 @@ def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) 
         with begin() as c2:
             job = q1(c2, "SELECT * FROM draft.generation_jobs WHERE job_id=:j", j=job["job_id"]) or job
     elif p.get("auto_run"):
+        _wake_event.set()
         threading.Thread(target=_run_worker_in_background, name=f"sqlarena-worker-{job['job_id']}", daemon=True).start()
+    else:
+        _wake_event.set()
     return job, True
 
 
@@ -137,4 +185,8 @@ def list_jobs(conn: Connection, status: str | None, page: int, size: int) -> dic
     where, params = ("WHERE status=:s", {"s": status}) if status else ("", {})
     total = q1(conn, f"SELECT count(*) AS n FROM draft.generation_jobs {where}", **params)["n"]
     rows = q(conn, f"SELECT * FROM draft.generation_jobs {where} ORDER BY created_at DESC, job_id DESC LIMIT :l OFFSET :o", l=size, o=(page - 1) * size, **params)
-    return {"items": [public(r) for r in rows], "total": total, "page": page, "page_size": size}
+    items = []
+    for r in rows:
+        drafts = q(conn, "SELECT draft_id, title, status, created_at FROM draft.question_drafts WHERE job_id = :jid ORDER BY draft_id DESC", jid=r["job_id"])
+        items.append({**public(r), "drafts": [{"draft_id": d["draft_id"], "title": d["title"], "status": d["status"], "created_at": d["created_at"]} for d in drafts]})
+    return {"items": items, "total": total, "page": page, "page_size": size}

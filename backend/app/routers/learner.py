@@ -24,7 +24,7 @@ def weekly_current_questions(
     solved: bool | None = Query(None),
     q: str | None = Query(None, max_length=100),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(100, ge=1, le=200),
     user: dict = Depends(current_user),
 ):
     with begin() as conn:

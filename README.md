@@ -4,6 +4,33 @@
 
 ---
 
+## 🧭 0. Hướng Dẫn Nhanh: Quy Trình 4 Bước Sử Dụng & Cấu Hình Pipeline AI 2-Model (`llama3` & `qwen2.5-coder:7b`)
+
+### A. Quy Trình 4 Bước Sử Dụng Trang Web Từ A-Z
+
+1. **Bước 1 — Học viên làm bài kiểu Code PTIT (`Cổng Học Viên`)**:
+   - Đăng nhập tài khoản Học viên (hoặc bấm nút chuyển nhanh trên thanh `AuthBar`), chọn câu hỏi trong **Bộ đề tuần** hoặc ngân hàng câu hỏi.
+   - Viết câu lệnh `SELECT` trên **Monaco SQL Editor**, bấm **Chạy thử (Run Sandbox)** để xem bảng kết quả và `EXPLAIN`, hoặc bấm **AI Gợi ý / Chẩn đoán lỗi** khi truy vấn sai.
+   - Bấm **Nộp bài chấm điểm (Submit)**: hệ thống đối chiếu kết quả trên PostgreSQL 17 Read-Only (`enterprise_db`), trả về `PASS`/`FAIL`, cập nhật **Độ thông thạo kỹ năng (`S1`–`S6`)** và **Bảng xếp hạng Tuần/Tháng**.
+2. **Bước 2 — Admin bấm Sinh đề AI (`Quản trị & Kiểm duyệt` → `Job Sinh đề AI`)**:
+   - Chuyển sang vai trò **Admin (`admin`)**, vào tab **Job Sinh đề AI**.
+   - Chọn nhanh 1 trong **6 Chủ đề gợi ý theo `enterprise_db`** (HR, Inventory, CRM, Orders & Payments, Catalog, Finance) hoặc nhập chủ đề tùy chỉnh, chọn kỹ năng (`S1`–`S6`), cấp độ khó (`L1`–`L3`), số lượng câu hỏi (mặc định `1` câu để phản hồi nhanh) và bấm **Tạo đề AI** (có thể bấm **Chạy hàng đợi ngay** bất cứ lúc nào để ép worker xử lý tức thì).
+3. **Bước 3 — Xem Nhật ký gọi AI thời gian thực & Duyệt đề 7 cổng (`Job Sinh đề AI` & `Duyệt đề`)**:
+   - Ngay bên dưới bảng **Lịch sử sinh đề** (hiển thị chính xác giờ `HH:mm:ss · DD/MM/YYYY` bắt đầu/hoàn thành và danh sách đề vừa sinh để bấm xem ngay), thẻ **Nhật ký gọi AI thời gian thực (Live LLM Call Log — Model A & Model B)** hiển thị trực tiếp pipeline AI (`Model A (llama3)` & `Model B (qwen2.5-coder:7b)`), từng bước gọi **Model A · Sinh đề**, **Model B · Giải SQL**, **Semantic Audit**, thời gian phản hồi (`ms`/`s`), số token (`input -> output`) và trạng thái (`SUCCEEDED`/`RUNNING`/`FAILED`).
+   - Sang tab **Duyệt đề (Drafts)** để kiểm tra chi tiết 7 cổng kiểm định, kết quả 3 lần tự giải của Model B trên Base + Mutant DB, chỉnh sửa nội dung nếu cần và bấm **Phê duyệt (Approve)**.
+4. **Bước 4 — Đề tự động gắn vào Bộ đề tuần ngoài Trang chủ**:
+   - Ngay khi đề được phê duyệt (hoặc tự động thông qua 7 cổng), câu hỏi được đưa vào ngân hàng câu hỏi chính thức (`live.questions`) và tự động gắn vào **Bộ đề tuần đang mở (`live.weekly_sets`)**, hiển thị ngay lập tức ngoài giao diện **Bộ đề tuần** của Học viên.
+
+### B. Cấu Hình Biến Môi Trường Cho Pipeline AI 2-Model (`backend/.env`)
+
+Hệ thống sử dụng file cấu hình riêng `backend/.env` (nằm trong `.gitignore`, không bị ghi đè khi làm việc nhóm trên Git):
+
+| Thành phần | Cấu hình chuẩn trong `backend/.env` | Mô hình sử dụng |
+|---|---|---|
+| **Pipeline AI 2-Model (`Ollama Local`)** | `OLLAMA_BASE_URL=http://localhost:11434`<br>`MODEL_A_NAME=llama3`<br>`MODEL_B_NAME=qwen2.5-coder:7b` | **Model A**: `llama3` (Sinh đề & Blueprint)<br>**Model B**: `qwen2.5-coder:7b` (Giải SQL độc lập 3 mẫu & Kiểm định 7 cổng) |
+
+---
+
 ## 📋 1. Tổng Quan Dự Án & Phân Công Nhiệm Vụ (3 Thành Viên)
 
 **SQLArena AI** là nền tảng luyện tập và thi đấu truy vấn SQL trên dữ liệu doanh nghiệp thật (**Enterprise Dataset PostgreSQL 17 — 13 bảng, >13.400 bản ghi**), kết hợp **Pipeline AI 2-Model (Model A sinh đề + Model B độc lập giải kiểm chứng qua 7 cổng)** để tự động tạo và kiểm duyệt câu hỏi chất lượng cao.
@@ -159,7 +186,7 @@ npm run dev -- -p 3000 -H 127.0.0.1
 - **Giao diện Next.js 16 (Chính)**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
 - **Giao diện HTML tĩnh tương thích ngược (`learner.html`)**: [http://127.0.0.1:5500/learner.html](http://127.0.0.1:5500/learner.html) *(chạy bằng `python3 -m http.server 5500`)*
 
-#### Bước 5: Nguồn dữ liệu & Cơ chế Sinh Đề AI 2-Model (`ai/main.py` Model A + `ai/review.py` Model B qua `apithat.dev` hoặc Local Ollama)
+#### Bước 5: Nguồn dữ liệu & Cơ chế Sinh Đề AI 2-Model (`ai/main.py` Model A + `ai/review.py` Model B qua Local Ollama)
 
 Khi Admin bấm nút **"Khởi chạy Job Sinh đề"** trên tab `Quản trị -> Sinh đề AI`, hệ thống chạy đúng **Pipeline AI 2-Model gốc trong thư mục `ai/` (`ai/main.py`, `ai/validator.py`, `ai/review.py`)** thông qua `Worker` (`GenerationRunner` + `ReviewRunner`):
 1. **Tầng 1 — Enterprise Database (`enterprise_db` — 13 bảng dữ liệu thật, >13.400 dòng)**:
@@ -169,9 +196,7 @@ Khi Admin bấm nút **"Khởi chạy Job Sinh đề"** trên tab `Quản trị 
 3. **Tầng 3 — Thực thi 2-Model Pipeline (`backend/app/pipeline/engine.py`)**:
    - **Model A (`ai/main.py` — Generator) + Validator (`ai/validator.py`)**: Nhận schema của các bảng liên quan + 2 câu mẫu từ `core.source_questions`, sinh JSON câu hỏi tiếng Việt + Blueprint (`business_goal`, `tables_used`, `output_columns`, `logic_signature`) và kiểm tra chống trùng lặp ngữ nghĩa với toàn bộ kho đề.
    - **Model B (`ai/review.py` — Independent Self-Solver & 7-Gate Auditor)**: Độc lập đọc đề bài của Model A, tự viết câu lệnh SQL giải bài `k=3` lần trên `enterprise_db`, đối chiếu kết quả (`result_hash`), kiểm tra AST/Code Check, chạy **Semantic Audit 5 nhóm yêu cầu**, lưu đầy đủ vào `draft.self_solve_runs` và `draft.review_logs`.
-   - **Hỗ trợ song song 2 hạ tầng Model (`backend/.env`)**:
-     - **Chế độ Cloud Gateway `apithat.dev` (Khi cấu hình `APITHAT_API_KEY` trong `backend/.env`)**: Tự động xoay tua (Round-Robin + Auto-Failover) qua pool 5 model (`gpt-6-sol` cho Model A sinh đề, `gemini-3.8-flash` cho Model B giải đề 3 mẫu, `gpt-6.1-sol` / `gpt-6-astra` / `claude-sonnet-5` cho Semantic Auditor) qua `https://apithat.dev/v1/chat/completions`.
-     - **Chế độ Local Ollama (Khi không đặt `APITHAT_API_KEY`)**: Gọi trực tiếp Ollama local (`http://localhost:11434/api/generate`) với `MODEL_NAME=llama3` (sinh đề) và `REVIEW_MODEL_NAME=qwen2.5-coder:7b` (duyệt đề) đúng nguyên bản của nhóm.
+   - **Cấu hình Model (`backend/.env`)**: Gọi trực tiếp Ollama local (`http://localhost:11434/api/generate`) với `MODEL_NAME=llama3` (Model A sinh đề) và `REVIEW_MODEL_NAME=qwen2.5-coder:7b` (Model B giải SQL & duyệt đề).
 
 
 ---

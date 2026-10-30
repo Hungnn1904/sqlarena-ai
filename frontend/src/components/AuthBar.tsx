@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Database,
@@ -24,7 +24,19 @@ import {
   registerUser,
   updateProfile,
   changePassword,
+  getAdminDrafts,
+  getWeeklyQuestions,
 } from '../lib/api';
+
+function formatVnNotifTime(iso?: string | null): string {
+  if (!iso) return '08:00:00 · 30/10/2026';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} · ${pad(
+    d.getDate()
+  )}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
 
 interface AuthBarProps {
   user: UserProfile | null;
@@ -62,6 +74,40 @@ export default function AuthBar({
   const [profBio, setProfBio] = useState('');
   const [curPwd, setCurPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifItems, setNotifItems] = useState<any[]>([]);
+
+  const loadNotifications = async () => {
+    try {
+      const r = await getAdminDrafts();
+      const draftsList = (r?.items || []).map((d: any) => ({
+        id: d.draft_id,
+        title: d.title || `Câu hỏi AI #${d.draft_id}`,
+        status: d.status === 'approved' ? 'approved' : 'pending',
+        created_at: d.created_at || d.updated_at,
+        difficulty: d.difficulty || 2,
+      }));
+      if (draftsList.length > 0) {
+        setNotifItems(draftsList);
+        return;
+      }
+    } catch {}
+    try {
+      const w = await getWeeklyQuestions();
+      const qList = (w?.items || w?.questions || []).map((q: any) => ({
+        id: q.question_id || q.id,
+        title: q.title || `Câu hỏi #${q.question_id || q.id}`,
+        status: 'approved',
+        created_at: q.created_at,
+        difficulty: q.difficulty || 2,
+      }));
+      setNotifItems(qList);
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, [user, activeTab]);
 
   const quickLogin = async (id: string, pwd: string, targetTab?: string) => {
     setLoading(true);
@@ -201,6 +247,90 @@ export default function AuthBar({
 
           {/* Right Account + Pitch + Theme Controls */}
           <div className="flex items-center gap-2">
+            {/* Notification Center (Thông báo / Nhật ký Sinh đề) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !notifOpen;
+                  setNotifOpen(next);
+                  if (next) loadNotifications();
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--soft)] hover:bg-[var(--surface)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] transition"
+              >
+                <span>Thông báo</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-[var(--copper)] text-[#F5EDDC] font-mono text-[10px] font-bold">
+                  {notifItems.length} đề mới
+                </span>
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 mt-2 w-[380px] sm:w-[430px] rounded-xl bg-[var(--surface)] border border-[var(--line)] shadow-2xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 bg-[var(--soft)] border-b border-[var(--line)] flex items-center justify-between gap-2">
+                    <div className="text-xs font-bold text-[var(--ink)]">
+                      Thông báo / Nhật ký Sinh đề AI
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNotifOpen(false)}
+                      className="px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--line)] text-[11px] font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+                    >
+                      Đóng
+                    </button>
+                  </div>
+
+                  <div className="px-4 py-2.5 bg-[var(--paper)] border-b border-[var(--line)] text-[11px] text-[var(--text2)] leading-relaxed">
+                    {(() => {
+                      const total = notifItems.length;
+                      const approved = notifItems.filter((x) => x.status === 'approved').length;
+                      const pending = total - approved;
+                      return `Tổng cộng đã sinh ${total} câu hỏi AI (${approved} câu đã duyệt vào danh sách Làm bài, ${pending} câu chờ duyệt)`;
+                    })()}
+                  </div>
+
+                  <div className="max-h-[320px] overflow-y-auto divide-y divide-[var(--line)]">
+                    {notifItems.length === 0 ? (
+                      <div className="p-4 text-xs text-[var(--muted)] text-center">
+                        Chưa có câu hỏi AI mới. Hãy vào mục Quản trị để khởi chạy Job Sinh đề.
+                      </div>
+                    ) : (
+                      notifItems.slice(0, 15).map((item) => (
+                        <div
+                          key={`${item.status}-${item.id}`}
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setNotifOpen(false);
+                          }}
+                          className="p-3 hover:bg-[var(--soft)] transition cursor-pointer flex flex-col gap-1.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-semibold text-[var(--ink)] line-clamp-1">
+                              #{item.id} · {item.title}
+                            </span>
+                            <span
+                              className={`font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                                item.status === 'approved'
+                                  ? 'bg-[var(--green)]/15 text-[var(--green)] font-semibold'
+                                  : 'bg-[var(--copper)]/15 text-[var(--copper)] font-semibold'
+                              }`}
+                            >
+                              {item.status === 'approved' ? 'Đã lên trang chủ' : 'Chờ duyệt'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-[var(--muted)]">
+                            <span>{formatVnNotifTime(item.created_at)}</span>
+                            <span className="text-[var(--copper)] font-semibold">
+                              Mở trong Quản trị
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Quick Role Switch */}
             <div className="hidden lg:flex items-center bg-[var(--soft)] p-0.5 rounded-lg border border-[var(--line)] text-[11px] font-mono">
               <button
