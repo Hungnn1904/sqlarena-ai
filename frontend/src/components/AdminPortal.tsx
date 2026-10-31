@@ -39,6 +39,7 @@ import {
   getAdminUsers,
   updateAdminUser,
   getAdminSettings,
+  getAdminSkills,
   updateAdminSetting,
   getAdminSkills,
 } from '../lib/api';
@@ -69,12 +70,12 @@ const formatVnTime = (iso?: string | null) => {
 };
 
 const SKILL_OPTIONS = [
-  { id: 1, code: 'S1', name: 'SELECT / WHERE' },
-  { id: 2, code: 'S2', name: 'JOIN Multi-Table' },
-  { id: 3, code: 'S3', name: 'GROUP BY / HAVING' },
-  { id: 4, code: 'S4', name: 'Subquery / CTE' },
-  { id: 5, code: 'S5', name: 'Window Functions' },
-  { id: 6, code: 'S6', name: 'Edge Cases & NULL' },
+  { id: 19, code: 'S1', name: 'SELECT / WHERE' },
+  { id: 20, code: 'S2', name: 'JOIN Multi-Table' },
+  { id: 21, code: 'S3', name: 'GROUP BY / HAVING' },
+  { id: 22, code: 'S4', name: 'Subquery / CTE' },
+  { id: 23, code: 'S5', name: 'Window Functions' },
+  { id: 24, code: 'S6', name: 'Edge Cases & NULL' },
 ];
 
 export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
@@ -205,12 +206,24 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     } catch {}
   };
 
+  const loadSkills = async () => {
+    try {
+      const r = await getAdminSkills();
+      const items = (r.items || []).filter((s: any) => s.is_active !== false);
+      if (items.length) {
+        setSkillOptions(items.map((s: any) => ({ ...s, id: s.skill_id })));
+        setJobSkills((prev) => prev.length ? prev : items.slice(0, 2).map((s: any) => s.skill_id));
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     setErr(null);
     loadSkills();
     loadDrafts();
     loadLiveQuestions();
+    loadSkills();
     if (subTab === 'jobs') {
       loadJobs();
     }
