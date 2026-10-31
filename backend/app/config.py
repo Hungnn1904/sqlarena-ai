@@ -20,6 +20,18 @@ class Settings(BaseSettings):
     worker_poll_seconds: float = 3.0
     worker_id_prefix: str = "worker"
     seed_path: Path = BACKEND_DIR / "seed" / "core_seed.json"
+    enterprise_db_host: str = "localhost"
+    enterprise_db_port: int = 5432
+    enterprise_db_name: str = "enterprise_db"
+    enterprise_db_user: str = "sqlarena_ai_ro"
+    enterprise_db_password: str = "sqlarena_ro"
+    catalog_db_host: str = "localhost"
+    catalog_db_port: int = 5432
+    catalog_db_name: str = "enterprise_db"
+    catalog_db_user: str = ""
+    catalog_db_password: str = ""
+    statement_timeout_ms: int = 10000
+    max_result_rows: int = 100000
 
 
 @lru_cache

@@ -136,7 +136,7 @@ export default function LearnerWorkbench({
         setSelectedId(items[0].question_id);
       }
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.error?.message || 'Không tải được danh sách đề bài');
+      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không tải được danh sách đề bài');
     }
   };
 
@@ -160,7 +160,7 @@ export default function LearnerWorkbench({
         const firstTable = d.tables_used?.[0] || 'categories';
         setSql(`SELECT *\nFROM ${firstTable}\nLIMIT 10;`);
       })
-      .catch((e) => setErrorMsg(e?.response?.data?.error?.message || 'Lỗi tải đề bài'));
+      .catch((e) => setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi tải đề bài'));
     getQuestionSubmissions(selectedId)
       .then((r) => setQSubs(r?.items || []))
       .catch(() => setQSubs([]));
@@ -181,7 +181,7 @@ export default function LearnerWorkbench({
       const res = await runSandboxSql(selectedId, sql);
       setOutput({ mode: 'run', ...res });
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.error?.message || 'Truy vấn không hợp lệ');
+      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Truy vấn không hợp lệ');
     } finally {
       setRunning(false);
     }
@@ -196,7 +196,7 @@ export default function LearnerWorkbench({
       const res = await runSandboxSql(qId, `SELECT * FROM ${tableName} LIMIT 5;`);
       setOutput({ mode: 'run', ...res });
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.error?.message || 'Không xem trước được bảng');
+      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không xem trước được bảng');
     } finally {
       setRunning(false);
     }
@@ -220,7 +220,7 @@ export default function LearnerWorkbench({
       setQSubs(subsRes?.items || []);
       if (onSubmissionComplete) onSubmissionComplete();
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.error?.message || 'Lỗi chấm bài');
+      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi chấm bài');
     } finally {
       setSubmitting(false);
     }
@@ -924,12 +924,14 @@ export default function LearnerWorkbench({
                         <div className="flex items-center gap-3">
                           <span
                             className={`px-2 py-0.5 rounded font-semibold text-[11px] ${
-                              sub.status === 'accepted' || sub.passed
+                              sub.submission_status === 'passed' || sub.status === 'accepted' || sub.passed
                                 ? 'bg-[var(--green)]/15 text-[var(--green)]'
                                 : 'bg-[var(--red)]/15 text-[var(--red)]'
                             }`}
                           >
-                            {(sub.status || 'failed').toUpperCase()}
+                            {sub.submission_status === 'passed' || sub.status === 'accepted' || sub.passed
+                              ? 'Đạt (Accepted)'
+                              : (sub.submission_status || sub.status || 'failed').toUpperCase()}
                           </span>
                           <span className="font-semibold text-[var(--ink)]">
                             {sub.score}/100 điểm

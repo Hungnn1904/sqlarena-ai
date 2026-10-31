@@ -117,7 +117,7 @@ export default function AuthBar({
       onAuthSuccess(res.access_token, res.user);
       if (targetTab) setActiveTab(targetTab);
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Không thể chuyển tài khoản');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không thể chuyển tài khoản');
     } finally {
       setLoading(false);
     }
@@ -132,7 +132,7 @@ export default function AuthBar({
       onAuthSuccess(res.access_token, res.user);
       setModal('none');
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Thông tin đăng nhập không hợp lệ');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Thông tin đăng nhập không hợp lệ');
     } finally {
       setLoading(false);
     }
@@ -152,7 +152,7 @@ export default function AuthBar({
       onAuthSuccess(res.access_token, res.user);
       setModal('none');
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Đăng ký không thành công');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Đăng ký không thành công');
     } finally {
       setLoading(false);
     }
@@ -184,7 +184,7 @@ export default function AuthBar({
       }
       setMsg('Đã cập nhật thông tin tài khoản.');
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Cập nhật thất bại');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Cập nhật thất bại');
     } finally {
       setLoading(false);
     }
@@ -195,7 +195,6 @@ export default function AuthBar({
     { id: 'progress', label: 'Tiến độ' },
     { id: 'leaderboard', label: 'Xếp hạng' },
     { id: 'admin', label: 'Quản trị' },
-    { id: 'pipeline', label: 'Kiến trúc' },
   ];
 
   return (
@@ -419,10 +418,10 @@ export default function AuthBar({
         </div>
       </header>
 
-      {/* Editorial Auth & Profile Modal */}
+      {/* Clean Single-Column Auth Modal */}
       {(modal === 'login' || modal === 'register') && (
         <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#F5EDDC] text-[#181818] border border-[rgba(24,24,24,0.16)] rounded-2xl max-w-3xl w-full p-2.5 shadow-2xl grid grid-cols-1 md:grid-cols-12 gap-2 relative">
+          <div className="bg-[#F5EDDC] text-[#181818] border border-[rgba(24,24,24,0.16)] rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
             <button
               onClick={() => setModal('none')}
               className="absolute top-5 right-5 text-xs font-medium text-[#6F6B60] hover:text-[#181818] px-2 py-1 rounded z-10"
@@ -431,36 +430,9 @@ export default function AuthBar({
               Đóng
             </button>
 
-            {/* Left Editorial Sage Panel */}
-            <div className="md:col-span-5 bg-[#5C7F71] text-[#F5EDDC] rounded-xl p-7 flex flex-col justify-between min-h-[340px]">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-[#181818] text-[#F5EDDC] flex items-center justify-center font-mono text-[9px] font-bold">
-                    SQL
-                  </div>
-                  <span className="font-bold text-sm tracking-tight">sqlarena</span>
-                </div>
-                <h2 className="text-2xl font-bold leading-snug pt-2">
-                  Học bằng cách{' '}
-                  <span className="editorial-serif text-[#E3C08D]">đặt câu hỏi.</span>
-                </h2>
-                <p className="text-xs text-[#F5EDDC]/90 leading-relaxed">
-                  Luyện SQL qua đề được sinh, duyệt và chấm tự động trên PostgreSQL.
-                </p>
-              </div>
-
-              <div className="bg-[#181818] text-[#F5EDDC] p-3.5 rounded-lg font-mono text-xs leading-relaxed shadow-inner">
-                SELECT skill, progress FROM learners ORDER BY progress DESC;
-              </div>
-            </div>
-
-            {/* Right Warm Paper Form Panel */}
-            <div className="md:col-span-7 bg-[#F5EDDC] text-[#181818] p-7 flex flex-col justify-center">
-              <div className="text-[#B2653B] text-[11px] font-bold tracking-[0.14em] uppercase mb-1">
-                BẮT ĐẦU HÀNH TRÌNH
-              </div>
-              <h3 className="text-2xl font-bold text-[#181818] mb-4">
-                {modal === 'login' ? 'Đăng nhập.' : 'Tạo tài khoản.'}
+            <div className="flex flex-col justify-center">
+              <h3 className="text-xl font-bold text-[#181818] mb-4">
+                {modal === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
               </h3>
 
               {/* Segmented Pill Switcher */}

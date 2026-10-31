@@ -40,6 +40,7 @@ import {
   updateAdminUser,
   getAdminSettings,
   updateAdminSetting,
+  getAdminSkills,
 } from '../lib/api';
 
 const TOPIC_PRESETS = [
@@ -102,6 +103,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   const [jobDiff, setJobDiff] = useState(2);
   const [jobCount, setJobCount] = useState(1);
   const [jobTopic, setJobTopic] = useState('');
+  const [skillOptions, setSkillOptions] = useState(SKILL_OPTIONS);
   const [jobSkills, setJobSkills] = useState<number[]>([2, 3]);
   const [submittingJob, setSubmittingJob] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -115,6 +117,28 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   const [settingsList, setSettingsList] = useState<any[]>([]);
   const [settingEdits, setSettingEdits] = useState<Record<string, string>>({});
 
+  const loadSkills = async () => {
+    try {
+      const r = await getAdminSkills();
+      const items = (r?.items || []).filter((s: any) => s.is_active !== false);
+      if (items.length > 0) {
+        const mapped = items.map((s: any) => ({
+          id: s.skill_id ?? s.id,
+          code: s.code,
+          name: s.name,
+        }));
+        setSkillOptions(mapped);
+        const validIds = new Set(mapped.map((m: any) => m.id));
+        setJobSkills((prev) => {
+          const filtered = prev.filter((id) => validIds.has(id));
+          return filtered.length > 0
+            ? filtered
+            : mapped.slice(0, 2).map((m: any) => m.id);
+        });
+      }
+    } catch {}
+  };
+
   const loadDrafts = async () => {
     try {
       const r = await getAdminDrafts({});
@@ -123,7 +147,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
         inspectDraft(r.items[0].draft_id);
       }
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Cần quyền Quản trị viên (Admin)');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Cần quyền Quản trị viên (Admin)');
     }
   };
 
@@ -134,7 +158,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setEditTitle(d.title || '');
       setEditQuestion(d.question || '');
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Không tải được chi tiết bản nháp');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không tải được chi tiết bản nháp');
     }
   };
 
@@ -184,6 +208,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     if (!isAdmin) return;
     setErr(null);
+    loadSkills();
     loadDrafts();
     loadLiveQuestions();
     if (subTab === 'jobs') {
@@ -258,7 +283,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     try {
       const job = await createGenerationJob({
         difficulty: jobDiff,
-        skill_ids: jobSkills.length ? jobSkills : [2],
+        skill_ids: jobSkills.length ? jobSkills : [skillOptions[0]?.id ?? 2],
         requested_count: jobCount,
         quantity: jobCount,
         topic: chosenTopic,
@@ -271,7 +296,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       );
       await Promise.all([loadJobs(), loadDrafts()]);
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi tạo job sinh đề');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi tạo job sinh đề');
     } finally {
       setSubmittingJob(false);
     }
@@ -288,7 +313,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       loadJobs();
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi khi chạy hàng đợi sinh đề');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi khi chạy hàng đợi sinh đề');
     }
   };
 
@@ -308,7 +333,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       );
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi phê duyệt');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi phê duyệt');
     }
   };
 
@@ -325,7 +350,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setMsg(`Đã từ chối Draft #${d.draft_id}.`);
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi từ chối draft');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi từ chối draft');
     }
   };
 
@@ -343,7 +368,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setMsg(`Đã lưu hiệu đính Draft #${d.draft_id} và đưa lại hàng đợi kiểm duyệt.`);
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi lưu bản nháp');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi lưu bản nháp');
     }
   };
 
@@ -360,7 +385,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setMsg(`Đã Requeue Draft #${d.draft_id} (status: ${d.status}).`);
       loadDrafts();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi requeue draft');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi requeue draft');
     }
   };
 
@@ -376,7 +401,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setMsg(`Đã tạo bộ đề tuần mới #${w.set_id} (${w.title}).`);
       loadWeekly();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Không tạo được bộ đề tuần');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không tạo được bộ đề tuần');
     }
   };
 
@@ -395,7 +420,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setMsg(`Đã cập nhật cấu hình ${key}.`);
       loadSettings();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Lỗi cập nhật cấu hình');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi cập nhật cấu hình');
     }
   };
 
@@ -413,7 +438,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
       setMsg(`Đã cập nhật cấu hình tài khoản @${u.username}.`);
       loadUsers();
     } catch (e: any) {
-      setErr(e?.response?.data?.error?.message || 'Không thể cập nhật tài khoản');
+      setErr(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không thể cập nhật tài khoản');
     }
   };
 
@@ -1076,7 +1101,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                 Nhóm kỹ năng mục tiêu (Skills S1–S6)
               </label>
               <div className="grid grid-cols-2 gap-1.5">
-                {SKILL_OPTIONS.map((sk) => {
+                {skillOptions.map((sk) => {
                   const active = jobSkills.includes(sk.id);
                   return (
                     <button
@@ -1490,7 +1515,8 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                           })
                           .catch((e: any) =>
                             setErr(
-                              e?.response?.data?.error?.message ||
+                              e?.response?.data?.message ||
+                                e?.response?.data?.error?.message ||
                                 'Không thể Publish (hãy đóng bộ đề đang mở trước)'
                             )
                           );
@@ -1512,7 +1538,8 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                           })
                           .catch((e: any) =>
                             setErr(
-                              e?.response?.data?.error?.message ||
+                              e?.response?.data?.message ||
+                                e?.response?.data?.error?.message ||
                                 'Không thể đóng chu kỳ tuần'
                             )
                           );

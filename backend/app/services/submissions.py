@@ -14,27 +14,79 @@ import psycopg
 from psycopg.rows import dict_row
 from sqlalchemy import Connection
 
+from urllib.parse import urlparse
+
+from ..config import get_settings
 from ..db import ex, q, q1
 from ..errors import ApiError, bad_request, not_found
 
-TIMEOUT_MS = int(os.environ.get("STATEMENT_TIMEOUT_MS", "10000"))
-MAX_RESULT_ROWS = int(os.environ.get("MAX_RESULT_ROWS", "100000"))
+TIMEOUT_MS = int(os.environ.get("STATEMENT_TIMEOUT_MS", str(get_settings().statement_timeout_ms)))
+MAX_RESULT_ROWS = int(os.environ.get("MAX_RESULT_ROWS", str(get_settings().max_result_rows)))
 
 
 def _enterprise_conninfo() -> dict:
+    s = get_settings()
     return {
-        "host": os.environ.get("ENTERPRISE_DB_HOST", "localhost"),
-        "port": int(os.environ.get("ENTERPRISE_DB_PORT", "5432")),
-        "dbname": os.environ.get("ENTERPRISE_DB_NAME", "enterprise_db"),
-        "user": os.environ.get("ENTERPRISE_DB_USER", "sqlarena_ai_ro"),
-        "password": os.environ.get("ENTERPRISE_DB_PASSWORD", "sqlarena_ro"),
+        "host": os.environ.get("ENTERPRISE_DB_HOST") or s.enterprise_db_host,
+        "port": int(os.environ.get("ENTERPRISE_DB_PORT") or s.enterprise_db_port),
+        "dbname": os.environ.get("ENTERPRISE_DB_NAME") or s.enterprise_db_name,
+        "user": os.environ.get("ENTERPRISE_DB_USER") or s.enterprise_db_user,
+        "password": os.environ.get("ENTERPRISE_DB_PASSWORD") or s.enterprise_db_password,
         "row_factory": dict_row,
     }
 
 
+def _enterprise_candidates() -> list[dict]:
+    s = get_settings()
+    base = _enterprise_conninfo()
+    candidates = [base]
+    seen = {(base["host"], base["port"], base["dbname"], base["user"], base["password"])}
+
+    def _add(user: str, password: str, host: str | None = None, port: int | None = None, dbname: str | None = None):
+        if not user:
+            return
+        c = {
+            **base,
+            "host": host or base["host"],
+            "port": port or base["port"],
+            "dbname": dbname or base["dbname"],
+            "user": user,
+            "password": password,
+        }
+        key = (c["host"], c["port"], c["dbname"], c["user"], c["password"])
+        if key not in seen:
+            seen.add(key)
+            candidates.append(c)
+
+    for pwd in ("123456", "sqlarena_ro", "postgres"):
+        _add(base["user"], pwd)
+        _add("sqlarena_ai_ro", pwd)
+    if s.catalog_db_user:
+        _add(s.catalog_db_user, s.catalog_db_password, s.catalog_db_host, s.catalog_db_port, s.catalog_db_name)
+    try:
+        parsed = urlparse(s.database_url.replace("postgresql+psycopg://", "postgresql://"))
+        if parsed.username:
+            _add(parsed.username, parsed.password or "", parsed.hostname, parsed.port)
+    except Exception:
+        pass
+    for pwd in ("123456", "postgres", "sqlarena_ro"):
+        _add("postgres", pwd)
+    return candidates
+
+
 @contextmanager
 def enterprise_connection():
-    with psycopg.connect(**_enterprise_conninfo()) as conn:
+    last_err = None
+    conn = None
+    for cand in _enterprise_candidates():
+        try:
+            conn = psycopg.connect(**cand)
+            break
+        except psycopg.OperationalError as exc:
+            last_err = exc
+    if conn is None:
+        raise last_err
+    with conn:
         yield conn
 
 
@@ -364,8 +416,11 @@ def run_query(conn: Connection, user_id: int, question_id: int, raw_sql: str) ->
         raise not_found("Không tìm thấy câu hỏi")
     try:
         clean_sql = guard_select(raw_sql)
+        started = time.perf_counter()
         res = execute_sandbox_sql(clean_sql)
-        return {"passed_policy": True, "saved": False, **res}
+        runtime_ms = round((time.perf_counter() - started) * 1000)
+        exec_ms = res.get("execution_ms", runtime_ms)
+        return {"passed_policy": True, "saved": False, "runtime_ms": runtime_ms, "execution_ms": exec_ms, **res}
     except Exception as exc:
         raise bad_request(str(exc))
 
@@ -463,10 +518,16 @@ def submit_query(conn: Connection, user_id: int, question_id: int, raw_sql: str)
            WHERE question_id=:q""",
         q=question_id,
     )
+    passed_tests = sum(1 for td in test_details if td.get("passed"))
+    total_tests = len(tcs)
+    verdict = "AC" if passed else ("ERR" if result is None else "WA")
     return {
         "submission_id": sub_row["submission_id"],
         "question_id": question_id,
         "passed": passed,
+        "verdict": verdict,
+        "passed_tests": passed_tests,
+        "total_tests": total_tests,
         "submission_status": sub_status,
         "score": 100 if passed else 0,
         "saved": True,

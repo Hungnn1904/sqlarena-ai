@@ -107,8 +107,23 @@ def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) 
     """Trả (job, created). created=False khi phát lại cùng Idempotency-Key + cùng nội dung."""
     qty = p.get("quantity") or p.get("requested_count") or 3
     p["quantity"] = qty
-    skills = {r["skill_id"]: r for r in q(conn, "SELECT skill_id, code, is_active FROM core.skills")}
-    ids = list(dict.fromkeys(p["skill_ids"])) if p.get("skill_ids") else [i for i, v in skills.items() if v["is_active"]]
+    skills_rows = q(conn, "SELECT skill_id, code, is_active FROM core.skills ORDER BY skill_id")
+    skills = {r["skill_id"]: r for r in skills_rows}
+    code_to_id = {r["code"]: r["skill_id"] for r in skills_rows}
+    if p.get("skill_ids"):
+        resolved_ids = []
+        for raw_id in p["skill_ids"]:
+            if raw_id in skills:
+                resolved_ids.append(raw_id)
+            elif isinstance(raw_id, int) and 1 <= raw_id <= 6 and f"S{raw_id}" in code_to_id:
+                resolved_ids.append(code_to_id[f"S{raw_id}"])
+            elif isinstance(raw_id, int) and 19 <= raw_id <= 24 and f"S{raw_id - 18}" in code_to_id:
+                resolved_ids.append(code_to_id[f"S{raw_id - 18}"])
+            else:
+                resolved_ids.append(raw_id)
+        ids = list(dict.fromkeys(resolved_ids))
+    else:
+        ids = [i for i, v in skills.items() if v["is_active"]]
     bad = [i for i in ids if i not in skills or not skills[i]["is_active"]]
     if bad:
         raise bad_request("skill_ids không hợp lệ", {"skill_ids": bad})
