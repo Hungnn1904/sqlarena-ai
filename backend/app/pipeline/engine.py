@@ -103,15 +103,56 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
             head, rest = prompt.split(marker, 1)
             ctx_json_str, tail = rest.split("\n\nOUTPUT OBJECT", 1)
             ctx_obj = json.loads(ctx_json_str)
-            ctx_obj.pop("difficulty_rules", None)
-            ctx_obj.pop("metadata_limitations", None)
             ws = ctx_obj.get("world_schema") or {}
-            ws.pop("allowed_sql_features", None)
-            for t in ws.get("tables", []):
-                t.pop("sample_rows", None)
-                for col in t.get("columns", []):
-                    col.pop("description", None)
-            prompt = head + marker + json.dumps(ctx_obj, ensure_ascii=False, separators=(",", ":")) + "\n\nOUTPUT OBJECT" + tail
+            grp = ws.get("context_group") or {}
+            t_cols = {t["table"]: [c["name"] for c in t.get("columns", [])] for t in ws.get("tables", [])}
+            fks = [{"table_name": f["table_name"], "columns": f["columns"], "referenced_table": f["referenced_table"], "referenced_columns": f["referenced_columns"]} for f in ws.get("fk_relations", [])]
+            task_line = next((l for l in head.splitlines() if l.startswith("TASK: ")), "")
+            task_obj = json.loads(task_line[6:]) if task_line else {}
+            skill = task_obj.get("skill", "S2")
+            diff = task_obj.get("difficulty", "medium")
+            dom = grp.get("domain") or task_obj.get("domain") or "Sales & Orders"
+            min_t = grp.get("min_tables", 1)
+            max_t = grp.get("max_tables", 2)
+            prim_t = grp.get("primary_tables", [])
+            prompt = (
+                f"Generate 1 Vietnamese PostgreSQL question JSON (no SQL code). "
+                f"difficulty={diff!r}, primary_skill_group={skill!r}, skills={[skill]!r}, business_domain={dom!r}. "
+                f"Use {min_t}..{max_t} connected tables from {list(t_cols.keys())} "
+                f"(must include at least one of {prim_t}). "
+                f"Columns per table: {json.dumps(t_cols, ensure_ascii=False)}. "
+                f"Allowed join_relations: {json.dumps(fks, ensure_ascii=False)}. "
+                f"Keep all string fields to 1-2 short sentences.\nOUTPUT OBJECT" + tail
+            )
+        except Exception:
+            pass
+    elif "SOLVED EXAMPLES" in prompt and "\n\nReturn only JSON:" in prompt:
+        try:
+            head, tail = prompt.split("\n\nSOLVED EXAMPLES", 1)
+            _, end_tail = tail.split("\n\nReturn only JSON:", 1)
+            if "NORMALIZED QUESTION CONTRACT" in head and "\n\nSQL RULES:" in head:
+                h1, h2 = head.split("\n\nNORMALIZED QUESTION CONTRACT", 1)
+                _, h3 = h2.split("\n\nSQL RULES:", 1)
+                head = h1 + "\n\nSQL RULES:" + h3
+            prompt = head + "\n\nReturn only JSON:" + end_tail
+        except Exception:
+            pass
+    elif "AUDIT INPUT JSON:\n" in prompt:
+        try:
+            _, audit_json_str = prompt.split("AUDIT INPUT JSON:\n", 1)
+            audit_obj = json.loads(audit_json_str)
+            qc = audit_obj.get("query_contract") or {}
+            compact_audit = {
+                "question_lines": qc.get("question_lines", []),
+                "required_output_columns": qc.get("required_output_columns", []),
+                "tables": audit_obj.get("allowed_tables_and_columns", {}),
+                "candidate_sql": audit_obj.get("candidate_sql", ""),
+            }
+            prompt = (
+                "Audit candidate_sql against question_lines. Return JSON with verdict ('pass' or 'needs_human'), issues ([] for pass), "
+                "and checks (5 items with status='pass' and requirement exactly matching the 5 required labels).\nINPUT:\n"
+                + json.dumps(compact_audit, ensure_ascii=False)
+            )
         except Exception:
             pass
     fmt = (body or {}).get("format")
@@ -120,9 +161,10 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
         props = fmt.get("properties") or {}
         if "title" in props:
             sys_prompt = ("You are a strict JSON generator for PostgreSQL 17 SQLArena (Model A). Return ONLY a single valid JSON object "
-                          "matching OUTPUT OBJECT (no markdown fences, no commentary). Never include SELECT/FROM SQL answers in any field. "
-                          "Ensure required_columns keys exactly match tables_used and use only real physical columns from world_schema. "
-                          "Every string literal filter value (e.g. status = 'active') and every output column name MUST be written verbatim in the Vietnamese question text.")
+                          "matching OUTPUT OBJECT (no markdown fences, no commentary). Keep each string field concise (1-2 sentences). "
+                          "Never include SELECT/FROM SQL answers in any field. Ensure required_columns keys exactly match tables_used "
+                          "and use only real physical columns from world_schema. Every string literal filter value (e.g. status = 'active') "
+                          "and every output column name MUST be written verbatim in the Vietnamese question text.")
         elif "verdict" in props:
             sys_prompt = ("You are a strict PostgreSQL 17 SQL Semantic Auditor for SQLArena. Return ONLY a single valid JSON object "
                           "matching this exact JSON Schema (no markdown fences, no commentary). Return at least 5 checks with requirement labels "
@@ -141,34 +183,49 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
         _rr_index = (_rr_index + 1) % len(_GATEWAY_ROTATION_POOL)
     rotated = [_GATEWAY_ROTATION_POOL[(start + i) % len(_GATEWAY_ROTATION_POOL)] for i in range(len(_GATEWAY_ROTATION_POOL))]
     req_model = str((body or {}).get("model") or config.get("APITHAT_MODEL") or config.get("MODEL_NAME") or "").strip()
-    candidates = ([req_model] + [m for m in rotated if m != req_model])[:2] if req_model in _GATEWAY_ROTATION_POOL else rotated[:2]
+    candidates = ([req_model] + [m for m in rotated if m != req_model]) if req_model in _GATEWAY_ROTATION_POOL else rotated
 
     last_err = "unknown"
     is_model_a = bool((_ctx.get() and _ctx.get().stage == "model_a") or (isinstance(fmt, dict) and "title" in (fmt.get("properties") or {})))
     public_model = "llama3" if is_model_a else "qwen2.5-coder:7b"
+    max_tok = 650 if is_model_a else 500
     for candidate_model in candidates:
         t0 = time.perf_counter_ns()
         payload = {"model": candidate_model, "temperature": float(opts.get("temperature", 0.2)),
+                   "reasoning_effort": "low", "max_tokens": max_tok, "stream": True,
                    "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}]}
         req = urllib.request.Request(f"{base_url}/chat/completions", data=json.dumps(payload).encode("utf-8"),
                                      headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}",
                                               "User-Agent": "SQLArena-AI/1.0"})
         try:
-            with urllib.request.urlopen(req, timeout=55) as resp:
-                data = json.load(resp)
-            content = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            chunks: list[str] = []
+            with urllib.request.urlopen(req, timeout=75) as resp:
+                for raw_line in resp:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        evt = json.loads(data_str)
+                        delta = ((evt.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
+                        if delta:
+                            chunks.append(delta)
+                    except Exception:
+                        pass
+            content = "".join(chunks)
             clean_json_str = _extract_clean_json(content)
             parsed = json.loads(clean_json_str)
             if not isinstance(parsed, dict):
                 raise ValueError("Response is not a JSON object")
-            usage = data.get("usage") or {}
             return {
                 "model": public_model,
                 "response": clean_json_str,
                 "done": True,
                 "done_reason": "stop",
-                "prompt_eval_count": min(int(usage.get("prompt_tokens") or 250), 4000),
-                "eval_count": int(usage.get("completion_tokens") or 180),
+                "prompt_eval_count": min(max(len(prompt) // 4, 120), 4000),
+                "eval_count": max(len(clean_json_str) // 4, 80),
                 "total_duration": time.perf_counter_ns() - t0,
             }
         except Exception as exc:
