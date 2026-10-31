@@ -153,8 +153,6 @@ export const getAdminSkills = () => api.get('/api/v1/admin/skills').then((r) => 
 export const updateAdminSetting = (key: string, value: any) =>
   api.put(`/api/v1/admin/settings/${key}`, { value }).then((r) => r.data);
 
-export const getAdminSkills = () => api.get('/api/v1/admin/skills').then((r) => r.data);
-
 export const extractApiError = (e: any, fallback: string): string =>
   e?.response?.data?.message || e?.response?.data?.error?.message || e?.message || fallback;
 

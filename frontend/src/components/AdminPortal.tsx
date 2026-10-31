@@ -41,7 +41,6 @@ import {
   getAdminSettings,
   getAdminSkills,
   updateAdminSetting,
-  getAdminSkills,
 } from '../lib/api';
 
 const TOPIC_PRESETS = [
@@ -206,24 +205,12 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     } catch {}
   };
 
-  const loadSkills = async () => {
-    try {
-      const r = await getAdminSkills();
-      const items = (r.items || []).filter((s: any) => s.is_active !== false);
-      if (items.length) {
-        setSkillOptions(items.map((s: any) => ({ ...s, id: s.skill_id })));
-        setJobSkills((prev) => prev.length ? prev : items.slice(0, 2).map((s: any) => s.skill_id));
-      }
-    } catch {}
-  };
-
   useEffect(() => {
     if (!isAdmin) return;
     setErr(null);
     loadSkills();
     loadDrafts();
     loadLiveQuestions();
-    loadSkills();
     if (subTab === 'jobs') {
       loadJobs();
     }

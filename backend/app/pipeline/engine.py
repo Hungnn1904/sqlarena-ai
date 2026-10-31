@@ -42,7 +42,12 @@ _raw_ollama_request: Callable = arena.ollama_request
 def _merged_env() -> dict:
     merged = {**dotenv_values(AI_DIR / ".env.example"), **dotenv_values(BACKEND_DIR / ".env")}
     merged.update({k: v for k, v in os.environ.items() if k.startswith(_PASSTHROUGH_PREFIXES)})
-    return {k: v for k, v in merged.items() if v is not None}
+    res = {k: v for k, v in merged.items() if v is not None}
+    if not res.get("CATALOG_DB_USER") and res.get("ENTERPRISE_DB_USER"):
+        res["CATALOG_DB_USER"] = res["ENTERPRISE_DB_USER"]
+    if not res.get("CATALOG_DB_PASSWORD") and res.get("ENTERPRISE_DB_PASSWORD"):
+        res["CATALOG_DB_PASSWORD"] = res["ENTERPRISE_DB_PASSWORD"]
+    return res
 
 
 def load_engine_config(overrides: dict | None = None) -> dict:

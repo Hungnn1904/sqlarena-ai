@@ -106,13 +106,13 @@ class AdminUserUpdateBody(BaseModel):
 
 class SqlRunBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    question_id: int
+    question_id: int | str
     sql: str = Field(min_length=1, max_length=20000)
 
 
 class AiCoachBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    question_id: int
+    question_id: int | str
     sql: str = Field(default="", max_length=20000)
     mode: str = Field(default="review", pattern="^(review|nl2sql|interview|autofix)$")
     prompt: str | None = Field(default=None, max_length=500)

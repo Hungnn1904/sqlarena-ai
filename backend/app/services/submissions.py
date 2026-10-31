@@ -215,7 +215,36 @@ def _walk_plan_nodes(plan_node: dict, out: list[dict], warnings: list[str]) -> N
         _walk_plan_nodes(child, out, warnings)
 
 
-def explain_query(conn: Connection, question_id: int, raw_sql: str) -> dict:
+def _resolve_question_id(conn: Connection, question_id: int | str) -> int:
+    if isinstance(question_id, int):
+        return question_id
+    raw = str(question_id).strip()
+    if raw.isdigit():
+        return int(raw)
+    upper = raw.upper()
+    if upper == "SQL01" or upper == "ENT-006":
+        row = q1(conn, "SELECT question_id FROM live.questions WHERE title = 'Nhân viên không có quản lý trực tiếp' ORDER BY question_id LIMIT 1")
+        if row:
+            return int(row["question_id"])
+    m = re.match(r"^SQL0*(\d+)$", upper)
+    if m:
+        pos = int(m.group(1))
+        row = q1(
+            conn,
+            """SELECT i.question_id
+               FROM live.weekly_set_items i
+               JOIN live.weekly_sets s USING (set_id)
+               WHERE s.status='published' AND i.position=:p
+               ORDER BY s.week_start DESC, s.set_id DESC LIMIT 1""",
+            p=pos,
+        )
+        if row:
+            return int(row["question_id"])
+    raise not_found("Không tìm thấy câu hỏi")
+
+
+def explain_query(conn: Connection, question_id: int | str, raw_sql: str) -> dict:
+    question_id = _resolve_question_id(conn, question_id)
     q_row = q1(conn, "SELECT question_id FROM live.questions WHERE question_id=:q", q=question_id)
     if not q_row:
         raise not_found("Không tìm thấy câu hỏi")
@@ -410,7 +439,8 @@ def ai_coach_assist(
 
 
 
-def run_query(conn: Connection, user_id: int, question_id: int, raw_sql: str) -> dict:
+def run_query(conn: Connection, user_id: int, question_id: int | str, raw_sql: str) -> dict:
+    question_id = _resolve_question_id(conn, question_id)
     q_row = q1(conn, "SELECT question_id FROM live.questions WHERE question_id=:q", q=question_id)
     if not q_row:
         raise not_found("Không tìm thấy câu hỏi")
@@ -425,7 +455,8 @@ def run_query(conn: Connection, user_id: int, question_id: int, raw_sql: str) ->
         raise bad_request(str(exc))
 
 
-def submit_query(conn: Connection, user_id: int, question_id: int, raw_sql: str) -> dict:
+def submit_query(conn: Connection, user_id: int, question_id: int | str, raw_sql: str) -> dict:
+    question_id = _resolve_question_id(conn, question_id)
     q_row = q1(
         conn,
         """SELECT q.question_id, q.compare_mode,

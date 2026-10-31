@@ -21,27 +21,41 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 
-SQL_API_ROOT = Path(__file__).resolve().parents[1]
+SQL_API_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = SQL_API_ROOT.parent
 configured_env = os.environ.get("SQLARENA_ENV_FILE")
 env_paths = ([Path(configured_env)] if configured_env else
-             [REPO_ROOT / ".env", SQL_API_ROOT / ".env", REPO_ROOT / "ai" / ".env"])
+             [SQL_API_ROOT / ".env", REPO_ROOT / ".env", REPO_ROOT / "ai" / ".env"])
 for env_path in env_paths:
     for key, value in dotenv_values(env_path).items():
         if value is not None:
             os.environ.setdefault(key, value)
 
-TIMEOUT_MS = int(os.environ.get("STATEMENT_TIMEOUT_MS", "10000"))
-MAX_RESULT_ROWS = int(os.environ.get("MAX_RESULT_ROWS", "100000"))
+from urllib.parse import urlparse
+from app.config import get_settings
+
+TIMEOUT_MS = int(os.environ.get("STATEMENT_TIMEOUT_MS", str(get_settings().statement_timeout_ms)))
+MAX_RESULT_ROWS = int(os.environ.get("MAX_RESULT_ROWS", str(get_settings().max_result_rows)))
 
 
 def db_config(prefix: str) -> dict:
+    s = get_settings()
+    if prefix == "ENTERPRISE":
+        return {
+            "host": os.environ.get("ENTERPRISE_DB_HOST") or s.enterprise_db_host,
+            "port": int(os.environ.get("ENTERPRISE_DB_PORT") or s.enterprise_db_port),
+            "dbname": os.environ.get("ENTERPRISE_DB_NAME") or s.enterprise_db_name,
+            "user": os.environ.get("ENTERPRISE_DB_USER") or s.enterprise_db_user,
+            "password": os.environ.get("ENTERPRISE_DB_PASSWORD") or s.enterprise_db_password,
+            "row_factory": dict_row,
+        }
+    parsed = urlparse(s.database_url.replace("postgresql+psycopg://", "postgresql://"))
     return {
-        "host": os.environ[f"{prefix}_DB_HOST"],
-        "port": int(os.environ[f"{prefix}_DB_PORT"]),
-        "dbname": os.environ[f"{prefix}_DB_NAME"],
-        "user": os.environ[f"{prefix}_DB_USER"],
-        "password": os.environ[f"{prefix}_DB_PASSWORD"],
+        "host": os.environ.get(f"{prefix}_DB_HOST") or parsed.hostname or "localhost",
+        "port": int(os.environ.get(f"{prefix}_DB_PORT") or parsed.port or 5432),
+        "dbname": os.environ.get(f"{prefix}_DB_NAME") or (parsed.path.lstrip("/") if parsed.path else "sqlarena_app"),
+        "user": os.environ.get(f"{prefix}_DB_USER") or parsed.username or "postgres",
+        "password": os.environ.get(f"{prefix}_DB_PASSWORD") or parsed.password or "",
         "row_factory": dict_row,
     }
 
