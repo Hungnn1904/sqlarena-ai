@@ -39,6 +39,7 @@ import {
   getAdminUsers,
   updateAdminUser,
   getAdminSettings,
+  getAdminSkills,
   updateAdminSetting,
 } from '../lib/api';
 
@@ -68,12 +69,12 @@ const formatVnTime = (iso?: string | null) => {
 };
 
 const SKILL_OPTIONS = [
-  { id: 1, code: 'S1', name: 'SELECT / WHERE' },
-  { id: 2, code: 'S2', name: 'JOIN Multi-Table' },
-  { id: 3, code: 'S3', name: 'GROUP BY / HAVING' },
-  { id: 4, code: 'S4', name: 'Subquery / CTE' },
-  { id: 5, code: 'S5', name: 'Window Functions' },
-  { id: 6, code: 'S6', name: 'Edge Cases & NULL' },
+  { id: 19, code: 'S1', name: 'SELECT / WHERE' },
+  { id: 20, code: 'S2', name: 'JOIN Multi-Table' },
+  { id: 21, code: 'S3', name: 'GROUP BY / HAVING' },
+  { id: 22, code: 'S4', name: 'Subquery / CTE' },
+  { id: 23, code: 'S5', name: 'Window Functions' },
+  { id: 24, code: 'S6', name: 'Edge Cases & NULL' },
 ];
 
 export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
@@ -102,7 +103,8 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
   const [jobDiff, setJobDiff] = useState(2);
   const [jobCount, setJobCount] = useState(1);
   const [jobTopic, setJobTopic] = useState('');
-  const [jobSkills, setJobSkills] = useState<number[]>([2, 3]);
+  const [skillOptions, setSkillOptions] = useState(SKILL_OPTIONS);
+  const [jobSkills, setJobSkills] = useState<number[]>([19, 20]);
   const [submittingJob, setSubmittingJob] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
 
@@ -181,11 +183,23 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     } catch {}
   };
 
+  const loadSkills = async () => {
+    try {
+      const r = await getAdminSkills();
+      const items = (r.items || []).filter((s: any) => s.is_active !== false);
+      if (items.length) {
+        setSkillOptions(items.map((s: any) => ({ ...s, id: s.skill_id })));
+        setJobSkills((prev) => prev.length ? prev : items.slice(0, 2).map((s: any) => s.skill_id));
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     setErr(null);
     loadDrafts();
     loadLiveQuestions();
+    loadSkills();
     if (subTab === 'jobs') {
       loadJobs();
     }
@@ -258,7 +272,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
     try {
       const job = await createGenerationJob({
         difficulty: jobDiff,
-        skill_ids: jobSkills.length ? jobSkills : [2],
+        skill_ids: jobSkills.length ? jobSkills : skillOptions.slice(0, 2).map((s) => s.id),
         requested_count: jobCount,
         quantity: jobCount,
         topic: chosenTopic,
@@ -1076,7 +1090,7 @@ export default function AdminPortal({ isAdmin }: { isAdmin: boolean }) {
                 Nhóm kỹ năng mục tiêu (Skills S1–S6)
               </label>
               <div className="grid grid-cols-2 gap-1.5">
-                {SKILL_OPTIONS.map((sk) => {
+                {skillOptions.map((sk: any) => {
                   const active = jobSkills.includes(sk.id);
                   return (
                     <button

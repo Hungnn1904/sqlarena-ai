@@ -148,6 +148,8 @@ export const toggleAdminQuestionSource = (questionId: number, is_source: boolean
 
 export const getAdminSettings = () => api.get('/api/v1/admin/settings').then((r) => r.data);
 
+export const getAdminSkills = () => api.get('/api/v1/admin/skills').then((r) => r.data);
+
 export const updateAdminSetting = (key: string, value: any) =>
   api.put(`/api/v1/admin/settings/${key}`, { value }).then((r) => r.data);
 
