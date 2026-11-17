@@ -134,15 +134,15 @@ def seed_demo_live(conn: Connection) -> dict:
             vr = {"passed": st == "approved", "consensus": "3/3" if st == "approved" else "2/3", "reason": reason}
             drow = q1(conn, """INSERT INTO draft.question_drafts
                                (world_id, job_id, title, question, reference_sql, compare_mode, difficulty, skill_ids, blueprint, tables_used, schema_text, validation_report, status, status_reason, gen_model, gen_prompt_version, review_attempts)
-                               VALUES (:w, :j, :t, :q, :sql, 'ordered', :d, :sk, CAST(:bp AS jsonb), :tu, :stxt, CAST(:vr AS jsonb), :st, :r, 'qwen2.5-coder:14b', 'v2.4-ct', 1)
+                               VALUES (:w, :j, :t, :q, :sql, 'ordered', :d, :sk, CAST(:bp AS jsonb), :tu, :stxt, CAST(:vr AS jsonb), :st, :r, 'Model A', 'v2.4-ct', 1)
                                RETURNING draft_id""",
                       w=world_pk, j=jid, t=title, q=qtxt, sql=rsql, d=diff, sk=sks, bp=_j(bp), tu=tbls,
                       stxt=f"-- Tables: {', '.join(tbls)}", vr=_j(vr), st=st, r=reason)
             did = drow["draft_id"]
             ex(conn, """INSERT INTO draft.self_solve_runs (draft_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, exec_status, row_count, review_model, review_round)
-                        VALUES (:d, 0, :sql, true, 3, 3, 'ok', 5, 'deepseek-coder-v2:16b', 1)""", d=did, sql=rsql)
+                        VALUES (:d, 0, :sql, true, 3, 3, 'ok', 5, 'Model B', 1)""", d=did, sql=rsql)
             ex(conn, """INSERT INTO draft.review_logs (draft_id, stage, passed, score, reasons, review_model, rubric_version)
-                        VALUES (:d, 'decision', :p, :sc, CAST(:rs AS jsonb), 'deepseek-coder-v2:16b', 'rubric-v7')""",
+                        VALUES (:d, 'decision', :p, :sc, CAST(:rs AS jsonb), 'Model B', 'rubric-v7')""",
                d=did, p=(st == "approved"), sc=(95.0 if st == "approved" else 78.5), rs=_j([reason]))
 
     if q1(conn, "SELECT count(*) AS n FROM live.submissions")["n"] == 0:

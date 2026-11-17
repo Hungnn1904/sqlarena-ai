@@ -8,6 +8,7 @@ cd "$ROOT_DIR"
 LKG_FILE="$ROOT_DIR/.deploy-lkg.sha"
 BACKEND_PORT="${BACKEND_HOST_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_HOST_PORT:-3000}"
+ADMIN_PORT="${ADMIN_HOST_PORT:-4000}"
 
 detect_public_ip() {
   local ip=""
@@ -70,7 +71,8 @@ case "${1:-deploy}" in
     git checkout "$TARGET_SHA"
     docker compose up --build -d
     wait_http_ok "http://127.0.0.1:${BACKEND_PORT}/api/v1/health" "Backend API"
-    wait_http_ok "http://127.0.0.1:${FRONTEND_PORT}/" "Frontend Web"
+    wait_http_ok "http://127.0.0.1:${FRONTEND_PORT}/" "Web Học viên"
+    wait_http_ok "http://127.0.0.1:${ADMIN_PORT}/" "Web Quản trị"
     echo "✅ Rollback hoàn tất!"
     exit 0
     ;;
@@ -109,7 +111,12 @@ fi
 if [ -z "${FRONTEND_HOST_PORT:-}" ] && port_in_use 3000 && ! docker ps --filter "name=^sqlarena-frontend$" --filter "publish=3000" --format '{{.Names}}' 2>/dev/null | grep -qx 'sqlarena-frontend'; then
   export FRONTEND_HOST_PORT=3005
   FRONTEND_PORT=3005
-  echo "👉 Cổng 3000 đang được ứng dụng khác dùng — tự động chuyển Frontend sang cổng 3005."
+  echo "👉 Cổng 3000 đang được ứng dụng khác dùng — tự động chuyển Web Học viên sang cổng 3005."
+fi
+if [ -z "${ADMIN_HOST_PORT:-}" ] && port_in_use 4000 && ! docker ps --filter "name=^sqlarena-frontend$" --filter "publish=4000" --format '{{.Names}}' 2>/dev/null | grep -qx 'sqlarena-frontend'; then
+  export ADMIN_HOST_PORT=4005
+  ADMIN_PORT=4005
+  echo "👉 Cổng 4000 đang được ứng dụng khác dùng — tự động chuyển Web Quản trị sang cổng 4005."
 fi
 
 # Mặc định để trống NEXT_PUBLIC_API_URL để truy cập qua IP VPS không cần domain
@@ -125,13 +132,15 @@ echo "🐳 Đang build & khởi chạy cụm container SQLArena AI..."
 docker compose up --build -d
 
 wait_http_ok "http://127.0.0.1:${BACKEND_PORT}/api/v1/health" "Backend API (/api/v1/health)" 60
-wait_http_ok "http://127.0.0.1:${FRONTEND_PORT}/" "Frontend UI (:${FRONTEND_PORT})" 45
+wait_http_ok "http://127.0.0.1:${FRONTEND_PORT}/" "Web Học viên (:${FRONTEND_PORT})" 45
+wait_http_ok "http://127.0.0.1:${ADMIN_PORT}/" "Web Quản trị (:${ADMIN_PORT})" 45
 
 VPS_IP="$(detect_public_ip)"
 echo ""
 echo "=================================================================="
 echo "🎉 TRIỂN KHAI SQLARENA AI THÀNH CÔNG (KHÔNG CẦN DOMAIN)!"
-echo "   🌐 Giao diện Học viên & Giảng viên: http://${VPS_IP}:${FRONTEND_PORT}"
+echo "   🌐 Web Học viên:  http://${VPS_IP}:${FRONTEND_PORT}"
+echo "   🛠️ Web Quản trị:  http://${VPS_IP}:${ADMIN_PORT}"
 echo "   🔌 Backend Swagger Docs:            http://${VPS_IP}:${BACKEND_PORT}/api/docs"
 echo "   🔒 PostgreSQL nội bộ an toàn:       127.0.0.1:${POSTGRES_HOST_PORT}"
 echo "   📊 Kiểm tra trạng thái:             ./scripts/deploy-vps.sh --status"

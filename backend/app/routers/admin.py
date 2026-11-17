@@ -1,7 +1,7 @@
 """API quản trị: job sinh đề, draft/kiểm duyệt, câu hỏi đã xuất bản, kỹ năng, cấu hình, mức dùng LLM."""
 import json
 
-from fastapi import APIRouter, Depends, Header, Query, Response
+from fastapi import APIRouter, Body, Depends, Header, Query, Response
 
 from ..db import begin, ex, q, q1
 from ..errors import bad_request, not_found
@@ -20,6 +20,32 @@ router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 # ---------------------------------------------------------------- generation jobs
 @router.post("/generation-jobs", status_code=202, tags=["admin-jobs"])
 def create_job(body: JobCreate, response: Response, admin: dict = Depends(require_admin), idempotency_key: str | None = Header(None, max_length=100)):
+    if body.skill_quantities:
+        created_list: list[dict] = []
+        any_created = False
+        with begin() as conn:
+            for idx, item in enumerate(body.skill_quantities):
+                sub_key = (
+                    idempotency_key
+                    if (idempotency_key and len(body.skill_quantities) == 1)
+                    else (f"{idempotency_key}:{idx}:{item.skill_id}"[:100] if idempotency_key else None)
+                )
+                sub_payload = {
+                    "world_id": body.world_id,
+                    "difficulty": body.difficulty,
+                    "skill_ids": [item.skill_id],
+                    "quantity": item.quantity,
+                    "topic": body.topic,
+                    "auto_run": body.auto_run,
+                    "sync_run": body.sync_run,
+                }
+                job, created = jobs.create(conn, admin, sub_payload, sub_key)
+                created_list.append(job)
+                any_created = any_created or created
+        if not any_created:
+            response.status_code = 200
+        return {**jobs.public(created_list[0]), "created_jobs": [jobs.public(j) for j in created_list]}
+
     with begin() as conn:
         job, created = jobs.create(conn, admin, body.model_dump(), idempotency_key)
     if not created:
@@ -76,6 +102,16 @@ def edit_draft(draft_id: int, body: DraftEditBody, admin: dict = Depends(require
 def requeue_draft(draft_id: int, body: RequeueBody, admin: dict = Depends(require_admin)):
     with begin() as conn:
         return drafts.requeue(conn, admin, draft_id, body.note)
+
+
+@router.post("/drafts/{draft_id}/return-needs-human", tags=["admin-drafts"])
+def return_draft_needs_human(
+    draft_id: int,
+    body: RequeueBody = Body(default_factory=RequeueBody),
+    admin: dict = Depends(require_admin),
+):
+    with begin() as conn:
+        return drafts.return_needs_human(conn, admin, draft_id, body.note)
 
 
 @router.post("/drafts/{draft_id}/approve", tags=["admin-drafts"])
@@ -267,27 +303,40 @@ def update_gateway_key(body: GatewayKeyBody, admin: dict = Depends(require_admin
     return info
 
 
+def _normalize_call_model(model_val: str | None, stage: str | None) -> str:
+    raw = (model_val or "").strip()
+    low = raw.lower()
+    if not raw or any(tok in low for tok in ("llama", "qwen", "deepseek", "ollama")):
+        if stage == "model_a":
+            return "Model A"
+        if stage == "checklist_b":
+            return "Auditor"
+        return "Model B"
+    return raw
+
+
 @router.get("/llm-usage", tags=["admin-settings"])
 def llm_usage():
     gw = eng.get_gateway_status()
-    active_provider = "apithat.dev" if gw.get("valid") else "local-ai-pipeline"
+    active_provider = "apithat.dev" if gw.get("valid") else "ai-pipeline"
     pref = gw.get("preferred_model") or "gpt-5.6-sol"
     models = (
         {"generator": pref, "reviewer": pref, "auditor": pref}
         if gw.get("valid")
-        else {"generator": "llama3", "reviewer": "qwen2.5-coder:7b", "auditor": "qwen2.5-coder:7b"}
+        else {"generator": "Model A", "reviewer": "Model B", "auditor": "Auditor"}
     )
     with begin() as conn:
         cap = sr.get(conn, "generation.daily_budget_calls")
         by = q(conn, "SELECT stage, status, count(*) AS n FROM draft.llm_call_ledger WHERE (created_at AT TIME ZONE :tz)::date = (now() AT TIME ZONE :tz)::date "
                      "GROUP BY stage, status ORDER BY stage, status", tz=__import__("app.config", fromlist=["x"]).get_settings().app_timezone)
-        recent = q(conn, """SELECT l.call_id, l.job_id, l.draft_id, l.stage, l.attempt_no, l.model, l.status,
-                                   l.started_at, l.finished_at, l.latency_ms, l.input_tokens, l.output_tokens, l.error_code,
-                                   d.title AS title, d.title AS draft_title
-                            FROM draft.llm_call_ledger l
-                            LEFT JOIN draft.question_drafts d ON d.draft_id = l.draft_id
-                            ORDER BY l.call_id DESC
-                            LIMIT 15""")
+        raw_recent = q(conn, """SELECT l.call_id, l.job_id, l.draft_id, l.stage, l.attempt_no, l.model, l.status,
+                                       l.started_at, l.finished_at, l.latency_ms, l.input_tokens, l.output_tokens, l.error_code,
+                                       d.title AS title, d.title AS draft_title
+                                FROM draft.llm_call_ledger l
+                                LEFT JOIN draft.question_drafts d ON d.draft_id = l.draft_id
+                                ORDER BY l.call_id DESC
+                                LIMIT 15""")
+        recent = [{**r, "model": _normalize_call_model(r.get("model"), r.get("stage"))} for r in raw_recent]
         recent_drafts = q(conn, """SELECT d.draft_id, d.job_id, d.title, d.difficulty, d.status, d.created_at, d.updated_at,
                                           lq.question_id AS live_question_id,
                                           (SELECT wsi.position FROM live.weekly_set_items wsi WHERE wsi.question_id = lq.question_id ORDER BY wsi.set_id DESC LIMIT 1) AS weekly_position

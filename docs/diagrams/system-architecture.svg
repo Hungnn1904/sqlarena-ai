@@ -52,37 +52,37 @@
     </style>
   </defs>
   <rect width="1080.0" height="640.0" fill="url(#terminalGradient)"/>
-  <text x="540.0" y="56" text-anchor="middle" class="title">SQLArena AI — 4-Tier Polyrepo &amp; Domainless VPS Architecture</text>
-  <text x="540.0" y="82" text-anchor="middle" class="subtitle">Same-Origin Nginx Proxy (:3000) · FastAPI Clean Core (:8000) · PostgreSQL 17 Sandbox · apithat.dev Gateway</text>
+  <text x="540.0" y="56" text-anchor="middle" class="title">SQLArena AI — Dual-Portal (:3000 Learner / :4000 Admin) &amp; VPS Architecture</text>
+  <text x="540.0" y="82" text-anchor="middle" class="subtitle">Port :3000 Learner Web · Port :4000 Admin Web · FastAPI Core (:8000) · PostgreSQL 17 · apithat.dev Gateway</text>
   <rect x="40.0" y="115.0" width="1000.0" height="115.0" rx="16.0" fill="rgba(15,23,42,0.28)" stroke="#334155" stroke-width="1.4" stroke-dasharray="7 6"/>
-  <text x="58.0" y="139.0" class="section">EDGE &amp; PRESENTATION LAYER (DOCKER :3000)</text>
+  <text x="58.0" y="139.0" class="section">ISOLATED PRESENTATION PORTALS (NGINX REVERSE PROXY :3000 &amp; :4000)</text>
   <rect x="40.0" y="270.0" width="1000.0" height="125.0" rx="16.0" fill="rgba(15,23,42,0.28)" stroke="#334155" stroke-width="1.4" stroke-dasharray="7 6"/>
   <text x="58.0" y="294.0" class="section">APPLICATION &amp; FENCED WORKER LAYER (NON-ROOT UID 10001)</text>
   <rect x="40.0" y="435.0" width="1000.0" height="145.0" rx="16.0" fill="rgba(15,23,42,0.28)" stroke="#334155" stroke-width="1.4" stroke-dasharray="7 6"/>
-  <text x="58.0" y="459.0" class="section">DATA ISOLATION &amp; DUAL-MODEL GATEWAY LAYER</text>
+  <text x="58.0" y="459.0" class="section">DATA ISOLATION &amp; AI GATEWAY LAYER</text>
   <path d="M 0.0,0.0" fill="none" stroke="#a855f7" stroke-width="2.3" marker-end="url(#arrowA)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#a855f7" stroke-width="2.3" marker-end="url(#arrowA)"/>
-  <path d="M 0.0,0.0" fill="none" stroke="#f97316" stroke-width="2.3" marker-end="url(#arrowG)" stroke-dasharray="6,4"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#a855f7" stroke-width="2.3" marker-end="url(#arrowA)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#22c55e" stroke-width="2.3" marker-end="url(#arrowB)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#38bdf8" stroke-width="2.3" marker-end="url(#arrowC)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#22c55e" stroke-width="2.3" marker-end="url(#arrowB)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#38bdf8" stroke-width="2.3" marker-end="url(#arrowC)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#f59e0b" stroke-width="2.3" marker-end="url(#arrowF)"/>
-  <rect x="80.0" y="148.0" width="250.0" height="66.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
-  <text x="205.0" y="181.0" text-anchor="middle" class="node-title">Learner &amp; Lecturer UI</text>
-  <text x="205.0" y="203.0" text-anchor="middle" class="node-sub">http://VPS_IP:3000 (SPA)</text>
-  <rect x="440.0" y="148.0" width="270.0" height="66.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
-  <text x="575.0" y="181.0" text-anchor="middle" class="node-title">sqlarena-frontend (Nginx)</text>
-  <text x="575.0" y="203.0" text-anchor="middle" class="node-sub">Static dist/ + /api/ Proxy</text>
-  <rect x="800.0" y="148.0" width="210.0" height="66.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
-  <text x="905.0" y="181.0" text-anchor="middle" class="node-title">AK-Vault / .env Secret</text>
-  <text x="905.0" y="203.0" text-anchor="middle" class="node-sub">Out-of-Band Key Injection</text>
+  <rect x="65.0" y="148.0" width="270.0" height="66.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
+  <text x="200.0" y="181.0" text-anchor="middle" class="node-title">Learner Portal (:3000)</text>
+  <text x="200.0" y="203.0" text-anchor="middle" class="node-sub">http://VPS_IP:3000 (SQL IDE)</text>
+  <rect x="385.0" y="148.0" width="270.0" height="66.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
+  <text x="520.0" y="181.0" text-anchor="middle" class="node-title">Admin Portal (:4000)</text>
+  <text x="520.0" y="203.0" text-anchor="middle" class="node-sub">http://VPS_IP:4000 (Users &amp; AI)</text>
+  <rect x="705.0" y="148.0" width="305.0" height="66.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
+  <text x="857.5" y="181.0" text-anchor="middle" class="node-title">sqlarena-frontend (Nginx)</text>
+  <text x="857.5" y="203.0" text-anchor="middle" class="node-sub">Dual VirtualHost + /api/ Proxy</text>
   <rect x="180.0" y="308.0" width="300.0" height="70.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
   <text x="330.0" y="343.0" text-anchor="middle" class="node-title">sqlarena-backend (FastAPI)</text>
-  <text x="330.0" y="365.0" text-anchor="middle" class="node-sub">Auth · Groups · Grading API</text>
+  <text x="330.0" y="365.0" text-anchor="middle" class="node-sub">RBAC · Drafts · Groups · Grading</text>
   <rect x="600.0" y="308.0" width="300.0" height="70.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
   <text x="750.0" y="343.0" text-anchor="middle" class="node-title">sqlarena-worker (Daemon)</text>
-  <text x="750.0" y="365.0" text-anchor="middle" class="node-sub">SKIP LOCKED + Lease Fencing</text>
+  <text x="750.0" y="365.0" text-anchor="middle" class="node-sub">Per-Skill Queue + Lease Fencing</text>
   <rect x="70.0" y="480.0" width="270.0" height="76.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
   <text x="205.0" y="518.0" text-anchor="middle" class="node-title">PostgreSQL 17: sqlarena_app</text>
   <text x="205.0" y="540.0" text-anchor="middle" class="node-sub">Schemas: core · draft · live</text>
@@ -90,14 +90,14 @@
   <text x="540.0" y="518.0" text-anchor="middle" class="node-title">PostgreSQL 17: enterprise_db</text>
   <text x="540.0" y="540.0" text-anchor="middle" class="node-sub">13 Tables · Role sqlarena_ai_ro</text>
   <rect x="740.0" y="480.0" width="270.0" height="76.0" rx="10.0" fill="#111827" stroke="#334155" stroke-width="1.8"/>
-  <text x="875.0" y="518.0" text-anchor="middle" class="node-title">apithat.dev / Ollama Gateway</text>
-  <text x="875.0" y="540.0" text-anchor="middle" class="node-sub">Model A + Blind Solver B (k=3)</text>
+  <text x="875.0" y="518.0" text-anchor="middle" class="node-title">apithat.dev Gateway</text>
+  <text x="875.0" y="540.0" text-anchor="middle" class="node-sub">Model A Synthesis + Blind Solver B</text>
+  <rect x="-38.5" y="-14.0" width="77" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Port 3000</text>
+  <rect x="-38.5" y="-14.0" width="77" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Port 4000</text>
   <rect x="-73.5" y="-14.0" width="147" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
   <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Same-Origin /api/v1</text>
-  <rect x="-63.0" y="-14.0" width="126" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">proxy_pass :8000</text>
-  <rect x="-59.5" y="-14.0" width="119" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">APITHAT_API_KEY</text>
   <rect x="-59.5" y="-14.0" width="119" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
   <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">SQLAlchemy Core</text>
   <rect x="-52.5" y="-14.0" width="105" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
@@ -106,7 +106,7 @@
   <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Fenced Claim</text>
   <rect x="-56.0" y="-14.0" width="112" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
   <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Verify k=3 SQL</text>
-  <rect x="-59.5" y="-14.0" width="119" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">SSE JSON Schema</text>
-  <text x="42.0" y="624.0" class="footnote">SQLArena AI Capstone Architecture · Generated via MyKit v3.15 tech-diagramming</text>
+  <rect x="-56.0" y="-14.0" width="112" height="20" rx="6" fill="#0f172a" opacity="0.92"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">apithat.dev/v1</text>
+  <text x="42.0" y="624.0" class="footnote">SQLArena AI Capstone Architecture · Port :3000 Learner &amp; Port :4000 Admin · MyKit v3.15</text>
 </svg>

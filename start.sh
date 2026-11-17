@@ -23,10 +23,24 @@ if [ "$MODE" = "--docker" ]; then
     echo "👉 Phát hiện cổng 3000 đang bận trên máy chủ, tự động gán FRONTEND_HOST_PORT=3005."
     export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-3005}"
   fi
+  if lsof -i :4000 >/dev/null 2>&1 && ! docker ps --filter "name=^sqlarena-frontend$" --filter "publish=4000" --format '{{.Names}}' 2>/dev/null | grep -qx 'sqlarena-frontend'; then
+    echo "👉 Phát hiện cổng 4000 đang bận trên máy chủ, tự động gán ADMIN_HOST_PORT=4005."
+    export ADMIN_HOST_PORT="${ADMIN_HOST_PORT:-4005}"
+  fi
   docker compose up --build -d
+  FRONTEND_PORT="${FRONTEND_HOST_PORT:-3000}"
+  ADMIN_PORT="${ADMIN_HOST_PORT:-4000}"
+  for i in $(seq 1 30); do
+    if curl -fsS --max-time 2 "http://127.0.0.1:${FRONTEND_PORT}/" >/dev/null 2>&1 && \
+       curl -fsS --max-time 2 "http://127.0.0.1:${ADMIN_PORT}/" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
   echo "✅ Đã bật Docker Compose thành công!"
-  echo "   🌐 Frontend Next.js 16: http://127.0.0.1:${FRONTEND_HOST_PORT:-3000}"
-  echo "   🔌 Backend FastAPI:     http://127.0.0.1:${BACKEND_HOST_PORT:-8000}/api/docs"
+  echo "   🌐 Web Học viên:  http://127.0.0.1:${FRONTEND_PORT}"
+  echo "   🛠️ Web Quản trị:  http://127.0.0.1:${ADMIN_PORT}"
+  echo "   🔌 Backend FastAPI: http://127.0.0.1:${BACKEND_HOST_PORT:-8000}/api/docs"
   exit 0
 fi
 

@@ -5,8 +5,9 @@ import { motion } from 'framer-motion';
 import {
   CheckCircle2,
   XCircle,
-  Clock,
+  AlertTriangle,
   Activity,
+  Award,
 } from 'lucide-react';
 import {
   getMyProgress,
@@ -14,6 +15,40 @@ import {
   getMonthlyLeaderboard,
   getWeeklyHistory,
 } from '../lib/api';
+
+function resolveSubmissionOutcome(s: any): {
+  label: 'Làm được' | 'RTE' | 'Không làm được';
+  badgeClass: string;
+  Icon: typeof CheckCircle2;
+} {
+  if (s.submission_status === 'passed') {
+    return {
+      label: 'Làm được',
+      badgeClass: 'badge-easy',
+      Icon: CheckCircle2,
+    };
+  }
+  const isWrongAnswerMismatch =
+    typeof s.error_message === 'string' &&
+    s.error_message.includes('Kết quả truy vấn chưa khớp');
+  const isRte =
+    s.submission_status === 'error' ||
+    s.execution_status === 'timeout' ||
+    (s.execution_status === 'error' && !isWrongAnswerMismatch);
+
+  if (isRte) {
+    return {
+      label: 'RTE',
+      badgeClass: 'badge-medium',
+      Icon: AlertTriangle,
+    };
+  }
+  return {
+    label: 'Không làm được',
+    badgeClass: 'badge-hard',
+    Icon: XCircle,
+  };
+}
 
 export function LearnerProgressView() {
   const [data, setData] = useState<any>(null);
@@ -29,7 +64,7 @@ export function LearnerProgressView() {
   if (loading) {
     return (
       <div className="p-10 bg-surface border border-line rounded-xl text-center text-sm text-muted">
-        Đang tải dữ liệu tiến độ học tập...
+        Đang tải dữ liệu tiến độ học tập…
       </div>
     );
   }
@@ -65,7 +100,7 @@ export function LearnerProgressView() {
               {summary.total_submissions ?? 0}
             </span>
             <span className="text-sm font-medium text-text2">
-              ({summary.passed_submissions ?? 0} lượt đạt)
+              ({summary.passed_submissions ?? 0} lượt làm được)
             </span>
           </div>
         </div>
@@ -147,7 +182,7 @@ export function LearnerProgressView() {
         </div>
       </div>
 
-      {/* Submission Audit Log */}
+      {/* Submission Audit Log (No Score Column, Strictly 3 Clear Verdicts) */}
       <div className="bg-surface border border-line rounded-xl overflow-hidden">
         <div className="px-5 py-4 bg-soft border-b border-line flex items-center justify-between">
           <h3 className="text-base font-bold text-ink">
@@ -164,8 +199,7 @@ export function LearnerProgressView() {
               <tr className="bg-canvas border-b border-line text-text2 font-semibold">
                 <th className="py-3 px-4">Mã lượt nộp</th>
                 <th className="py-3 px-4">Bài tập</th>
-                <th className="py-3 px-4">Kết quả</th>
-                <th className="py-3 px-4">Điểm số</th>
+                <th className="py-3 px-4">Trạng thái</th>
                 <th className="py-3 px-4">Thời gian chạy</th>
                 <th className="py-3 px-4">Thời điểm nộp</th>
               </tr>
@@ -173,13 +207,14 @@ export function LearnerProgressView() {
             <tbody className="divide-y divide-line">
               {recent.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-sm text-muted">
+                  <td colSpan={5} className="py-10 text-center text-sm text-muted">
                     Chưa có lịch sử nộp bài.
                   </td>
                 </tr>
               ) : (
                 recent.map((s: any) => {
-                  const isPass = s.submission_status === 'passed';
+                  const outcome = resolveSubmissionOutcome(s);
+                  const OutcomeIcon = outcome.Icon;
                   return (
                     <tr key={s.submission_id} className="hover:bg-soft transition-colors">
                       <td className="py-3 px-4 text-muted">
@@ -193,23 +228,14 @@ export function LearnerProgressView() {
                       </td>
                       <td className="py-3 px-4">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
-                            isPass ? 'badge-easy' : 'badge-hard'
-                          }`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${outcome.badgeClass}`}
                         >
-                          {isPass ? (
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          ) : (
-                            <XCircle className="w-3.5 h-3.5" />
-                          )}
-                          <span>{isPass ? 'Đạt' : 'Chưa đạt'}</span>
+                          <OutcomeIcon className="w-3.5 h-3.5" />
+                          <span>{outcome.label}</span>
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-semibold text-ink">
-                        {s.score}/100
-                      </td>
                       <td className="py-3 px-4 text-text2">
-                        {s.runtime_ms} ms
+                        {s.runtime_ms ?? 0} ms
                       </td>
                       <td className="py-3 px-4 text-muted">
                         {s.submitted_at
@@ -254,7 +280,35 @@ export function LeaderboardView() {
 
   const currentItems =
     mode === 'weekly' ? weeklyData?.items || [] : monthlyData?.items || [];
-  const topThree = currentItems.slice(0, 3);
+
+  const rankOne = currentItems[0] || null;
+  const rankTwo = currentItems[1] || null;
+  const rankThree = currentItems[2] || null;
+
+  // Olympic Podium slots: Left = #2, Center = #1 (Tallest), Right = #3
+  const podiumSlots = [
+    {
+      slotKey: 'rank-2',
+      entry: rankTwo,
+      fallbackRank: 2,
+      heightClass: 'min-h-[172px]',
+      orderClass: 'order-2 md:order-1',
+    },
+    {
+      slotKey: 'rank-1',
+      entry: rankOne,
+      fallbackRank: 1,
+      heightClass: 'min-h-[212px]',
+      orderClass: 'order-1 md:order-2',
+    },
+    {
+      slotKey: 'rank-3',
+      entry: rankThree,
+      fallbackRank: 3,
+      heightClass: 'min-h-[148px]',
+      orderClass: 'order-3 md:order-3',
+    },
+  ];
 
   return (
     <div className="space-y-5">
@@ -300,7 +354,7 @@ export function LeaderboardView() {
             type="button"
             data-solid-btn={mode === 'weekly' ? 'true' : undefined}
             onClick={() => setMode('weekly')}
-            className={`px-4 min-h-9 rounded-md text-sm font-semibold ${
+            className={`px-4 min-h-9 rounded-md text-sm font-semibold whitespace-nowrap ${
               mode === 'weekly' ? 'btn-primary' : 'text-text2 hover:text-ink'
             }`}
           >
@@ -310,7 +364,7 @@ export function LeaderboardView() {
             type="button"
             data-solid-btn={mode === 'monthly' ? 'true' : undefined}
             onClick={() => setMode('monthly')}
-            className={`px-4 min-h-9 rounded-md text-sm font-semibold ${
+            className={`px-4 min-h-9 rounded-md text-sm font-semibold whitespace-nowrap ${
               mode === 'monthly' ? 'btn-primary' : 'text-text2 hover:text-ink'
             }`}
           >
@@ -319,38 +373,58 @@ export function LeaderboardView() {
         </div>
       </div>
 
-      {/* Top 3 Standings Cards (Solid surfaces, no gradients) */}
-      {topThree.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 tabular-nums">
-          {topThree.map((r: any, idx: number) => {
-            const rankBadges = ['badge-medium', 'badge-info', 'badge-easy'];
+      {/* Olympic Top 3 Podium (#2 Left, #1 Center Tallest, #3 Right — Unified Single Brand Tone) */}
+      {currentItems.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end tabular-nums pt-2">
+          {podiumSlots.map((slot) => {
+            const r = slot.entry;
+            if (!r) {
+              return (
+                <div
+                  key={slot.slotKey}
+                  className={`hidden md:flex ${slot.orderClass} ${slot.heightClass} bg-surface border border-dashed border-line rounded-2xl p-5 flex-col justify-between opacity-60`}
+                >
+                  <span className="inline-flex items-center gap-1.5 self-start text-xs font-semibold px-2.5 py-1 rounded-md badge-easy">
+                    <Award className="w-3.5 h-3.5" />
+                    <span>Hạng #{slot.fallbackRank}</span>
+                  </span>
+                  <div className="text-xs text-muted">Chưa có học viên ở vị trí này</div>
+                </div>
+              );
+            }
+
+            const solvedNum = r.correct_count ?? r.solved_count ?? 0;
+            const isFirst = slot.fallbackRank === 1;
+
             return (
               <div
-                key={r.user_id}
-                className="bg-surface border border-line rounded-xl p-5 flex flex-col justify-between gap-4"
+                key={r.user_id ?? slot.slotKey}
+                className={`${slot.orderClass} ${slot.heightClass} bg-surface border ${
+                  isFirst ? 'border-2 border-brand' : 'border-[var(--green-border)]'
+                } rounded-2xl p-5 flex flex-col justify-between gap-3`}
               >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-md ${
-                      rankBadges[idx] || 'badge-neutral'
-                    }`}
-                  >
-                    Hạng #{r.rank}
-                  </span>
-                  <span className="text-xs text-muted flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{r.avg_runtime_ms} ms</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md badge-easy">
+                    <Award className="w-3.5 h-3.5" />
+                    <span>Hạng #{r.rank ?? slot.fallbackRank}</span>
                   </span>
                 </div>
+
                 <div className="flex items-center gap-3">
                   <div
                     data-solid-btn="true"
-                    className="w-10 h-10 rounded-lg btn-primary flex items-center justify-center text-sm font-bold shrink-0"
+                    className={`${
+                      isFirst ? 'w-12 h-12 text-base' : 'w-10 h-10 text-sm'
+                    } rounded-xl btn-primary flex items-center justify-center font-bold shrink-0`}
                   >
                     {(r.display_name || r.username).slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <div className="text-base font-bold text-ink truncate">
+                    <div
+                      className={`${
+                        isFirst ? 'text-lg' : 'text-base'
+                      } font-bold text-ink truncate`}
+                    >
                       {r.display_name || r.username}
                     </div>
                     <div className="text-xs text-muted truncate">
@@ -358,12 +432,11 @@ export function LeaderboardView() {
                     </div>
                   </div>
                 </div>
+
                 <div className="pt-3 border-t border-line flex items-center justify-between text-sm">
-                  <span className="text-brand font-semibold">
-                    Đã giải: {r.correct_count ?? r.solved_count} câu
-                  </span>
-                  <span className="text-ink font-bold">
-                    {r.total_score} điểm
+                  <span className="text-text2 font-medium">Câu đúng</span>
+                  <span className="text-brand font-bold">
+                    {solvedNum} câu
                   </span>
                 </div>
               </div>
@@ -372,23 +445,21 @@ export function LeaderboardView() {
         </div>
       )}
 
-      {/* Full Standings Table */}
+      {/* Full Standings Table (Strictly Rank, Learner, Correct Count — No Score, No Speed) */}
       <div className="bg-surface border border-line rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm tabular-nums">
             <thead>
               <tr className="bg-soft border-b border-line text-text2 font-semibold">
-                <th className="py-3.5 px-4 w-24">Thứ hạng</th>
-                <th className="py-3.5 px-4">Sinh viên</th>
-                <th className="py-3.5 px-4">Số câu đúng</th>
-                <th className="py-3.5 px-4">Tổng điểm</th>
-                <th className="py-3.5 px-4">Tốc độ trung bình</th>
+                <th className="py-3.5 px-4 w-28">Hạng</th>
+                <th className="py-3.5 px-4">Học viên</th>
+                <th className="py-3.5 px-4 w-44">Câu đúng</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-10 text-center text-sm text-muted">
+                  <td colSpan={3} className="py-10 text-center text-sm text-muted">
                     Chưa có dữ liệu bảng xếp hạng cho kỳ này.
                   </td>
                 </tr>
@@ -403,13 +474,7 @@ export function LeaderboardView() {
                       <div className="text-xs text-muted">@{r.username}</div>
                     </td>
                     <td className="py-3.5 px-4 text-brand font-semibold">
-                      {r.correct_count ?? r.solved_count} câu
-                    </td>
-                    <td className="py-3.5 px-4 text-ink font-bold">
-                      {r.total_score} điểm
-                    </td>
-                    <td className="py-3.5 px-4 text-text2">
-                      {r.avg_runtime_ms} ms
+                      {r.correct_count ?? r.solved_count ?? 0} câu
                     </td>
                   </tr>
                 ))

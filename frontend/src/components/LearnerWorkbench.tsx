@@ -115,6 +115,66 @@ function buildStarterSql(detail: any): string {
   return `SELECT *\nFROM ${firstTable}\nLIMIT 10;`;
 }
 
+function normalizeVnSearch(text?: string | null): string {
+  if (!text) return '';
+  return String(text)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
+function matchesQuestionSearch(q: any, rawQuery: string): boolean {
+  const trimmed = rawQuery.trim();
+  if (!trimmed) return true;
+  const kw = normalizeVnSearch(trimmed);
+  if (!kw) return true;
+
+  const pos = Number(q.position || q.question_id || 0);
+  const qid = Number(q.question_id || 0);
+
+  const codeMatch = kw.match(/^(?:sql|q|#)\s*-?\s*(\d+)$/i);
+  if (codeMatch) {
+    const digits = codeMatch[1];
+    const targetNum = Number(digits);
+    return (
+      pos === targetNum ||
+      qid === targetNum ||
+      String(pos).startsWith(digits) ||
+      String(qid).startsWith(digits)
+    );
+  }
+
+  const tablesStr = Array.isArray(q.tables_used) ? q.tables_used.join(' ') : '';
+  const skillsStr = Array.isArray(q.skills) ? q.skills.join(' ') : '';
+  const searchable = normalizeVnSearch(
+    `sql${pos} sql-${pos} q-${pos} q${pos} #${pos} ${pos} sql${qid} q-${qid} #${qid} ${qid} ${
+      q.title || ''
+    } ${getDomainCategory(q)} ${tablesStr} ${skillsStr}`
+  );
+
+  return searchable.includes(kw);
+}
+
+function getSubmissionVerdictBadge(sub: any): { label: string; cls: string } {
+  if (sub.submission_status === 'passed' || sub.status === 'accepted' || sub.passed) {
+    return { label: 'Làm được', cls: 'badge-easy' };
+  }
+  const isWrongAnswerMsg =
+    typeof sub.error_message === 'string' &&
+    sub.error_message.includes('Kết quả truy vấn chưa khớp');
+  if (
+    sub.submission_status === 'error' ||
+    sub.execution_status === 'timeout' ||
+    (sub.execution_status === 'error' && sub.submission_status !== 'failed' && !isWrongAnswerMsg)
+  ) {
+    return { label: 'RTE', cls: 'badge-medium' };
+  }
+  return { label: 'Không làm được', cls: 'badge-hard' };
+}
+
 function getDraftStorageKey(qId: number): string {
   return `sqlarena_draft_q_${qId}`;
 }
@@ -134,14 +194,16 @@ export default function LearnerWorkbench({
   const [schemaInfo, setSchemaInfo] = useState<any>(null);
   const [showAllSchemaTables, setShowAllSchemaTables] = useState<boolean>(false);
 
-  // Filters (Clean default: Easy -> Hard, Advanced collapsed)
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
+  // Filters (Default collapsed: strictly 1 search row visible)
+  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
+  const [sourceFilter, setSourceFilter] = useState<'ALL' | 'AI' | 'SEED'>('ALL');
   const [domainFilter, setDomainFilter] = useState<string>('ALL');
   const [sortOrder, setSortOrder] = useState<'difficulty_asc' | 'position_asc' | 'newest_first'>('difficulty_asc');
   const [diffFilter, setDiffFilter] = useState<number | undefined>(undefined);
   const [skillFilter, setSkillFilter] = useState<number | undefined>(undefined);
   const [solvedFilter, setSolvedFilter] = useState<boolean | undefined>(undefined);
   const [searchQ, setSearchQ] = useState('');
+  const [appliedSearchQ, setAppliedSearchQ] = useState('');
 
   // Editor, Draft Persistence & Console
   const [sql, setSql] = useState<string>('SELECT * FROM categories LIMIT 10;');
@@ -178,7 +240,6 @@ export default function LearnerWorkbench({
           difficulty: diffFilter,
           skill_id: skillFilter,
           solved: solvedFilter,
-          q: searchQ.trim() || undefined,
         }),
       ]);
       if (meta) setWeeklyMeta(meta);
@@ -348,15 +409,19 @@ export default function LearnerWorkbench({
       : allTables.slice(0, 3);
   const displayedTables = showAllSchemaTables ? allTables : relevantTables;
 
+  const activeQuery = searchQ !== appliedSearchQ ? searchQ : appliedSearchQ;
+
   const filteredQuestions = questions
     .filter((q) => {
-      if (domainFilter !== 'ALL' && getDomainCategory(q) !== domainFilter) return false;
-      if (searchQ.trim()) {
-        const kw = searchQ.trim().toLowerCase();
-        const codeStr = `sql${q.position || q.question_id}`.toLowerCase();
-        const titleStr = String(q.title || '').toLowerCase();
-        if (!titleStr.includes(kw) && !codeStr.includes(kw)) return false;
+      if (sourceFilter === 'AI') {
+        const isAi = Boolean(q.source_draft_id) || q.is_source === false;
+        if (!isAi) return false;
+      } else if (sourceFilter === 'SEED') {
+        const isSeed = !q.source_draft_id && q.is_source !== false;
+        if (!isSeed) return false;
       }
+      if (domainFilter !== 'ALL' && getDomainCategory(q) !== domainFilter) return false;
+      if (!matchesQuestionSearch(q, activeQuery)) return false;
       return true;
     })
     .sort((a, b) => {
@@ -381,170 +446,194 @@ export default function LearnerWorkbench({
       ? filteredQuestions[currentIdx + 1]?.question_id
       : null;
 
-  const solvedCount =
-    weeklyMeta?.solved_count ?? questions.filter((q) => q.solved).length;
-  const totalCount = weeklyMeta?.question_count || questions.length || 0;
   const activeAdvancedCount =
+    (sourceFilter !== 'ALL' ? 1 : 0) +
+    (diffFilter !== undefined ? 1 : 0) +
     (domainFilter !== 'ALL' ? 1 : 0) +
     (skillFilter !== undefined ? 1 : 0) +
     (solvedFilter !== undefined ? 1 : 0) +
     (sortOrder !== 'difficulty_asc' ? 1 : 0);
 
-  // VIEW 1: CLEAN BEGINNER-FRIENDLY EXERCISE LIST
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAppliedSearchQ(searchQ.trim());
+  };
+
+  // VIEW 1: CLEAN EXERCISE LIST (SINGLE COMPACT SEARCH ROW BY DEFAULT)
   if (viewMode === 'list') {
     return (
-      <div className="space-y-5">
-        {/* 3-Step Quick Guide for Beginners */}
-        <div className="p-4 sm:p-5 rounded-xl bg-surface border border-line flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-lg sm:text-xl font-bold text-ink">
-              {weeklyMeta?.title || 'Danh sách bài tập thực hành SQL'}
-            </h1>
-            <p className="text-sm text-text2 leading-relaxed">
-              Cách làm bài nhanh: <strong>1.</strong> Chọn một bài mức <strong>Dễ</strong> bên dưới,{' '}
-              <strong>2.</strong> Xem cấu trúc bảng &amp; cột cần trả về,{' '}
-              <strong>3.</strong> Bấm <strong>Chạy thử</strong> kiểm tra kết quả rồi bấm <strong>Nộp bài</strong>.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="px-4 py-2.5 rounded-xl bg-soft border border-line text-sm tabular-nums">
-              <span className="text-text2">Tiến độ hoàn thành: </span>
-              <strong className="text-brand font-bold">
-                {solvedCount}/{totalCount} bài
-              </strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Clean Filter Toolbar */}
-        <div className="p-4 rounded-xl bg-surface border border-line space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
-              <div className="relative flex-1 max-w-sm min-w-[220px]">
-                <Search className="w-4 h-4 text-muted absolute left-3.5 top-3" />
-                <input
-                  value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && loadQuestions()}
-                  placeholder="Tìm theo tên hoặc mã bài..."
-                  className="w-full pl-9 pr-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink placeholder:text-muted"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[
-                  { label: 'Tất cả', val: undefined },
-                  { label: 'Dễ', val: 1 },
-                  { label: 'Trung bình', val: 2 },
-                  { label: 'Khó', val: 3 },
-                ].map((b) => {
-                  const active = diffFilter === b.val;
-                  return (
-                    <button
-                      key={b.label}
-                      type="button"
-                      data-solid-btn={active ? 'true' : undefined}
-                      onClick={() => setDiffFilter(b.val)}
-                      className={`px-3.5 min-h-10 rounded-lg text-sm font-semibold ${
-                        active ? 'btn-primary' : 'btn-secondary'
-                      }`}
-                    >
-                      {b.label}
-                    </button>
-                  );
-                })}
-              </div>
+      <div className="space-y-4">
+        {/* Single-Row Search & Expandable Filter Toolbar */}
+        <div className="p-3.5 rounded-xl bg-surface border border-line space-y-3.5">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex flex-wrap sm:flex-nowrap items-center gap-2.5"
+          >
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 text-muted absolute left-3.5 top-3" />
+              <input
+                value={searchQ}
+                onChange={(e) => {
+                  setSearchQ(e.target.value);
+                  setAppliedSearchQ(e.target.value);
+                }}
+                placeholder="Tìm mã bài hoặc tiêu đề…"
+                className="w-full pl-9 pr-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink placeholder:text-muted"
+              />
             </div>
 
             <button
+              type="submit"
+              data-solid-btn="true"
+              className="btn-primary px-4 min-h-10 rounded-lg text-sm font-semibold whitespace-nowrap shrink-0"
+            >
+              Tìm kiếm
+            </button>
+
+            <button
               type="button"
-              onClick={() => setShowAdvancedFilters((v) => !v)}
-              className="btn-subtle px-3.5 min-h-10 rounded-lg text-sm font-medium flex items-center gap-2"
+              onClick={() => setFiltersExpanded((v) => !v)}
+              className="btn-subtle px-3.5 min-h-10 rounded-lg text-sm font-medium flex items-center gap-2 whitespace-nowrap shrink-0"
             >
               <SlidersHorizontal className="w-4 h-4 text-muted" />
-              <span>Bộ lọc nâng cao</span>
+              <span>{filtersExpanded ? 'Thu gọn' : 'Mở rộng thêm'}</span>
               {activeAdvancedCount > 0 && (
                 <span className="badge-info px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums">
                   {activeAdvancedCount}
                 </span>
               )}
             </button>
-          </div>
+          </form>
 
-          {showAdvancedFilters && (
-            <div className="pt-3 border-t border-line grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1">
-                  Nhóm kỹ năng SQL
-                </label>
-                <select
-                  value={skillFilter ?? ''}
-                  onChange={(e) =>
-                    setSkillFilter(e.target.value ? Number(e.target.value) : undefined)
-                  }
-                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
-                >
-                  <option value="">Tất cả kỹ năng (S1 đến S6)</option>
-                  {Object.entries(SKILL_MAP).map(([id, label]) => (
-                    <option key={id} value={id}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+          {filtersExpanded && (
+            <div className="pt-3.5 border-t border-line space-y-3.5">
+              {/* Row 1 inside expanded: Question Source + Difficulty */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: 'ALL', label: 'Tất cả bài tập' },
+                    { id: 'AI', label: 'Đề AI mới sinh' },
+                    { id: 'SEED', label: 'Đề gốc chuẩn' },
+                  ].map((src) => {
+                    const active = sourceFilter === src.id;
+                    return (
+                      <button
+                        key={src.id}
+                        type="button"
+                        data-solid-btn={active ? 'true' : undefined}
+                        onClick={() => setSourceFilter(src.id as 'ALL' | 'AI' | 'SEED')}
+                        className={`px-3 min-h-9 rounded-lg text-xs font-semibold whitespace-nowrap ${
+                          active ? 'btn-primary' : 'btn-secondary'
+                        }`}
+                      >
+                        {src.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { label: 'Mọi độ khó', val: undefined },
+                    { label: 'Dễ', val: 1 },
+                    { label: 'Trung bình', val: 2 },
+                    { label: 'Khó', val: 3 },
+                  ].map((b) => {
+                    const active = diffFilter === b.val;
+                    return (
+                      <button
+                        key={b.label}
+                        type="button"
+                        data-solid-btn={active ? 'true' : undefined}
+                        onClick={() => setDiffFilter(b.val)}
+                        className={`px-3 min-h-9 rounded-lg text-xs font-semibold whitespace-nowrap ${
+                          active ? 'btn-primary' : 'btn-secondary'
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1">
-                  Chủ đề nghiệp vụ
-                </label>
-                <select
-                  value={domainFilter}
-                  onChange={(e) => setDomainFilter(e.target.value)}
-                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
-                >
-                  <option value="ALL">Tất cả chủ đề</option>
-                  {DOMAIN_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+              {/* Row 2 inside expanded: Domain Topic Tags */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {['ALL', ...DOMAIN_CATEGORIES].map((cat) => {
+                  const active = domainFilter === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      data-solid-btn={active ? 'true' : undefined}
+                      onClick={() => setDomainFilter(cat)}
+                      className={`px-3 min-h-9 rounded-lg text-xs font-medium whitespace-nowrap ${
+                        active ? 'btn-primary' : 'btn-secondary'
+                      }`}
+                    >
+                      {cat === 'ALL' ? 'Tất cả chủ đề' : cat}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1">
-                  Trạng thái hoàn thành
-                </label>
-                <select
-                  value={
-                    solvedFilter === undefined ? '' : solvedFilter ? 'solved' : 'unsolved'
-                  }
-                  onChange={(e) =>
-                    setSolvedFilter(
-                      e.target.value === '' ? undefined : e.target.value === 'solved'
-                    )
-                  }
-                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
-                >
-                  <option value="">Tất cả bài tập</option>
-                  <option value="unsolved">Chưa hoàn thành</option>
-                  <option value="solved">Đã giải đúng</option>
-                </select>
-              </div>
+              {/* Row 3 inside expanded: Skill, Status & Sort */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">
+                    Nhóm kỹ năng SQL
+                  </label>
+                  <select
+                    value={skillFilter ?? ''}
+                    onChange={(e) =>
+                      setSkillFilter(e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
+                  >
+                    <option value="">Tất cả kỹ năng (S1 đến S6)</option>
+                    {Object.entries(SKILL_MAP).map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1">
-                  Thứ tự hiển thị
-                </label>
-                <select
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value as any)}
-                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
-                >
-                  <option value="difficulty_asc">Từ Dễ đến Khó (Khuyên dùng)</option>
-                  <option value="position_asc">Theo thứ tự bộ đề</option>
-                  <option value="newest_first">Bài mới cập nhật lên đầu</option>
-                </select>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">
+                    Trạng thái hoàn thành
+                  </label>
+                  <select
+                    value={
+                      solvedFilter === undefined ? '' : solvedFilter ? 'solved' : 'unsolved'
+                    }
+                    onChange={(e) =>
+                      setSolvedFilter(
+                        e.target.value === '' ? undefined : e.target.value === 'solved'
+                      )
+                    }
+                    className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
+                  >
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="unsolved">Chưa hoàn thành</option>
+                    <option value="solved">Đã giải đúng</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">
+                    Sắp xếp
+                  </label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as any)}
+                    className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
+                  >
+                    <option value="difficulty_asc">Từ Dễ đến Khó</option>
+                    <option value="position_asc">Theo thứ tự bộ đề</option>
+                    <option value="newest_first">Bài mới cập nhật lên đầu</option>
+                  </select>
+                </div>
               </div>
             </div>
           )}
@@ -1056,25 +1145,30 @@ export default function LearnerWorkbench({
               {/* TAB: RESULTS */}
               {consoleTab === 'results' && (
                 <div className="space-y-3 text-sm">
-                  {output?.mode === 'submit' && (
-                    <div
-                      className={`p-4 rounded-xl flex flex-wrap items-center justify-between gap-2 ${
-                        output.passed || output.submission_status === 'passed'
-                          ? 'badge-easy'
-                          : 'badge-hard'
-                      }`}
-                    >
-                      <div className="font-bold">
-                        {output.passed || output.submission_status === 'passed'
-                          ? 'Chính xác! Câu truy vấn đã vượt qua toàn bộ bộ kiểm thử.'
-                          : `Chưa khớp kết quả chuẩn (${output.submission_status || output.status || 'Sai kết quả'})`}
+                  {output?.mode === 'submit' && (() => {
+                    const submitVerdict = getSubmissionVerdictBadge({
+                      submission_status: output.submission_status,
+                      passed: output.passed,
+                      error_message: output.error,
+                    });
+                    return (
+                      <div
+                        className={`p-4 rounded-xl flex flex-wrap items-center justify-between gap-2 ${submitVerdict.cls}`}
+                      >
+                        <div className="font-bold">
+                          {submitVerdict.label === 'Làm được'
+                            ? 'Làm được — Câu truy vấn đã vượt qua toàn bộ bộ kiểm thử.'
+                            : submitVerdict.label === 'RTE'
+                            ? 'RTE — Câu lệnh SQL gặp lỗi thực thi trên PostgreSQL 17.'
+                            : 'Không làm được — Kết quả truy vấn chưa khớp với bộ kiểm thử.'}
+                        </div>
+                        <div className="font-semibold tabular-nums">
+                          {output.passed_AutoTests ?? output.passed_tests ?? 0}/
+                          {output.total_AutoTests ?? output.total_tests ?? 1} bộ kiểm thử
+                        </div>
                       </div>
-                      <div className="font-semibold tabular-nums">
-                        Điểm: {output.score ?? 0}/100 ({output.passed_AutoTests ?? output.passed_tests ?? 0}/
-                        {output.total_AutoTests ?? output.total_tests ?? 1} bộ test)
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {output?.mode === 'preview' && output?.previewTable && (
                     <div className="px-3 py-2 rounded-lg badge-info text-xs font-semibold">
@@ -1340,10 +1434,7 @@ export default function LearnerWorkbench({
                 <div className="space-y-2.5 text-sm">
                   {qSubs.length > 0 ? (
                     qSubs.map((sub: any) => {
-                      const passed =
-                        sub.submission_status === 'passed' ||
-                        sub.status === 'accepted' ||
-                        sub.passed;
+                      const verdict = getSubmissionVerdictBadge(sub);
                       return (
                         <div
                           key={sub.submission_id}
@@ -1351,14 +1442,9 @@ export default function LearnerWorkbench({
                         >
                           <div className="flex flex-wrap items-center gap-2.5">
                             <span
-                              className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
-                                passed ? 'badge-easy' : 'badge-hard'
-                              }`}
+                              className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${verdict.cls}`}
                             >
-                              {passed ? 'Đạt (100 điểm)' : 'Chưa đạt'}
-                            </span>
-                            <span className="font-semibold text-ink text-sm">
-                              {sub.score ?? 0}/100 điểm
+                              {verdict.label}
                             </span>
                             <span className="text-xs text-muted">{sub.runtime_ms ?? 0} ms</span>
                             <span className="text-xs text-muted">
@@ -1371,7 +1457,7 @@ export default function LearnerWorkbench({
                             <button
                               type="button"
                               onClick={() => updateSqlWithAutosave(sub.submitted_sql)}
-                              className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold"
+                              className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold whitespace-nowrap"
                             >
                               Nạp lại câu lệnh này
                             </button>

@@ -9,8 +9,8 @@ from app.pipeline import engine as eng
 from app.seed import seed_demo_live
 
 
-def test_approved_draft_does_not_auto_leak_into_published_weekly_set(client, admin_id, admin_h, learner_h):
-    """Đề mới duyệt nằm ở kho câu hỏi ready, KHÔNG tự nhảy lẻ tẻ vào bộ đề tuần đang mở."""
+def test_approved_draft_auto_publishes_to_active_set_and_return_or_reject_unpublishes_cleanly(client, admin_id, admin_h, learner_h):
+    """Khi có bộ đề published: đề approved tự lên kệ Học viên -> return-needs-human gỡ khỏi kệ -> approve lại lên kệ -> reject từ approved gỡ khỏi kệ & dồn lại position."""
     q_init = make_question(1, title="Câu mở đầu tuần")
     with db.begin() as conn:
         ws = db.q1(
@@ -36,22 +36,67 @@ def test_approved_draft_does_not_auto_leak_into_published_weekly_set(client, adm
     assert promoted["status"] == "ready"
     new_qid = promoted["question_id"]
 
-    # Học viên chỉ thấy 1 câu ban đầu, KHÔNG thấy câu mới auto-leak
+    # 1. Đề approved tự động hiển thị trên Web Học Viên ở vị trí 2
     cur = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
-    assert cur["total"] == 1 and [i["question_id"] for i in cur["items"]] == [q_init]
+    assert cur["total"] == 2
+    assert [(i["question_id"], i["position"]) for i in cur["items"]] == [(q_init, 1), (new_qid, 2)]
+    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 200
+
+    # Gom câu đã nằm sẵn trên pub_set vào nhóm và publish append_active -> không lỗi, published_count == 1 (không trả 0)
+    grp = client.post(
+        "/api/v1/admin/question-groups",
+        headers=admin_h,
+        json={"name": "Nhóm câu đã lên kệ", "question_ids": [new_qid]},
+    )
+    assert grp.status_code == 201
+    pub_grp = client.post(
+        f"/api/v1/admin/question-groups/{grp.json()['group_id']}/publish",
+        headers=admin_h,
+        json={"mode": "append_active"},
+    )
+    assert pub_grp.status_code == 200 and pub_grp.json()["published_count"] == 1
+
+    # 2. Admin chuyển ngược approved -> needs_human: gỡ khỏi kệ Học viên & chuyển câu hỏi sang retired
+    ret_res = client.post(
+        "/api/v1/admin/drafts/1/return-needs-human",
+        headers=admin_h,
+        json={"note": "Cần rà soát lại tie-breaker"},
+    )
+    assert ret_res.status_code == 200, ret_res.text
+    assert ret_res.json()["status"] == "needs_human"
+    assert ret_res.json()["promoted_question"]["status"] == "retired"
+    assert client.post("/api/v1/admin/drafts/1/return-needs-human", headers=admin_h, json={}).status_code == 409
+
+    cur_after_ret = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert [i["question_id"] for i in cur_after_ret["items"]] == [q_init]
+    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 404
+    with db.begin() as conn:
+        ov = db.q1(conn, "SELECT action, note FROM live.admin_overrides WHERE draft_id = 1 ORDER BY id DESC LIMIT 1")
+    assert ov["action"] == "return_needs_human"
+
+    # 3. Admin bấm approve lại từ needs_human -> khôi phục status='ready' và tự lên kệ lại!
+    re_app = client.post("/api/v1/admin/drafts/1/approve", headers=admin_h, json={"note": "Đã kiểm tra chuẩn, cho lên lại"})
+    assert re_app.status_code == 200, re_app.text
+    assert re_app.json()["status"] == "approved"
+    assert re_app.json()["promoted_question"]["status"] == "ready"
+
+    cur_re = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert [(i["question_id"], i["position"]) for i in cur_re["items"]] == [(q_init, 1), (new_qid, 2)]
+    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 200
+
+    # 4. Thêm câu thứ 3 ở vị trí 3, sau đó reject trực tiếp draft đang approved -> gỡ new_qid và đánh lại position 1..2 liên tục!
+    q_tail = make_question(1, title="Câu cuối tuần")
+    with db.begin() as conn:
+        db.ex(conn, "INSERT INTO live.weekly_set_items (set_id, question_id, position) VALUES (:s, :q, 3)", s=ws["set_id"], q=q_tail)
+
+    rej_app = client.post("/api/v1/admin/drafts/1/reject", headers=admin_h, json={"reason": "Phát hiện trùng đề thi chính thức"})
+    assert rej_app.status_code == 200, rej_app.text
+    assert rej_app.json()["status"] == "rejected"
+    assert rej_app.json()["promoted_question"]["status"] == "retired"
     assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 404
 
-    # Admin lọc unassigned_only=true chỉ thấy câu mới chưa phát hành
-    unassigned = client.get("/api/v1/admin/questions?unassigned_only=true", headers=admin_h)
-    assert unassigned.status_code == 200
-    u_items = unassigned.json()["items"]
-    assert [i["question_id"] for i in u_items] == [new_qid]
-    assert u_items[0]["in_weekly_set"] is False
-    assert u_items[0]["in_published_set"] is False
-    assert u_items[0]["group_ids"] == []
-
-    all_q = {i["question_id"]: i for i in client.get("/api/v1/admin/questions", headers=admin_h).json()["items"]}
-    assert all_q[q_init]["in_weekly_set"] is True and all_q[q_init]["in_published_set"] is True
+    cur_after_rej = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert [(i["question_id"], i["position"]) for i in cur_after_rej["items"]] == [(q_init, 1), (q_tail, 2)]
 
 
 def test_question_groups_crud_draft_auto_approve_and_publish_modes(client, admin_id, admin_h, learner_h, skill_id):
@@ -476,5 +521,98 @@ def test_apithat_gateway_status_and_secret_blind_key_vault(client, admin_h, lear
         logs = db.q(conn, "SELECT detail::text AS txt FROM live.audit_logs WHERE action = 'gateway.key_updated'")
     assert len(logs) == 1 and fake_secret not in logs[0]["txt"]
     eng.clear_runtime_gateway_override()
+
+
+def test_generation_jobs_skill_quantities_learner_code_search_and_clean_llm_labels(client, admin_id, admin_h, learner_h, skill_id):
+    """Kiểm chứng tạo job theo skill_quantities riêng từng kỹ năng, tìm kiếm mã câu hỏi SQL9/#9/Q-9/nội dung, và xoá nhãn ollama/llama3/qwen."""
+    # 1. Tạo generation-jobs với skill_quantities riêng từng kỹ năng (S1: 2 câu, S2: 3 câu)
+    s1, s2 = skill_id("S1"), skill_id("S2")
+    job_res = client.post(
+        "/api/v1/admin/generation-jobs",
+        headers=admin_h,
+        json={
+            "difficulty": 1,
+            "topic": "Kiểm toán đơn hàng & nhân sự",
+            "skill_quantities": [
+                {"skill_id": s1, "quantity": 2},
+                {"skill_id": s2, "quantity": 3},
+            ],
+        },
+    )
+    assert job_res.status_code == 202, job_res.text
+    jb = job_res.json()
+    assert jb["skill_ids"] == [s1] and jb["requested_count"] == 2
+    assert len(jb["created_jobs"]) == 2
+    assert [(j["skill_ids"], j["requested_count"]) for j in jb["created_jobs"]] == [([s1], 2), ([s2], 3)]
+
+    # 2. Tìm kiếm câu hỏi phía Học viên theo mã bài (SQL2, Q-2, #2, 2) và theo nội dung đề bài (question text)
+    q1_id = make_question(1, title="Thống kê kho hàng miền Bắc")
+    m_res = client.post(
+        "/api/v1/admin/questions/manual",
+        headers=admin_h,
+        json={
+            "title": "Báo cáo tổng danh mục chuẩn",
+            "question": "Truy vấn đặc thù kiểm kê biệt danh_khoa_hoc_ptit_2026 trên bảng categories.",
+            "reference_sql": "SELECT COUNT(*)::int AS total_cat FROM categories",
+            "difficulty": 1,
+            "skill_ids": [s1],
+        },
+    )
+    assert m_res.status_code == 201
+    q2_id = m_res.json()["question_id"]
+
+    with db.begin() as conn:
+        ws = db.q1(
+            conn,
+            "INSERT INTO live.weekly_sets (title, week_start, status, published_at) "
+            "VALUES ('Bộ đề Tìm kiếm Mã Bài', :ws, 'published', now()) RETURNING set_id",
+            ws=date.today() - timedelta(days=date.today().weekday()),
+        )
+        db.ex(conn, "INSERT INTO live.weekly_set_items (set_id, question_id, position) VALUES (:s, :q1, 1), (:s, :q2, 9)", s=ws["set_id"], q1=q1_id, q2=q2_id)
+
+    for code_query in ("SQL9", "Q-9", "#9", "9"):
+        found = client.get("/api/v1/weekly/current/questions", params={"q": code_query}, headers=learner_h)
+        assert found.status_code == 200
+        assert [it["question_id"] for it in found.json()["items"]] == [q2_id], f"Failed query={code_query}"
+
+    by_body = client.get("/api/v1/weekly/current/questions", params={"q": "biệt danh_khoa_hoc_ptit_2026"}, headers=learner_h)
+    assert by_body.status_code == 200
+    assert [it["question_id"] for it in by_body.json()["items"]] == [q2_id]
+
+    # 3. Chạy 1 nhịp pipeline + seed_demo_live để kiểm tra không còn xuất hiện nhãn ollama / llama3 / qwen / deepseek
+    with db.begin() as conn:
+        db.ex(conn, "DELETE FROM draft.generation_jobs")
+    eng.clear_runtime_gateway_override()
+    eng.set_transport(FakeOllama())
+    enqueue_job(admin_id)
+    new_worker().run_once()
+
+    usage_res = client.get("/api/v1/admin/llm-usage", headers=admin_h)
+    assert usage_res.status_code == 200
+    u_json = usage_res.json()
+    assert u_json["active_provider"] == "ai-pipeline"
+    raw_usage_lower = usage_res.text.lower()
+    for banned in ("ollama", "llama3", "qwen", "deepseek"):
+        assert banned not in raw_usage_lower, f"Found banned label {banned} in llm-usage"
+    stage_models = {c["stage"]: c["model"] for c in u_json["recent_calls"]}
+    assert stage_models["model_a"] == "Model A"
+    assert stage_models["solve_b"] == "Model B"
+    assert stage_models["checklist_b"] == "Auditor"
+
+    with db.begin() as conn:
+        db.ex(conn, "TRUNCATE draft.llm_call_ledger, draft.review_logs, draft.self_solve_runs, draft.question_drafts, draft.generation_jobs RESTART IDENTITY CASCADE")
+        seed_demo_live(conn)
+        seeded_models = db.q(
+            conn,
+            """SELECT gen_model AS m FROM draft.question_drafts
+               UNION ALL SELECT review_model AS m FROM draft.self_solve_runs
+               UNION ALL SELECT review_model AS m FROM draft.review_logs""",
+        )
+        db.ex(conn, "DELETE FROM live.submissions")
+        db.ex(conn, "DELETE FROM live.users WHERE email LIKE '%@sqlarena.local'")
+    for row in seeded_models:
+        m_low = (row["m"] or "").lower()
+        assert m_low in ("model a", "model b")
+
 
 

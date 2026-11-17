@@ -1,44 +1,40 @@
-# Kiến Trúc Hệ Thống, Tích Hợp `apithat.dev` & Đa Luồng Sự Cố (`docs/ARCHITECTURE.md`)
+# Kiến Trúc Hệ Thống, Tách Cổng `:3000`/`:4000` & Tích Hợp `apithat.dev` (`docs/ARCHITECTURE.md`)
 
 > Chuẩn hoá theo **MyKit v3.15** — Kết hợp sơ đồ vector SVG xuất bản từ `tech-diagramming` và sơ đồ Mermaid an toàn tuyệt đối trên Dark Mode (`0` khối nền sáng `rect rgb(2xx,...)`).
 
-## 1. Kiến Trúc 4 Tầng & Định Tuyến VPS Không Cần Domain (`http://<VPS_IP>:3000`)
+## 1. Kiến Trúc Tách Cổng Độc Lập (`:3000` Học Viên · `:4000` Quản Trị) Trên VPS
 
-![Sơ đồ kiến trúc 4 tầng SQLArena AI](diagrams/system-architecture.svg)
+![Sơ đồ kiến trúc Dual-Port SQLArena AI](diagrams/system-architecture.svg)
 
 ```mermaid
 flowchart TD
-    Browser["Trình duyệt Học viên / Giảng viên<br/>http://VPS_IP:3000"]
-    Nginx["Container sqlarena-frontend<br/>Nginx :3000 (Static Next.js 16 + Reverse Proxy)"]
+    Learner["Trình duyệt Học viên<br/>http://VPS_IP:3000"]
+    Admin["Trình duyệt Quản trị<br/>http://VPS_IP:4000"]
+    Nginx["Container sqlarena-frontend<br/>Nginx Dual-Server (:3000 & :4000)"]
     FastAPI["Container sqlarena-backend<br/>FastAPI :8000 (Non-root UID 10001)"]
     Worker["Container sqlarena-worker<br/>Fenced Lease Daemon (SKIP LOCKED)"]
     PG["Container sqlarena-postgres<br/>PostgreSQL 17 (127.0.0.1 nội bộ)"]
-    Gateway["API Thật Gateway (https://apithat.dev/v1)<br/>gpt-5.6-sol / gpt-6.1-terra / gpt-6-sol + Ollama Fallback"]
+    Gateway["API Thật Gateway (https://apithat.dev/v1)<br/>Model A Synthesis + Blind Solver B (k=3)"]
 
-    Browser -->|"GET / (Static SPA)"| Nginx
-    Browser -->|"Same-Origin /api/v1/* (Zero CORS)"| Nginx
-    Nginx -->|"proxy_pass http://backend:8000"| FastAPI
+    Learner -->|"Giao diện Làm bài / Tiến độ / BXH"| Nginx
+    Admin -->|"Giao diện Người dùng / Sinh đề / Duyệt đề"| Nginx
+    Nginx -->|"Same-Origin proxy_pass http://backend:8000/api/v1/*"| FastAPI
     FastAPI -->|"SQLAlchemy Core (sqlarena_app: core, draft, live)"| PG
     FastAPI -->|"Read-Only Sandbox (sqlarena_ai_ro -> enterprise_db)"| PG
-    Worker -->|"Claim Job & Draft (lease_version)"| PG
-    Worker -->|"Model A + Blind Solver B (k=3) + Auditor"| Gateway
-    FastAPI -->|"Secret-Blind Key Probe (/v1/models) & AI Coach"| Gateway
+    Worker -->|"Per-Skill Claim & Lease Fencing"| PG
+    Worker -->|"SSE JSON Schema"| Gateway
+    FastAPI -->|"Secret-Blind Key Probe (/v1/models)"| Gateway
 ```
 
 ### Giải thích Đời thực → Vận hành Kỹ thuật (`Real-Life Analogy -> Tech Operation`)
-- **Quầy Lễ Tân Một Cửa (`Nginx :3000` Reverse Proxy)**: Khách từ ngoài internet chỉ cần đi vào đúng cổng `3000` (`http://<VPS_IP>:3000`). Mọi yêu cầu `/api/v1/*` được lễ tân Nginx chuyển nội bộ sang phòng xử lý `http://backend:8000`, nhờ đó không bao giờ bị lỗi trình duyệt gọi nhầm về `127.0.0.1:8000` trên máy cá nhân của người xem và không cần mở cổng `8000` hay `5432` ra ngoài VPS.
-- **Tủ Giữ Nóng → Khay Gom Món → Bàn Phục Vụ (`Ready Pool -> Question Group -> Published Shelf`)**: Đề vừa vượt kiểm duyệt (`approved`) được cất vào **Kho Đề Sẵn Sàng (`live.questions`)**, không tự nhảy lẻ tẻ ra màn hình học viên. Giảng viên kéo thả hoặc tick chọn nhiều câu vào một **Nhóm Đề (`live.question_groups`)** rồi bấm **Đăng toàn bộ nhóm** 1 lần để phát hành đồng loạt.
+- **Hai Cổng Ra Vào Tách Biệt Trong Cùng Tòa Nhà (`:3000` & `:4000`)**: Học viên đi cổng `:3000` chỉ thấy phòng thi, bảng tiến độ (`Làm được` / `Không làm được` / `RTE`) và bục xếp hạng Olympic; Giảng viên đi cổng riêng `:4000` vào thẳng bàn quản lý **Người dùng**, ra đề theo từng kỹ năng `S1–S6` và duyệt đề. Cả hai cổng đều đi qua Nginx nội bộ gọi `/api/v1/*` cùng nguồn, không cần domain và không bao giờ dính lỗi CORS trên VPS.
+- **Công Tắc Hai Chiều An Toàn (`Approved <-> Needs_Human`)**: Đề vừa đạt `approved` (tự động hoặc bấm `Phê duyệt`) lập tức hiện lên cổng `:3000` cho sinh viên làm; nếu phát hiện cần chỉnh lại, Admin bấm `Chuyển về Cần duyệt` ở cổng `:4000` là đề được rút khỏi cổng `:3000` ngay trong tích tắc và đánh lại thứ tự liền mạch.
 
 ---
 
-## 2. Quy Trình Kiểm Định Kép Hiệu Chỉnh & Tích Hợp Cổng `apithat.dev`
+## 2. Quy Trình Sinh Đề Theo Kỹ Năng, Kiểm Định Kép & Phát Hành
 
-![Quy trình Kiểm định Kép & Phát hành Nhóm đề](diagrams/dual-model-pipeline.svg)
-
-### Cơ chế điều phối khóa `https://apithat.dev/keys` (`backend/app/pipeline/engine.py`)
-1. **Nạp khóa Secret-Blind đa tầng**: Đọc theo thứ tự ưu tiên `Runtime Vault Override` > biến môi trường Docker > `backend/.env` / `.env` > `~/.mykit/vault.env` (quyền `0600`), không bao giờ trả khóa thô qua API hay ghi vào `live.audit_logs`.
-2. **Tự động khám phá Model theo nhóm khóa (`probe_apithat_key`)**: Gọi `GET https://apithat.dev/v1/models` (cache 5 phút theo mã băm SHA-256 của khóa), lọc bỏ model tạo ảnh/âm thanh và xếp ưu tiên các model lập trình/SQL có độ ổn định cao trên `apithat.dev` (`gpt-5.6-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-astra`, `claude-sonnet-5-5`).
-3. **Tương thích đa giao thức**: Tự động định tuyến dòng GPT/Qwen/DeepSeek/Gemini qua `/v1/chat/completions` (SSE streaming & JSON extraction) và dòng Claude qua `/v1/messages` (`anthropic-version: 2023-06-01`).
+![Quy trình Kiểm định Kép & Phát hành](diagrams/dual-model-pipeline.svg)
 
 ---
 
@@ -46,9 +42,9 @@ flowchart TD
 
 | Nhóm tình huống | Kịch bản lỗi / Race Condition thực tế | Cơ chế phòng vệ trong Codebase |
 | :--- | :--- | :--- |
-| **1. Happy Path (Gom nhóm & Đăng 1 lần)** | Giảng viên kéo thả / chọn 5 câu `ready` vào nhóm rồi bấm Đăng. | `groups.publish()` khóa `FOR UPDATE`, kiểm tra `test_cases` khớp `dataset_version` và gắn nguyên tử toàn bộ câu vào kệ đang mở (`append_active`) hoặc bộ tuần mới (`new_weekly_set`). |
-| **2. Concurrency Race (Đua tranh đồng thời)** | Hai worker cùng bốc 1 job/draft, hoặc 2 tab Admin bấm `Publish` cùng lúc. | Dùng `FOR UPDATE SKIP LOCKED` kèm fencing token `lease_version` (`LeaseLost` tự hủy ghi đè nếu hết hạn lease). |
-| **3. Gateway Truncation / Transient Syntax** | 1/3 mẫu giải của Model B lỗi cú pháp thoáng qua hoặc khóa API hết hạn (`401`). | Nâng `max_tokens` (`1500/1200`), bật `REVIEW_REPAIR_ROUNDS=1`, chế độ `calibrated` duyệt khi `>=2/3` mẫu hợp lệ đồng thuận 100% kết quả (`0` mẫu đối kháng). Nếu khóa `401` hoặc timeout 2 slot liên tiếp -> dừng nhanh không đốt ngân sách. |
-| **4. Async State Skew (Thu hồi đề giữa chừng)** | Câu hỏi trong nhóm nháp bị Admin bấm `Retire` trước khi đăng nhóm. | `groups.publish()` tái kiểm tra `status == 'ready' AND NOT is_flagged` ngay trong transaction, trả `409 GROUP_NOT_PUBLISHABLE` chỉ rõ ID câu lỗi. |
-| **5. Tampering & BOLA / Zero-Leak** | Học viên chèn `DROP TABLE`, `; SELECT`, comment `--`, hoặc dò ID câu ngoài kệ. | `_strip_sql_comments()` lọc sạch comment ngoài chuỗi, chặn mọi từ khóa ghi và ép `SET LOCAL TRANSACTION READ ONLY`. Câu ngoài kệ trả `404`; chỉ trả tên cột `output_columns`. |
-| **6. VPS & BuildKit Unicode Scars** | Thư mục chứa dấu tiếng Việt làm lỗi header gRPC của Docker BuildKit; xung đột port `5432`/`3000`. | `deploy-vps.sh` và `start.sh` tự phát hiện đường dẫn Unicode bật `DOCKER_BUILDKIT=0`, dùng `.dockerignore` nén context còn `<2MB`, và khóa Postgres vào `127.0.0.1`. |
+| **1. Per-Skill Quota Generation** | Admin chọn đồng thời `S1` (2 câu) và `S2` (3 câu) trong 1 lần bấm Tạo đề. | `POST /admin/generation-jobs` nhận `skill_quantities`, kiểm tra tổng trần ngân sách dưới khóa `pg_advisory_xact_lock` và tạo job tách biệt đúng định lượng từng kỹ năng. |
+| **2. Reversible Live Approval** | Đề đã `approved` lên kệ `:3000` nhưng Admin bấm `Chuyển về Cần duyệt` hoặc `Từ chối`, sau đó lại sửa và `Phê duyệt` lại. | `return-needs-human` gỡ bản ghi khỏi `live.weekly_set_items`, đánh lại `position = 1..N` liên tục và chuyển `live.questions` sang `retired`; khi `approve` lại, `ON CONFLICT (source_draft_id)` khôi phục `ready` không lỗi trùng khóa. |
+| **3. Concurrency Race (Đua tranh đồng thời)** | Hai worker cùng bốc 1 job/draft, hoặc 2 tab Admin thao tác cùng lúc. | Hàng đợi dùng `FOR UPDATE SKIP LOCKED` + fencing token `lease_version` (`LeaseLost` tự hủy ghi đè nếu worker cũ mất lease). |
+| **4. Gateway Truncation / Transient Syntax** | 1/3 mẫu giải của Model B lỗi cú pháp thoáng qua hoặc khóa API hết hạn (`401`). | Nâng `max_tokens` (`1500/1200`), bật `REVIEW_REPAIR_ROUNDS=1`, chế độ `calibrated` duyệt khi `>=2/3` mẫu hợp lệ đồng thuận 100% kết quả (`0` mẫu đối kháng). |
+| **5. Tampering & BOLA / Zero-Leak** | Học viên chèn `DROP TABLE`, `; SELECT`, comment `--`, hoặc truy cập câu ngoài kệ. | `_strip_sql_comments()` lọc sạch comment ngoài chuỗi, chặn mọi từ khóa ghi và ép `SET LOCAL TRANSACTION READ ONLY`. Câu ngoài kệ trả `404`; chỉ trả `output_columns`. |
+| **6. VPS & BuildKit Unicode Scars** | Thư mục chứa dấu tiếng Việt làm lỗi header gRPC của Docker BuildKit; xung đột port `5432`/`3000`/`4000`. | `deploy-vps.sh` tự phát hiện đường dẫn Unicode bật `DOCKER_BUILDKIT=0`, dùng `.dockerignore` nén context `<2MB`, và khóa Postgres vào `127.0.0.1`. |

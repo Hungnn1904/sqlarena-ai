@@ -17,6 +17,14 @@ LIST_COLS = "draft_id, job_id, title, difficulty, skill_ids, status, status_reas
 _ATTEST = {"verdict": "pass", "issues": [], "checks": [{"requirement": r, "status": "pass", "finding": "admin_attested"} for r in (
     "output columns and aliases", "WHERE, HAVING, aggregate thresholds", "joins, row grain, EXISTS and correlated subqueries",
     "NULL, date, rounding, unit edge cases", "ordering and tie breakers")], "attested_by_admin": True}
+_LEGACY_MODEL_TOKENS = ("llama", "qwen", "deepseek", "ollama")
+
+
+def _clean_model_label(model_val: str | None, fallback: str) -> str:
+    raw = (model_val or "").strip()
+    if not raw or any(tok in raw.lower() for tok in _LEGACY_MODEL_TOKENS):
+        return fallback
+    return raw
 
 
 def list_drafts(conn: Connection, status, job_id, difficulty, page: int, size: int) -> dict:
@@ -39,7 +47,8 @@ def list_drafts(conn: Connection, status, job_id, difficulty, page: int, size: i
                        LEFT JOIN live.questions lq ON lq.source_draft_id = d.draft_id
                        {where}
                        ORDER BY d.draft_id DESC LIMIT :l OFFSET :o""", l=size, o=(page - 1) * size, **p)
-    return {"items": rows, "total": total, "page": page, "page_size": size}
+    items = [{**r, "gen_model": _clean_model_label(r.get("gen_model"), "Model A")} for r in rows]
+    return {"items": items, "total": total, "page": page, "page_size": size}
 
 
 def detail(conn: Connection, draft_id: int) -> dict:
@@ -48,9 +57,14 @@ def detail(conn: Connection, draft_id: int) -> dict:
         raise not_found("Không tìm thấy draft")
     bp = d["blueprint"] or {}
     cand = bp.get("candidate", {})
-    runs = q(conn, "SELECT run_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, mismatch_detail, exec_status, row_count, "
-                   "result_hash, error, review_model, review_round FROM draft.self_solve_runs WHERE draft_id=:i ORDER BY review_round, sample_index", i=draft_id)
-    logs = q(conn, "SELECT log_id, stage, passed, score, reasons, review_model, rubric_version, created_at FROM draft.review_logs WHERE draft_id=:i ORDER BY log_id", i=draft_id)
+    raw_runs = q(conn, "SELECT run_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, mismatch_detail, exec_status, row_count, "
+                       "result_hash, error, review_model, review_round FROM draft.self_solve_runs WHERE draft_id=:i ORDER BY review_round, sample_index", i=draft_id)
+    runs = [{**r, "review_model": _clean_model_label(r.get("review_model"), "Model B")} for r in raw_runs]
+    raw_logs = q(conn, "SELECT log_id, stage, passed, score, reasons, review_model, rubric_version, created_at FROM draft.review_logs WHERE draft_id=:i ORDER BY log_id", i=draft_id)
+    logs = [
+        {**lg, "review_model": _clean_model_label(lg.get("review_model"), "Auditor" if lg.get("stage") in ("checklist", "checklist_b", "audit") else "Model B")}
+        for lg in raw_logs
+    ]
     question = q1(conn, """SELECT lq.question_id, lq.status,
                                   (SELECT i.position FROM live.weekly_set_items i JOIN live.weekly_sets ws ON ws.set_id=i.set_id
                                    WHERE i.question_id=lq.question_id AND ws.status='published' ORDER BY i.position LIMIT 1) AS weekly_position
@@ -59,12 +73,45 @@ def detail(conn: Connection, draft_id: int) -> dict:
     skills = q(conn, "SELECT skill_id, code, name FROM core.skills WHERE skill_id = ANY(:s) ORDER BY skill_id", s=list(d["skill_ids"]))
     out = {k: d[k] for k in ("draft_id", "world_id", "job_id", "title", "question", "reference_sql", "compare_mode", "difficulty", "tables_used", "schema_text",
                              "status", "status_reason", "gen_model", "gen_prompt_version", "retry_count", "review_attempts", "created_at", "updated_at")}
+    out["gen_model"] = _clean_model_label(out.get("gen_model"), "Model A")
     out.update(skills=skills, source_question_ids=bp.get("source_question_ids", []),
                job_topic=job_row["topic"] if job_row else cand.get("business_domain"),
                blueprint={k: cand.get(k) for k in ("business_domain", "business_goal", "difficulty_reason", "output_columns", "required_columns",
                                                     "table_roles", "logic_signature", "join_relations")},
                validation_report=d["validation_report"], self_solve_runs=runs, review_logs=logs, promoted_question=question)
     return out
+
+
+def _unpublish_live_question_for_draft(conn: Connection, draft_id: int, retire_reason: str) -> int | None:
+    """Nếu draft có câu hỏi tương ứng trên live.questions: gỡ khỏi weekly_set_items, đánh lại position 1..N và đặt status='retired'."""
+    lq = q1(conn, "SELECT question_id FROM live.questions WHERE source_draft_id=:d FOR UPDATE", d=draft_id)
+    if not lq:
+        return None
+    qid = lq["question_id"]
+    affected = [r["set_id"] for r in q(conn, "SELECT set_id FROM live.weekly_set_items WHERE question_id=:q", q=qid)]
+    if affected:
+        ex(conn, "DELETE FROM live.weekly_set_items WHERE question_id=:q", q=qid)
+        for sid in sorted(set(affected)):
+            ex(conn, "UPDATE live.weekly_set_items SET position = position + 1000 WHERE set_id=:s", s=sid)
+            ex(
+                conn,
+                """UPDATE live.weekly_set_items i
+                   SET position = n.rn
+                   FROM (
+                     SELECT question_id, row_number() OVER (ORDER BY position) AS rn
+                     FROM live.weekly_set_items
+                     WHERE set_id=:s
+                   ) n
+                   WHERE i.set_id=:s AND i.question_id = n.question_id""",
+                s=sid,
+            )
+    ex(
+        conn,
+        "UPDATE live.questions SET status='retired', retired_at=now(), retire_reason=:r WHERE question_id=:q",
+        r=retire_reason,
+        q=qid,
+    )
+    return qid
 
 
 def _requeue(conn: Connection, admin: dict, draft_id: int, title, question, note, action: str) -> dict:
@@ -93,16 +140,65 @@ def requeue(conn: Connection, admin: dict, draft_id: int, note) -> dict:
     return _requeue(conn, admin, draft_id, None, None, note, "admin_requeued")
 
 
+def return_needs_human(conn: Connection, admin: dict, draft_id: int, note: str | None) -> dict:
+    """Chuyển ngược draft đang approved về needs_human, gỡ khỏi bộ đề tuần đang mở (đánh lại position) và đặt live.questions sang retired."""
+    d = q1(conn, "SELECT * FROM draft.question_drafts WHERE draft_id=:i FOR UPDATE", i=draft_id)
+    if not d:
+        raise not_found("Không tìm thấy draft")
+    if d["status"] != "approved":
+        raise conflict("INVALID_STATE", f"Chỉ draft approved mới chuyển về needs_human được (hiện: {d['status']})", {"status": d["status"]})
+    clean_note = (note or "").strip() or None
+    ex(
+        conn,
+        """UPDATE draft.question_drafts
+           SET status='needs_human',
+               status_reason=COALESCE(:n, 'Admin chuyển về Cần duyệt tay'),
+               locked_by=NULL,
+               review_lease_expires_at=NULL,
+               updated_at=now()
+           WHERE draft_id=:i""",
+        n=clean_note,
+        i=draft_id,
+    )
+    retired_qid = _unpublish_live_question_for_draft(conn, draft_id, "Returned to needs_human")
+    ex(
+        conn,
+        "INSERT INTO live.admin_overrides (admin_id, draft_id, action, note) VALUES (:a, :d, 'return_needs_human', :n)",
+        a=admin["user_id"],
+        d=draft_id,
+        n=clean_note,
+    )
+    audit.log(
+        conn,
+        admin["user_id"],
+        "draft.return_needs_human",
+        "draft",
+        draft_id,
+        {"from_status": "approved", "retired_question_id": retired_qid, "note": clean_note},
+    )
+    return detail(conn, draft_id)
+
+
 def reject(conn: Connection, admin: dict, draft_id: int, reason: str) -> dict:
-    n = ex(conn, """UPDATE draft.question_drafts SET status='rejected', status_reason=:r, locked_by=NULL, review_lease_expires_at=NULL, updated_at=now()
-                    WHERE draft_id=:i AND status='needs_human'""", r=reason, i=draft_id)
-    if n == 0:
-        d = q1(conn, "SELECT status FROM draft.question_drafts WHERE draft_id=:i", i=draft_id)
-        if not d:
-            raise not_found("Không tìm thấy draft")
-        raise conflict("INVALID_STATE", f"Chỉ draft needs_human mới reject được (hiện: {d['status']})", {"status": d["status"]})
+    d = q1(conn, "SELECT status FROM draft.question_drafts WHERE draft_id=:i FOR UPDATE", i=draft_id)
+    if not d:
+        raise not_found("Không tìm thấy draft")
+    orig_status = d["status"]
+    if orig_status not in ("needs_human", "approved"):
+        raise conflict("INVALID_STATE", f"Chỉ draft needs_human/approved mới reject được (hiện: {orig_status})", {"status": orig_status})
+    ex(
+        conn,
+        """UPDATE draft.question_drafts
+           SET status='rejected', status_reason=:r, locked_by=NULL, review_lease_expires_at=NULL, updated_at=now()
+           WHERE draft_id=:i""",
+        r=reason,
+        i=draft_id,
+    )
+    retired_qid = None
+    if orig_status == "approved":
+        retired_qid = _unpublish_live_question_for_draft(conn, draft_id, reason)
     ex(conn, "INSERT INTO live.admin_overrides (admin_id, draft_id, action, note) VALUES (:a, :d, 'reject', :n)", a=admin["user_id"], d=draft_id, n=reason)
-    audit.log(conn, admin["user_id"], "draft.reject", "draft", draft_id, {"reason": reason})
+    audit.log(conn, admin["user_id"], "draft.reject", "draft", draft_id, {"reason": reason, "from_status": orig_status, "retired_question_id": retired_qid})
     return detail(conn, draft_id)
 
 

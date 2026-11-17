@@ -348,6 +348,13 @@ def publish(conn: Connection, admin: dict, group_id: int, mode: str = "append_ac
     else:
         raise bad_request(f"Chế độ phát hành không hợp lệ: {mode}")
 
+    published_count = q1(
+        conn,
+        "SELECT count(*) AS n FROM live.weekly_set_items WHERE set_id=:s AND question_id = ANY(:ids)",
+        s=sid,
+        ids=qids,
+    )["n"]
+
     ex(
         conn,
         "UPDATE live.question_groups SET status='published', published_at=now(), published_set_id=:sid WHERE group_id=:g",
@@ -360,11 +367,11 @@ def publish(conn: Connection, admin: dict, group_id: int, mode: str = "append_ac
         "question_group.publish",
         "question_group",
         group_id,
-        {"mode": mode, "set_id": sid, "published_count": inserted_count},
+        {"mode": mode, "set_id": sid, "published_count": published_count, "inserted_count": inserted_count},
     )
     return {
         "group": get(conn, group_id),
-        "published_count": inserted_count,
+        "published_count": published_count,
         "set_id": sid,
         "set_title": s_title,
         "mode": mode,

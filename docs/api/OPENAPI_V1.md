@@ -30,11 +30,13 @@
 ## 3. Admin Generation, Calibrated Review & Manual Authoring (`/api/v1/admin/*`)
 | Method | Endpoint | Payload / Query | Response Summary |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/admin/generation-jobs` | `{ difficulty, skill_ids?, topic?, quantity?, auto_run? }` | Enqueues Model A + Model B generation job (`202`) |
+| `POST` | `/api/v1/admin/generation-jobs` | `{ difficulty, skill_ids?, skill_quantities?, topic?, quantity?, auto_run? }` | Enqueues per-skill or pooled generation job(s) via `apithat.dev` (`202`) |
 | `POST` | `/api/v1/admin/generation-jobs/run-worker` | — | Runs synchronous worker cycle until queue idle (`200`) |
 | `GET` | `/api/v1/admin/drafts` | `?status&job_id&difficulty&page&page_size` | Paginated `draft.question_drafts` |
 | `GET` | `/api/v1/admin/drafts/{draft_id}` | — | Full draft blueprint, `self_solve_runs`, `review_logs`, `promoted_question` |
-| `POST` | `/api/v1/admin/drafts/{draft_id}/approve` | `{ selected_run_id?, custom_sql?, note? }` | Verifies mandatory safety gates on `needs_human`/`rejected` draft & promotes to `live.questions(ready)` |
+| `POST` | `/api/v1/admin/drafts/{draft_id}/approve` | `{ selected_run_id?, custom_sql?, note? }` | Approves `needs_human`/`rejected` draft & publishes onto active Learner shelf |
+| `POST` | `/api/v1/admin/drafts/{draft_id}/return-needs-human` | `{ note? }` | Reverts `approved` draft back to `needs_human` and detaches from active Learner shelf |
+| `POST` | `/api/v1/admin/drafts/{draft_id}/reject` | `{ reason }` | Rejects `needs_human` or `approved` draft (detaching from Learner shelf if live) |
 | `POST` | `/api/v1/admin/drafts/bulk-approve` | `{ draft_ids: int[], note? }` | Batch-approves multiple drafts -> `{ approved_count, approved_draft_ids, question_ids, skipped }` |
 | `POST` | `/api/v1/admin/questions/manual` | `{ title, question, reference_sql, difficulty, skill_ids, compare_mode? }` | Live-verifies SQL on `enterprise_db` & creates `live.questions(ready)` + `live.test_cases` (`201`) |
 | `GET` | `/api/v1/admin/questions` | `?status&difficulty&skill_id&q&unassigned_only&page&page_size` | Lists `live.questions` with `in_weekly_set`, `in_published_set`, `group_ids` |

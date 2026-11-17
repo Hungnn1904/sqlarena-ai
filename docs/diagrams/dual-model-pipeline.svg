@@ -39,49 +39,46 @@
     </style>
   </defs>
   <rect width="1080.0" height="560.0" fill="#082f49"/>
-  <text x="540.0" y="56" text-anchor="middle" class="title">Calibrated Dual-Model Verification &amp; Batch Group Publishing Flow</text>
-  <text x="540.0" y="82" text-anchor="middle" class="subtitle">Generator (Model A) != Blind Verifier (Model B) -&gt; Staging Pool -&gt; Lecturer Group Batch Publish</text>
+  <text x="540.0" y="56" text-anchor="middle" class="title">Per-Skill AI Synthesis, Calibrated Verification &amp; Live Publishing Flow</text>
+  <text x="540.0" y="82" text-anchor="middle" class="subtitle">apithat.dev Dual-Model -&gt; Auto-Live on Approved -&gt; Needs-Human Review / Revert -&gt; Weekly Set &amp; Groups</text>
   <path d="M 0.0,0.0" fill="none" stroke="#67e8f9" stroke-width="2.1" marker-end="url(#arrowA)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#fde047" stroke-width="2.1" marker-end="url(#arrowE)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#22d3ee" stroke-width="2.1" marker-end="url(#arrowB)"/>
   <path d="M 0.0,0.0" fill="none" stroke="#fb7185" stroke-width="2.1" marker-end="url(#arrowG)" stroke-dasharray="6,4"/>
   <path d="M 0.0,0.0" fill="none" stroke="#22d3ee" stroke-width="2.1" marker-end="url(#arrowB)"/>
-  <path d="M 0.0,0.0" fill="none" stroke="#67e8f9" stroke-width="2.1" marker-end="url(#arrowA)"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#fb7185" stroke-width="2.1" marker-end="url(#arrowG)" stroke-dasharray="6,4"/>
   <path d="M 0.0,0.0" fill="none" stroke="#22d3ee" stroke-width="2.1" marker-end="url(#arrowB)"/>
-  <rect x="60.0" y="145.0" width="210.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
-  <text x="165.0" y="182.0" text-anchor="middle" class="node-title">1. Model A Synthesis</text>
-  <text x="165.0" y="204.0" text-anchor="middle" class="node-sub">Vietnamese Prompt + FK Norm</text>
-  <rect x="330.0" y="145.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
-  <text x="440.0" y="182.0" text-anchor="middle" class="node-title">2. Blind Solver B (k=3)</text>
-  <text x="440.0" y="204.0" text-anchor="middle" class="node-sub">pglast AST + PG17 Read-Only</text>
-  <rect x="610.0" y="145.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
-  <text x="720.0" y="182.0" text-anchor="middle" class="node-title">3. Calibrated Gate</text>
-  <text x="720.0" y="204.0" text-anchor="middle" class="node-sub">Consensus + ORDER BY + Audit</text>
-  <rect x="610.0" y="310.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
-  <text x="720.0" y="347.0" text-anchor="middle" class="node-title">Needs Human Queue</text>
-  <text x="720.0" y="369.0" text-anchor="middle" class="node-sub">Bulk Approve / Custom SQL</text>
-  <rect x="880.0" y="145.0" width="160.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
-  <text x="960.0" y="182.0" text-anchor="middle" class="node-title">4. Ready Staging Pool</text>
-  <text x="960.0" y="204.0" text-anchor="middle" class="node-sub">live.questions (No Auto-Leak)</text>
-  <rect x="330.0" y="420.0" width="240.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
-  <text x="450.0" y="457.0" text-anchor="middle" class="node-title">5. Question Group</text>
-  <text x="450.0" y="479.0" text-anchor="middle" class="node-sub">Drag-Drop &amp; Checkbox Pick</text>
-  <rect x="700.0" y="420.0" width="260.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
-  <text x="830.0" y="457.0" text-anchor="middle" class="node-title">6. Live Student Shelf</text>
-  <text x="830.0" y="479.0" text-anchor="middle" class="node-sub">Atomic Batch Publish (1..N)</text>
+  <rect x="60.0" y="145.0" width="215.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="167.5" y="182.0" text-anchor="middle" class="node-title">1. Per-Skill Job (S1..S6)</text>
+  <text x="167.5" y="204.0" text-anchor="middle" class="node-sub">Model A via apithat.dev</text>
+  <rect x="335.0" y="145.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="445.0" y="182.0" text-anchor="middle" class="node-title">2. Blind Solver B (k=3)</text>
+  <text x="445.0" y="204.0" text-anchor="middle" class="node-sub">pglast AST + PG17 Read-Only</text>
+  <rect x="615.0" y="145.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="725.0" y="182.0" text-anchor="middle" class="node-title">3. Calibrated Gate</text>
+  <text x="725.0" y="204.0" text-anchor="middle" class="node-sub">Consensus + ORDER BY + Audit</text>
+  <rect x="470.0" y="320.0" width="230.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="585.0" y="357.0" text-anchor="middle" class="node-title">Needs Human Queue</text>
+  <text x="585.0" y="379.0" text-anchor="middle" class="node-sub">Approve or Reject</text>
+  <rect x="790.0" y="320.0" width="240.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="910.0" y="357.0" text-anchor="middle" class="node-title">4. Live Learner Web (:3000)</text>
+  <text x="910.0" y="379.0" text-anchor="middle" class="node-sub">Instant Live or Group Publish</text>
+  <rect x="140.0" y="420.0" width="260.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="270.0" y="457.0" text-anchor="middle" class="node-title">5. Approved Pool &amp; Weekly Sets</text>
+  <text x="270.0" y="479.0" text-anchor="middle" class="node-sub">Group &amp; Batch Publish (:4000)</text>
   <rect x="-52.5" y="-14.0" width="105" height="20" rx="6" fill="#082f49" opacity="0.9"/>
   <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Draft Pending</text>
   <rect x="-52.5" y="-14.0" width="105" height="20" rx="6" fill="#082f49" opacity="0.9"/>
   <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Result Hashes</text>
-  <rect x="-35.0" y="-14.0" width="70" height="20" rx="6" fill="#082f49" opacity="0.9"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Approved</text>
-  <rect x="-38.5" y="-14.0" width="77" height="20" rx="6" fill="#082f49" opacity="0.9"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Ambiguous</text>
-  <rect x="-49.0" y="-14.0" width="98" height="20" rx="6" fill="#082f49" opacity="0.9"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Verified SQL</text>
+  <rect x="-63.0" y="-14.0" width="126" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Approved -&gt; Live</text>
   <rect x="-45.5" y="-14.0" width="91" height="20" rx="6" fill="#082f49" opacity="0.9"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Pick / Drag</text>
-  <rect x="-59.5" y="-14.0" width="119" height="20" rx="6" fill="#082f49" opacity="0.9"/>
-  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">1-Click Publish</text>
-  <text x="42.0" y="544.0" class="footnote">Hunter != Verifier Invariant · Calibrated Approval Floor · Atomic FOR UPDATE Batch Release</text>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Needs Human</text>
+  <rect x="-52.5" y="-14.0" width="105" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Admin Approve</text>
+  <rect x="-70.0" y="-14.0" width="140" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Return Needs Human</text>
+  <rect x="-52.5" y="-14.0" width="105" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Batch Publish</text>
+  <text x="42.0" y="544.0" class="footnote">Hunter != Verifier · Approved Goes Live Immediately · Reversible Approved &lt;-&gt; Needs_Human State</text>
 </svg>

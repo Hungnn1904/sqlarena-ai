@@ -4,6 +4,7 @@ Phạm vi ở đây: tạo bộ (tự chọn câu READY chưa dùng, tính thi�
 và các view cho người học. Chấm điểm/weekly_results/pass_rate thuộc module xếp hạng: đăng ký qua CLOSE_HOOKS (chạy cùng transaction đóng tuần).
 """
 from datetime import date, datetime, time, timedelta
+import re
 from typing import Callable
 from zoneinfo import ZoneInfo
 
@@ -339,8 +340,16 @@ def learner_questions(conn: Connection, difficulty, skill_id, solved, search, pa
         conds.append("qq.difficulty=:d"); p["d"] = difficulty
     if skill_id:
         conds.append("qq.skill_ids @> ARRAY[:k]::int[]"); p["k"] = skill_id
-    if search:
-        conds.append("qq.title ILIKE :t"); p["t"] = f"%{search}%"
+    if search and search.strip():
+        s_clean = search.strip()
+        m_code = re.match(r"^(?:sql|q|câu|cau|bài|bai)?[\s#\-_:]*(\d+)$", s_clean, flags=re.IGNORECASE)
+        qnum = int(m_code.group(1)) if (m_code and int(m_code.group(1)) <= 2_147_483_647) else None
+        conds.append(
+            "(qq.title ILIKE :t OR qq.question ILIKE :t "
+            "OR (CAST(:qnum AS int) IS NOT NULL AND (i.position = CAST(:qnum AS int) OR qq.question_id = CAST(:qnum AS int))))"
+        )
+        p["t"] = f"%{s_clean}%"
+        p["qnum"] = qnum
     if solved is True:
         conds.append("EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed')")
     elif solved is False:

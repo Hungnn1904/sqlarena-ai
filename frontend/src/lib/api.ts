@@ -161,6 +161,13 @@ export const bulkApproveAdminDrafts = (draft_ids: number[], note?: string) =>
 export const rejectAdminDraft = (draftId: number, reason: string) =>
   api.post(`/api/v1/admin/drafts/${draftId}/reject`, { reason }).then((r) => r.data);
 
+export const returnAdminDraftNeedsHuman = (draftId: number, note?: string) =>
+  api
+    .post(`/api/v1/admin/drafts/${draftId}/return-needs-human`, {
+      ...(note ? { note } : {}),
+    })
+    .then((r) => r.data);
+
 export const requeueAdminDraft = (draftId: number, note?: string) =>
   api.post(`/api/v1/admin/drafts/${draftId}/requeue`, { note }).then((r) => r.data);
 
@@ -250,6 +257,7 @@ export const getGenerationJobs = () =>
 export const createGenerationJob = (data: {
   difficulty: number;
   skill_ids: number[];
+  skill_quantities?: { skill_id: number; quantity: number }[];
   requested_count?: number;
   quantity?: number;
   topic?: string;
@@ -259,6 +267,9 @@ export const createGenerationJob = (data: {
     .post('/api/v1/admin/generation-jobs', {
       difficulty: data.difficulty,
       skill_ids: data.skill_ids,
+      ...(data.skill_quantities && data.skill_quantities.length > 0
+        ? { skill_quantities: data.skill_quantities }
+        : {}),
       quantity: data.quantity ?? data.requested_count ?? 3,
       topic: data.topic,
       auto_run: data.auto_run ?? true,

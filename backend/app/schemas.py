@@ -3,11 +3,18 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 
+class SkillQuantityItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    skill_id: int
+    quantity: int = Field(ge=1, le=30)
+
+
 class JobCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     world_id: int | None = None
     difficulty: int = Field(ge=1, le=3)
     skill_ids: list[int] | None = Field(default=None, min_length=1, max_length=20)   # bỏ trống = mọi kỹ năng Rules cho phép ở độ khó này
+    skill_quantities: list[SkillQuantityItem] | None = Field(default=None, min_length=1, max_length=6)
     topic: str | None = Field(default=None, max_length=100)
     quantity: int | None = Field(default=None, ge=1, le=30)
     requested_count: int | None = Field(default=None, ge=1, le=30)

@@ -21,7 +21,7 @@ interface ComparisonRow {
 
 const rows: ComparisonRow[] = [
   { criteria: 'Số lượt gọi LLM mỗi câu', original: <StatusBadge type="warn">3 lượt nặng</StatusBadge>, optimized: <StatusBadge type="ok">3 lượt (2 chính + 1 kiểm toán gọn)</StatusBadge> },
-  { criteria: 'Chi phí vận hành', original: <StatusBadge type="warn">Tốn phí API ngoài</StatusBadge>, optimized: <StatusBadge type="ok">Chạy nội bộ Ollama miễn phí</StatusBadge> },
+  { criteria: 'Chi phí vận hành', original: <StatusBadge type="warn">Tốn phí API ngoài</StatusBadge>, optimized: <StatusBadge type="ok">Tối ưu qua cổng API Thật (apithat.dev)</StatusBadge> },
   { criteria: 'Khởi tạo ban đầu', original: <StatusBadge type="bad">Chưa hỗ trợ</StatusBadge>, optimized: <StatusBadge type="ok">Bộ đề gốc chuẩn + soạn thủ công</StatusBadge> },
   { criteria: 'Phát hiện đề mơ hồ', original: <StatusBadge type="warn">Kiểm tra muộn</StatusBadge>, optimized: <StatusBadge type="ok">Kiểm tra ngay từ Blueprint & Audit</StatusBadge> },
   { criteria: 'Đối chứng kết quả', original: <StatusBadge type="warn">So chuỗi câu lệnh</StatusBadge>, optimized: <StatusBadge type="ok">Chạy thực nghiệm trên PostgreSQL 17</StatusBadge> },

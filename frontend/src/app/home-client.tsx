@@ -17,7 +17,19 @@ import { LearnerProgressView, LeaderboardView } from '../components/ProgressAndL
 import AdminPortal from '../components/AdminPortal';
 import { UserProfile, getMe, loginUser, extractApiError } from '../lib/api';
 
-const VALID_TABS = new Set(['workbench', 'progress', 'leaderboard', 'admin']);
+const LEARNER_TABS = new Set(['workbench', 'progress', 'leaderboard']);
+
+function detectWebSurface(forceSurface?: 'learner' | 'admin'): 'learner' | 'admin' {
+  if (forceSurface) return forceSurface;
+  if (typeof window !== 'undefined') {
+    const port = window.location.port;
+    const pathname = window.location.pathname || '';
+    if (port === '4000' || port === '4005' || pathname.startsWith('/admin')) {
+      return 'admin';
+    }
+  }
+  return 'learner';
+}
 
 const HERO_DEMO_QUERIES = [
   {
@@ -60,20 +72,31 @@ const HERO_DEMO_QUERIES = [
   },
 ];
 
-export default function HomeClient() {
+export default function HomeClient({
+  forceSurface,
+}: {
+  forceSurface?: 'learner' | 'admin';
+}) {
+  const [surface, setSurface] = useState<'learner' | 'admin'>(forceSurface || 'learner');
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTabState] = useState<string>('workbench');
   const [booting, setBooting] = useState(true);
-  const [demoLoading, setDemoLoading] = useState<'learner' | 'admin' | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
   const [authModalTrigger, setAuthModalTrigger] = useState(0);
   const [initialAuthMode, setInitialAuthMode] = useState<'login' | 'register'>('login');
   const [selectedHeroDemo, setSelectedHeroDemo] = useState(0);
 
+  // Admin Login Form State
+  const [adminIdentifier, setAdminIdentifier] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoginBusy, setAdminLoginBusy] = useState(false);
+  const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
+
   const setActiveTab = (nextTab: string) => {
-    const safeTab = VALID_TABS.has(nextTab) ? nextTab : 'workbench';
+    const safeTab = LEARNER_TABS.has(nextTab) ? nextTab : 'workbench';
     setActiveTabState(safeTab);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && surface === 'learner') {
       window.sessionStorage.setItem('sqlarena_active_tab', safeTab);
       const url = new URL(window.location.href);
       url.searchParams.set('tab', safeTab);
@@ -82,15 +105,19 @@ export default function HomeClient() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const detected = detectWebSurface(forceSurface);
+    setSurface(detected);
+
+    if (typeof window !== 'undefined' && detected === 'learner') {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get('tab');
       const fromSession = window.sessionStorage.getItem('sqlarena_active_tab');
-      const candidate = fromUrl && VALID_TABS.has(fromUrl)
-        ? fromUrl
-        : fromSession && VALID_TABS.has(fromSession)
-        ? fromSession
-        : 'workbench';
+      const candidate =
+        fromUrl && LEARNER_TABS.has(fromUrl)
+          ? fromUrl
+          : fromSession && LEARNER_TABS.has(fromSession)
+          ? fromSession
+          : 'workbench';
       setActiveTabState(candidate);
     }
 
@@ -100,9 +127,6 @@ export default function HomeClient() {
         if (token) {
           const me = await getMe();
           setUser(me);
-          if (me.role !== 'admin') {
-            setActiveTabState((prev) => (prev === 'admin' ? 'workbench' : prev));
-          }
         }
       } catch {
         window.localStorage.removeItem('sqlarena_token');
@@ -112,40 +136,77 @@ export default function HomeClient() {
       }
     };
     initAuth();
-  }, []);
+  }, [forceSurface]);
 
   const handleAuthSuccess = (token: string, u: UserProfile, targetTab?: string) => {
     window.localStorage.setItem('sqlarena_token', token);
     setUser(u);
     setDemoError(null);
-    if (targetTab) {
-      setActiveTab(u.role !== 'admin' && targetTab === 'admin' ? 'workbench' : targetTab);
-    } else if (u.role !== 'admin' && activeTab === 'admin') {
-      setActiveTab('workbench');
+    setAdminLoginError(null);
+    if (surface === 'learner') {
+      setActiveTab(targetTab && LEARNER_TABS.has(targetTab) ? targetTab : 'workbench');
     }
   };
 
   const handleLogout = () => {
     window.localStorage.removeItem('sqlarena_token');
     setUser(null);
-    setActiveTab('workbench');
+    if (surface === 'learner') {
+      setActiveTab('workbench');
+    }
   };
 
-  const handleQuickDemo = async (role: 'learner' | 'admin') => {
-    setDemoLoading(role);
+  const handleLearnerQuickDemo = async () => {
+    setDemoLoading(true);
     setDemoError(null);
     try {
-      if (role === 'learner') {
-        const res = await loginUser('nguyen_ptit', 'demo123');
-        handleAuthSuccess(res.access_token, res.user, 'workbench');
-      } else {
-        const res = await loginUser('admin', 'admin123');
-        handleAuthSuccess(res.access_token, res.user, 'admin');
-      }
+      const res = await loginUser('nguyen_ptit', 'demo123');
+      handleAuthSuccess(res.access_token, res.user, 'workbench');
     } catch (e: any) {
-      setDemoError(extractApiError(e, 'Không kết nối được tới máy chủ API. Vui lòng kiểm tra container backend.'));
+      setDemoError(
+        extractApiError(e, 'Không kết nối được tới máy chủ API. Vui lòng kiểm tra container backend.')
+      );
     } finally {
-      setDemoLoading(null);
+      setDemoLoading(false);
+    }
+  };
+
+  const handleAdminFormLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminLoginBusy(true);
+    setAdminLoginError(null);
+    try {
+      const res = await loginUser(adminIdentifier.trim(), adminPassword);
+      if (res.user.role !== 'admin') {
+        setAdminLoginError('Tài khoản này không có quyền Quản trị viên. Vui lòng đăng nhập bằng tài khoản Admin.');
+        return;
+      }
+      handleAuthSuccess(res.access_token, res.user);
+    } catch (e: any) {
+      setAdminLoginError(
+        extractApiError(e, 'Thông tin đăng nhập Quản trị chưa chính xác.')
+      );
+    } finally {
+      setAdminLoginBusy(false);
+    }
+  };
+
+  const handleAdminSampleLogin = async () => {
+    setAdminLoginBusy(true);
+    setAdminLoginError(null);
+    try {
+      const res = await loginUser('admin', 'admin123');
+      if (res.user.role !== 'admin') {
+        setAdminLoginError('Tài khoản mẫu hiện không có quyền Quản trị viên.');
+        return;
+      }
+      handleAuthSuccess(res.access_token, res.user);
+    } catch (e: any) {
+      setAdminLoginError(
+        extractApiError(e, 'Không kết nối được tới máy chủ API. Vui lòng kiểm tra container backend.')
+      );
+    } finally {
+      setAdminLoginBusy(false);
     }
   };
 
@@ -154,6 +215,7 @@ export default function HomeClient() {
   return (
     <div className="min-h-screen bg-canvas text-ink flex flex-col">
       <AuthBar
+        surface={surface}
         user={user}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -167,10 +229,96 @@ export default function HomeClient() {
       <main className="flex-1 max-w-[1520px] w-full mx-auto px-4 sm:px-6 py-6">
         {booting ? (
           <div className="p-12 rounded-xl bg-surface border border-line text-center text-sm text-muted">
-            Đang kết nối hệ thống chấm bài PostgreSQL 17...
+            Đang kết nối hệ thống PostgreSQL 17…
           </div>
+        ) : surface === 'admin' ? (
+          /* ================================================================
+             DEDICATED ADMIN WEB (:4000 / /admin)
+          ================================================================ */
+          !user || user.role !== 'admin' ? (
+            <div className="max-w-md mx-auto my-12 bg-surface border border-line rounded-2xl p-6 sm:p-7 space-y-5">
+              <div className="flex items-center gap-3">
+                <div
+                  data-solid-btn="true"
+                  className="w-10 h-10 rounded-xl btn-primary flex items-center justify-center shrink-0"
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold text-ink">Đăng nhập Quản trị</h1>
+                  <p className="text-xs text-muted">
+                    Cổng dành riêng cho Quản trị viên &amp; Giảng viên
+                  </p>
+                </div>
+              </div>
+
+              {user && user.role !== 'admin' && (
+                <div className="p-3 rounded-lg badge-medium text-xs leading-relaxed">
+                  Phiên hiện tại (<strong>@{user.username}</strong>) là tài khoản Học viên. Vui lòng đăng nhập tài khoản Quản trị viên bên dưới.
+                </div>
+              )}
+
+              {adminLoginError && (
+                <div className="p-3 rounded-lg badge-hard text-sm">
+                  {adminLoginError}
+                </div>
+              )}
+
+              <form onSubmit={handleAdminFormLogin} className="space-y-3.5">
+                <div>
+                  <label className="block text-sm font-medium text-text2 mb-1">
+                    Tài khoản Quản trị
+                  </label>
+                  <input
+                    value={adminIdentifier}
+                    onChange={(e) => setAdminIdentifier(e.target.value)}
+                    placeholder="Nhập tài khoản hoặc email Admin…"
+                    required
+                    className="w-full px-3.5 min-h-11 rounded-lg bg-canvas border border-line text-ink text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text2 mb-1">
+                    Mật khẩu
+                  </label>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu…"
+                    required
+                    className="w-full px-3.5 min-h-11 rounded-lg bg-canvas border border-line text-ink text-sm"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  data-solid-btn="true"
+                  disabled={adminLoginBusy}
+                  className="btn-primary w-full min-h-11 rounded-xl text-sm font-semibold disabled:opacity-50 whitespace-nowrap"
+                >
+                  {adminLoginBusy ? 'Đang xác thực…' : 'Đăng nhập Quản trị'}
+                </button>
+              </form>
+
+              <div className="pt-4 border-t border-line">
+                <button
+                  type="button"
+                  disabled={adminLoginBusy}
+                  onClick={handleAdminSampleLogin}
+                  className="btn-secondary w-full min-h-11 px-4 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 whitespace-nowrap"
+                >
+                  <ShieldCheck className="w-4 h-4 text-brand" />
+                  <span>Đăng nhập nhanh Admin mẫu (admin / admin123)</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <AdminPortal isAdmin={true} />
+          )
         ) : !user ? (
-          /* Interactive SQL Arena Quick-Start Welcome Hero */
+          /* ================================================================
+             DEDICATED LEARNER WEB (:3000) — WELCOME SCREEN (NO ADMIN LINKS)
+          ================================================================ */
           <section
             data-ui="sql-arena-quickstart"
             className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch pt-2 pb-8"
@@ -183,18 +331,15 @@ export default function HomeClient() {
                 </div>
 
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-ink tracking-tight leading-tight">
-                  Luyện viết truy vấn SQL và ra đề tự động trên dữ liệu thực tế
+                  Rèn luyện kỹ năng truy vấn SQL trên cơ sở dữ liệu thực tế
                 </h1>
 
                 <div className="space-y-3 text-base text-text2 leading-relaxed">
                   <p>
-                    <strong className="text-ink">1. Dành cho người học:</strong> Đọc đề bài tiếng Việt rõ ràng, tra cứu sơ đồ 13 bảng dữ liệu kèm khóa chính (<code className="text-sm px-1.5 py-0.5 rounded bg-soft text-ink">PK</code>) và khóa ngoại (<code className="text-sm px-1.5 py-0.5 rounded bg-soft text-ink">FK</code>), gõ lệnh SQL và xem kết quả ngay lập tức.
+                    <strong className="text-ink">1. Thực hành trực tiếp:</strong> Đọc đề bài tiếng Việt rõ ràng, tra cứu sơ đồ 13 bảng dữ liệu kèm khóa chính (<code className="text-sm px-1.5 py-0.5 rounded bg-soft text-ink">PK</code>) và khóa ngoại (<code className="text-sm px-1.5 py-0.5 rounded bg-soft text-ink">FK</code>), viết truy vấn SQL và đối chiếu kết quả ngay lập tức.
                   </p>
                   <p>
-                    <strong className="text-ink">2. Trợ lý học tập tích hợp:</strong> Tự động lưu nháp theo từng bài, gợi ý hướng giải khi bí ý tưởng, giải thích lỗi cú pháp SQL dễ hiểu và đo chi phí truy vấn (<code className="text-sm px-1.5 py-0.5 rounded bg-soft text-ink">EXPLAIN</code>).
-                  </p>
-                  <p>
-                    <strong className="text-ink">3. Dành cho giảng viên:</strong> Tạo đề bằng AI hoặc soạn thủ công, kéo thả gom nhiều câu hỏi vào một nhóm và đăng toàn bộ lên kệ bài tập chỉ với 1 lần bấm.
+                    <strong className="text-ink">2. Trợ lý học tập tích hợp:</strong> Tự động lưu nháp theo từng bài, gợi ý hướng giải khi cần, giải thích lỗi cú pháp SQL dễ hiểu và đo chi phí thực thi (<code className="text-sm px-1.5 py-0.5 rounded bg-soft text-ink">EXPLAIN</code>).
                   </p>
                 </div>
               </div>
@@ -210,45 +355,28 @@ export default function HomeClient() {
                   <button
                     type="button"
                     data-solid-btn="true"
-                    disabled={demoLoading !== null}
-                    onClick={() => handleQuickDemo('learner')}
-                    className="btn-primary min-h-12 px-5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                    disabled={demoLoading}
+                    onClick={handleLearnerQuickDemo}
+                    className="btn-primary min-h-12 px-5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 whitespace-nowrap"
                   >
                     <Play className="w-4 h-4" />
                     <span>
-                      {demoLoading === 'learner'
-                        ? 'Đang mở bàn làm bài...'
-                        : 'Vào làm bài ngay (Tài khoản Sinh viên Demo)'}
+                      {demoLoading ? 'Đang mở bàn làm bài…' : 'Vào làm bài ngay (Học viên mẫu)'}
                     </span>
                   </button>
 
                   <button
                     type="button"
-                    data-solid-btn="true"
-                    disabled={demoLoading !== null}
-                    onClick={() => handleQuickDemo('admin')}
-                    className="btn-blue min-h-12 px-5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                    onClick={() => {
+                      setInitialAuthMode('login');
+                      setAuthModalTrigger((c) => c + 1);
+                    }}
+                    className="btn-secondary min-h-12 px-5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap"
                   >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>
-                      {demoLoading === 'admin'
-                        ? 'Đang mở cổng Giảng viên...'
-                        : 'Vào cổng Giảng viên / Ra đề Demo'}
-                    </span>
+                    <UserPlus className="w-4 h-4 text-muted" />
+                    <span>Đăng nhập / Đăng ký</span>
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInitialAuthMode('login');
-                    setAuthModalTrigger((c) => c + 1);
-                  }}
-                  className="btn-secondary w-full min-h-11 px-5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                >
-                  <UserPlus className="w-4 h-4 text-muted" />
-                  <span>Đăng nhập / Tạo tài khoản riêng</span>
-                </button>
               </div>
             </div>
 
@@ -277,7 +405,7 @@ export default function HomeClient() {
                         type="button"
                         data-solid-btn={active ? 'true' : undefined}
                         onClick={() => setSelectedHeroDemo(idx)}
-                        className={`px-3 min-h-9 rounded-lg text-xs font-semibold ${
+                        className={`px-3 min-h-9 rounded-lg text-xs font-semibold whitespace-nowrap ${
                           active ? 'btn-primary' : 'btn-secondary'
                         }`}
                       >
@@ -304,7 +432,7 @@ export default function HomeClient() {
                     </span>
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Đạt 3/3 Test Cases (100 điểm)</span>
+                      <span>Làm được (3/3 bộ kiểm thử)</span>
                     </span>
                   </div>
 
@@ -338,7 +466,7 @@ export default function HomeClient() {
               <div className="px-5 py-3 bg-soft border-t border-line flex items-center justify-between text-xs text-text2">
                 <span className="inline-flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-copper" />
-                  <span>Chọn một tài khoản Demo bên trái để bắt đầu gõ SQL thật</span>
+                  <span>Đăng nhập bên trái để bắt đầu viết SQL trực tiếp</span>
                 </span>
               </div>
             </div>
@@ -355,23 +483,10 @@ export default function HomeClient() {
               {activeTab === 'workbench' && <LearnerWorkbench />}
               {activeTab === 'progress' && <LearnerProgressView />}
               {activeTab === 'leaderboard' && <LeaderboardView />}
-              {activeTab === 'admin' && (
-                <AdminPortal
-                  isAdmin={user.role === 'admin'}
-                  onJumpToWorkbench={() => setActiveTab('workbench')}
-                />
-              )}
             </motion.div>
           </AnimatePresence>
         )}
       </main>
-
-      <footer className="border-t border-line bg-surface py-3.5 px-4 sm:px-6 text-xs text-muted">
-        <div className="max-w-[1520px] mx-auto flex flex-wrap items-center justify-between gap-2">
-          <span>SQL Arena PTIT: Hệ thống học tập, gom nhóm ra đề và chấm điểm SQL tự động trên PostgreSQL 17</span>
-          <span>Chế độ thực thi an toàn (Read-Only Sandbox)</span>
-        </div>
-      </footer>
     </div>
   );
 }
