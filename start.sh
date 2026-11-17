@@ -1,13 +1,27 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
+cd "$(dirname "$0")"
 MODE="${1:---local}"
+
+if [ "$MODE" = "--vps" ]; then
+  shift || true
+  exec ./scripts/deploy-vps.sh "$@"
+fi
 
 if [ "$MODE" = "--docker" ]; then
   echo "🐳 [SQLArena AI] Đang khởi động toàn bộ hệ thống qua Docker Compose..."
-  echo "👉 Nếu PostgreSQL 17 trên máy Mac đang chiếm cổng 5432, Docker sẽ tự động dùng cổng 5433 cho Postgres container."
-  if lsof -i :5432 >/dev/null 2>&1; then
-    export POSTGRES_HOST_PORT=5433
+  if printf '%s' "$PWD" | LC_ALL=C grep -q '[^ -~]'; then
+    export DOCKER_BUILDKIT=0
+    export COMPOSE_DOCKER_CLI_BUILD=0
+  fi
+  if lsof -i :5432 >/dev/null 2>&1 && ! docker ps --filter "name=^sqlarena-postgres$" --filter "publish=5432" --format '{{.Names}}' 2>/dev/null | grep -qx 'sqlarena-postgres'; then
+    echo "👉 Phát hiện cổng 5432 đang bận trên máy chủ, tự động gán POSTGRES_HOST_PORT=5433."
+    export POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-5433}"
+  fi
+  if lsof -i :3000 >/dev/null 2>&1 && ! docker ps --filter "name=^sqlarena-frontend$" --filter "publish=3000" --format '{{.Names}}' 2>/dev/null | grep -qx 'sqlarena-frontend'; then
+    echo "👉 Phát hiện cổng 3000 đang bận trên máy chủ, tự động gán FRONTEND_HOST_PORT=3005."
+    export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-3005}"
   fi
   docker compose up --build -d
   echo "✅ Đã bật Docker Compose thành công!"
@@ -17,7 +31,6 @@ if [ "$MODE" = "--docker" ]; then
 fi
 
 echo "⚡ [SQLArena AI] Đang kiểm tra & khởi chạy chế độ Local Native siêu tốc..."
-cd "$(dirname "$0")"
 
 # 1. Migrate & Seed Demo Data
 (cd backend && ../.venv/bin/python -m app.cli migrate && ../.venv/bin/python -m app.cli seed-demo)

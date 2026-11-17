@@ -106,30 +106,41 @@ def reject(conn: Connection, admin: dict, draft_id: int, reason: str) -> dict:
     return detail(conn, draft_id)
 
 
-def approve(admin: dict, draft_id: int, selected_run_id: int | None, note: str | None) -> dict:
-    """needs_human → approved bởi admin. Admin KHÔNG bỏ qua mandatory gate: SQL được chạy lại trên mọi dataset qua cùng guard/consensus/
+def approve(
+    admin: dict,
+    draft_id: int,
+    selected_run_id: int | None = None,
+    note: str | None = None,
+    custom_sql: str | None = None,
+) -> dict:
+    """needs_human/rejected → approved bởi admin. Admin KHÔNG bỏ qua mandatory gate: SQL được chạy lại trên mọi dataset qua cùng guard/consensus/
     contract của engine; chỉ các lý do 'phán đoán của người' (ADMIN_OVERRIDABLE) được xác nhận. Semantic audit LLM được thay bằng xác nhận của admin."""
     worker = f"admin:{admin['user_id']}"
+    clean_custom = (custom_sql or "").strip() or None
     with begin() as conn:
+        cur = q1(conn, "SELECT status FROM draft.question_drafts WHERE draft_id=:i FOR UPDATE", i=draft_id)
+        if not cur:
+            raise not_found("Không tìm thấy draft")
+        orig_status = cur["status"]
+        if orig_status not in ("needs_human", "rejected"):
+            raise conflict("INVALID_STATE", f"Chỉ draft needs_human/rejected mới approve được (hiện: {orig_status})", {"status": orig_status})
         lease = sr.get(conn, "generation.lease_seconds")
         draft = q1(conn, """UPDATE draft.question_drafts SET status='reviewing', locked_by=:w, locked_at=now(),
                     review_lease_expires_at = now() + make_interval(secs => :s), review_lease_version = review_lease_version + 1, updated_at=now()
-                    WHERE draft_id=:i AND status='needs_human' RETURNING *""", w=worker, s=lease, i=draft_id)
-        if not draft:
-            cur = q1(conn, "SELECT status FROM draft.question_drafts WHERE draft_id=:i", i=draft_id)
-            if not cur:
-                raise not_found("Không tìm thấy draft")
-            raise conflict("INVALID_STATE", f"Chỉ draft needs_human mới approve được (hiện: {cur['status']})", {"status": cur["status"]})
-        sql = draft["reference_sql"]
-        if not sql:
-            if selected_run_id is None:
-                _back_to_human(conn, draft)
-                raise bad_request("Cần selected_run_id: chọn một lời giải Model B làm đáp án tham chiếu", {"draft_id": draft_id})
+                    WHERE draft_id=:i RETURNING *""", w=worker, s=lease, i=draft_id)
+        if clean_custom:
+            sql = clean_custom
+        elif selected_run_id is not None:
             run = q1(conn, "SELECT model_sql, exec_status FROM draft.self_solve_runs WHERE run_id=:r AND draft_id=:d", r=selected_run_id, d=draft_id)
-            if not run or run["exec_status"] not in (None, "ok"):
-                _back_to_human(conn, draft)
+            if not run or run["exec_status"] not in (None, "ok") or not run["model_sql"]:
+                _back_to_human(conn, draft, target_status=orig_status)
                 raise bad_request("selected_run_id không thuộc draft hoặc lời giải không chạy được", {"selected_run_id": selected_run_id})
             sql = run["model_sql"]
+        elif draft["reference_sql"]:
+            sql = draft["reference_sql"]
+        else:
+            _back_to_human(conn, draft, target_status=orig_status)
+            raise bad_request("Cần selected_run_id: chọn một lời giải Model B làm đáp án tham chiếu", {"draft_id": draft_id})
         world = q1(conn, "SELECT name, dataset_version FROM core.worlds WHERE world_id=:w", w=draft["world_id"])
         data = load_engine_data(conn, world["name"])
         round_no = (q1(conn, "SELECT COALESCE(MAX(review_round),0)+1 AS r FROM draft.self_solve_runs WHERE draft_id=:d", d=draft_id))["r"]
@@ -143,14 +154,14 @@ def approve(admin: dict, draft_id: int, selected_run_id: int | None, note: str |
             res = rv.review_draft(ctx, datasets, lambda prompt, seed, temp, model=None: (sql, {}), 1, 0, "needs_human",
                                   models=["admin_selected"], auditor=lambda c, s: dict(_ATTEST), repair_rounds=0)
             hb.check()
-        res = _admin_resolve(res, datasets, draft, sql)
+        res = _admin_resolve(res, datasets, draft, sql, custom_sql_used=bool(clean_custom))
     except (rv.InfraError, ValueError) as exc:
         with begin() as conn:
-            _back_to_human(conn, draft)
+            _back_to_human(conn, draft, target_status=orig_status)
         raise ApiError(503, "REVIEW_INFRA_ERROR", f"Không chạy lại được các cổng kiểm tra: {exc}")
     if res["status"] != "approved":
         with begin() as conn:
-            _back_to_human(conn, draft, f"admin approve bị chặn bởi: {', '.join(res['reasons'])}")
+            _back_to_human(conn, draft, f"admin approve bị chặn bởi: {', '.join(res['reasons'])}", target_status=orig_status)
         raise conflict("MANDATORY_GATE_FAILED", "Lời giải không qua cổng bắt buộc; admin không được bỏ qua", {"reasons": res["reasons"]})
     cfg = {**cfg, "REVIEW_MODELS": ["admin_selected"]}
     try:
@@ -165,23 +176,71 @@ def approve(admin: dict, draft_id: int, selected_run_id: int | None, note: str |
             pr.write_review_records(conn, {**draft, "draft_id": draft_id}, cfg, res, datasets, round_no)
             qid = promotion.promote(conn, draft, world["dataset_version"], res["mode"], res["reference_sql"], res["testcases"])
             ex(conn, "INSERT INTO live.admin_overrides (admin_id, draft_id, action, note) VALUES (:a, :d, 'approve', :n)", a=admin["user_id"], d=draft_id, n=note)
-            audit.log(conn, admin["user_id"], "draft.approve", "draft", draft_id, {"question_id": qid, "overridden_reasons": res.get("overridden", []), "selected_run_id": selected_run_id})
+            audit.log(conn, admin["user_id"], "draft.approve", "draft", draft_id,
+                      {"question_id": qid, "overridden_reasons": res.get("overridden", []), "selected_run_id": selected_run_id, "custom_sql": bool(clean_custom)})
     except LeaseLost:
         raise conflict("LEASE_LOST", "Draft đã bị xử lý bởi tiến trình khác; tải lại trang")
     with begin() as conn:
         return detail(conn, draft_id)
 
 
-def _back_to_human(conn: Connection, draft: dict, reason: str | None = None) -> None:
-    ex(conn, """UPDATE draft.question_drafts SET status='needs_human', locked_by=NULL, review_lease_expires_at=NULL,
+def bulk_approve(admin: dict, draft_ids: list[int], note: str | None = None) -> dict:
+    approved_draft_ids: list[int] = []
+    question_ids: list[int] = []
+    skipped: list[dict] = []
+    for did in dict.fromkeys(draft_ids):
+        with begin() as conn:
+            d = q1(conn, "SELECT draft_id, status, reference_sql FROM draft.question_drafts WHERE draft_id=:i", i=did)
+            if not d:
+                skipped.append({"draft_id": did, "reason": "not_found"})
+                continue
+            if d["status"] == "approved":
+                skipped.append({"draft_id": did, "reason": "already_approved"})
+                continue
+            if d["status"] not in ("needs_human", "rejected"):
+                skipped.append({"draft_id": did, "reason": f"invalid_state:{d['status']}"})
+                continue
+            best_run_id = None
+            if not d["reference_sql"]:
+                best = q1(
+                    conn,
+                    """SELECT run_id FROM draft.self_solve_runs
+                       WHERE draft_id=:d AND model_sql IS NOT NULL
+                         AND (exec_status IS NULL OR exec_status = 'ok')
+                       ORDER BY (COALESCE(row_count, 0) > 0) DESC, is_selected DESC,
+                                COALESCE(matched_datasets, 0) DESC, review_round DESC, sample_index ASC
+                       LIMIT 1""",
+                    d=did,
+                )
+                if not best:
+                    skipped.append({"draft_id": did, "reason": "no_valid_sql"})
+                    continue
+                best_run_id = best["run_id"]
+        try:
+            det = approve(admin, did, selected_run_id=best_run_id, note=note or "bulk_approved")
+            approved_draft_ids.append(did)
+            if det.get("promoted_question"):
+                question_ids.append(det["promoted_question"]["question_id"])
+        except ApiError as exc:
+            skipped.append({"draft_id": did, "reason": f"{exc.code}: {exc.message}"})
+    return {
+        "approved_count": len(approved_draft_ids),
+        "approved_draft_ids": approved_draft_ids,
+        "question_ids": question_ids,
+        "skipped": skipped,
+    }
+
+
+def _back_to_human(conn: Connection, draft: dict, reason: str | None = None, target_status: str = "needs_human") -> None:
+    ex(conn, """UPDATE draft.question_drafts SET status=:st, locked_by=NULL, review_lease_expires_at=NULL,
                 status_reason=COALESCE(:r, status_reason), updated_at=now()
                 WHERE draft_id=:i AND status='reviewing' AND locked_by=:w AND review_lease_version=:v""",
-       r=reason, i=draft["draft_id"], w=draft["locked_by"], v=draft["review_lease_version"])
+       st=target_status, r=reason, i=draft["draft_id"], w=draft["locked_by"], v=draft["review_lease_version"])
 
 
-def _admin_resolve(res: dict, datasets: list, draft: dict | None = None, sql: str | None = None) -> dict:
+def _admin_resolve(res: dict, datasets: list, draft: dict | None = None, sql: str | None = None, custom_sql_used: bool = False) -> dict:
     """Nếu engine dừng ở needs_human chỉ vì lý do 'phán đoán của người', admin được xác nhận: dựng test case từ chính kết quả đã chạy.
-    Ngoài ra, nếu draft là câu hỏi tổng hợp trực tiếp trên Web UI / Demo (đã có sẵn reference_sql hợp lệ), chạy thực thi trực tiếp trên Sandbox để dựng test case."""
+    Ngoài ra, nếu draft là câu hỏi tổng hợp trực tiếp trên Web UI / Demo (đã có sẵn reference_sql hợp lệ) hoặc admin cấp custom_sql, chạy thực thi trực tiếp trên Sandbox để dựng test case."""
     if res["status"] == "approved":
         return res
     reasons = set(res["reasons"])
@@ -198,8 +257,8 @@ def _admin_resolve(res: dict, datasets: list, draft: dict | None = None, sql: st
                         "result_hash": rv.result_hash(r["rows"], mode)})
         return {**res, "status": "approved", "testcases": tcs, "overridden": sorted(reasons)}
 
-    # Nếu draft có sẵn reference_sql (do seed-demo hoặc Instant Parametric Synthesizer sinh ra) và chạy hợp lệ trên Enterprise DB:
-    if draft and draft.get("reference_sql") and sql and "required_order_by_missing" not in reasons:
+    # Nếu draft có sẵn reference_sql hoặc admin gửi custom_sql và không vướng lỗi thiếu ORDER BY bắt buộc:
+    if draft and (draft.get("reference_sql") or custom_sql_used) and sql and "required_order_by_missing" not in reasons and "order_by_contract_mismatch" not in reasons:
         from . import submissions
         clean_sql = submissions.guard_select(sql)
         exec_res = submissions.execute_sandbox_sql(clean_sql)

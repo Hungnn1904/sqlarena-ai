@@ -4,12 +4,14 @@ import json
 from fastapi import APIRouter, Depends, Header, Query, Response
 
 from ..db import begin, ex, q, q1
-from ..errors import not_found
+from ..errors import bad_request, not_found
+from ..pipeline import engine as eng
 from ..pipeline import ledger
-from ..schemas import (ApproveBody, DraftEditBody, RequeueBody, JobCreate, RejectBody, RestoreBody, RetireBody, SettingBody, SourceBody, WeeklyItemsBody,
-                       WeeklySetCreate)
+from ..schemas import (ApproveBody, BulkApproveBody, DraftEditBody, GatewayKeyBody, JobCreate, ManualQuestionBody, QuestionGroupAddItemsBody,
+                       QuestionGroupCreateBody, QuestionGroupItemsBody, QuestionGroupPublishBody, QuestionGroupUpdateBody, RejectBody, RequeueBody, RestoreBody,
+                       RetireBody, SettingBody, SourceBody, WeeklyItemsBody, WeeklySetCreate)
 from ..security import require_admin
-from ..services import audit, drafts, jobs, questions, weekly
+from ..services import audit, drafts, groups, jobs, questions, weekly
 from ..services import settings_registry as sr
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
@@ -52,6 +54,11 @@ def list_drafts(status: str | None = Query(None, pattern="^(pending|reviewing|ap
         return drafts.list_drafts(conn, status, job_id, difficulty, page, page_size)
 
 
+@router.post("/drafts/bulk-approve", tags=["admin-drafts"])
+def bulk_approve_drafts(body: BulkApproveBody, admin: dict = Depends(require_admin)):
+    return drafts.bulk_approve(admin, body.draft_ids, body.note)
+
+
 @router.get("/drafts/{draft_id}", tags=["admin-drafts"])
 def get_draft(draft_id: int):
     with begin() as conn:
@@ -73,7 +80,7 @@ def requeue_draft(draft_id: int, body: RequeueBody, admin: dict = Depends(requir
 
 @router.post("/drafts/{draft_id}/approve", tags=["admin-drafts"])
 def approve_draft(draft_id: int, body: ApproveBody, admin: dict = Depends(require_admin)):
-    return drafts.approve(admin, draft_id, body.selected_run_id, body.note)     # tự quản lý transaction (chạy lại SQL có thể lâu)
+    return drafts.approve(admin, draft_id, body.selected_run_id, body.note, body.custom_sql)     # tự quản lý transaction (chạy lại SQL có thể lâu)
 
 
 @router.post("/drafts/{draft_id}/reject", tags=["admin-drafts"])
@@ -85,9 +92,63 @@ def reject_draft(draft_id: int, body: RejectBody, admin: dict = Depends(require_
 # ---------------------------------------------------------------- published questions
 @router.get("/questions", tags=["admin-questions"])
 def admin_questions(status: str | None = Query(None, pattern="^(ready|archived|retired)$"), difficulty: int | None = Query(None, ge=1, le=3),
-                    skill_id: int | None = None, q: str | None = Query(None, max_length=100), page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
+                    skill_id: int | None = None, q: str | None = Query(None, max_length=100), unassigned_only: bool = Query(False),
+                    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
     with begin() as conn:
-        return questions.admin_list(conn, status, difficulty, skill_id, q, page, page_size)
+        return questions.admin_list(conn, status, difficulty, skill_id, q, page, page_size, unassigned_only=unassigned_only)
+
+
+@router.post("/questions/manual", status_code=201, tags=["admin-questions"])
+def create_manual_question(body: ManualQuestionBody, admin: dict = Depends(require_admin)):
+    with begin() as conn:
+        return questions.create_manual(conn, admin, body.model_dump())
+
+
+# ---------------------------------------------------------------- question groups
+@router.get("/question-groups", tags=["admin-groups"])
+def list_question_groups():
+    with begin() as conn:
+        return groups.list_groups(conn)
+
+
+@router.post("/question-groups", status_code=201, tags=["admin-groups"])
+def create_question_group(body: QuestionGroupCreateBody, admin: dict = Depends(require_admin)):
+    return groups.create(admin, body.name, body.description, body.question_ids, body.draft_ids)
+
+
+@router.get("/question-groups/{group_id}", tags=["admin-groups"])
+def get_question_group(group_id: int):
+    with begin() as conn:
+        return groups.get(conn, group_id)
+
+
+@router.patch("/question-groups/{group_id}", tags=["admin-groups"])
+def update_question_group(group_id: int, body: QuestionGroupUpdateBody, admin: dict = Depends(require_admin)):
+    with begin() as conn:
+        return groups.update(conn, admin, group_id, body.name, body.description, body.model_fields_set)
+
+
+@router.put("/question-groups/{group_id}/items", tags=["admin-groups"])
+def replace_question_group_items(group_id: int, body: QuestionGroupItemsBody, admin: dict = Depends(require_admin)):
+    with begin() as conn:
+        return groups.replace_items(conn, admin, group_id, body.question_ids)
+
+
+@router.post("/question-groups/{group_id}/add-items", tags=["admin-groups"])
+def add_question_group_items(group_id: int, body: QuestionGroupAddItemsBody, admin: dict = Depends(require_admin)):
+    return groups.add_items(admin, group_id, body.question_ids, body.draft_ids)
+
+
+@router.delete("/question-groups/{group_id}", tags=["admin-groups"])
+def delete_question_group(group_id: int, admin: dict = Depends(require_admin)):
+    with begin() as conn:
+        return groups.delete(conn, admin, group_id)
+
+
+@router.post("/question-groups/{group_id}/publish", tags=["admin-groups"])
+def publish_question_group(group_id: int, body: QuestionGroupPublishBody, admin: dict = Depends(require_admin)):
+    with begin() as conn:
+        return groups.publish(conn, admin, group_id, body.mode, body.set_title)
 
 
 @router.get("/questions/{question_id}", tags=["admin-questions"])
@@ -176,14 +237,46 @@ def put_setting(key: str, body: SettingBody, admin: dict = Depends(require_admin
     return {"key": key, "value": value, "restart_required": sr.REGISTRY[key].restart_required}
 
 
+@router.get("/gateway-status", tags=["admin-settings"])
+def gateway_status():
+    """Trả trạng thái kết nối apithat.dev Secret-Blind (không bao giờ trả plaintext API key)."""
+    return eng.get_gateway_status()
+
+
+@router.post("/gateway-key", tags=["admin-settings"])
+def update_gateway_key(body: GatewayKeyBody, admin: dict = Depends(require_admin)):
+    """Xác thực APITHAT_API_KEY trực tiếp với https://apithat.dev và kích hoạt ngay lập tức."""
+    try:
+        info = eng.set_runtime_gateway_key(
+            api_key=body.api_key,
+            base_url=body.base_url,
+            preferred_model=body.preferred_model,
+            persist_env=body.persist_env,
+        )
+    except ValueError as exc:
+        raise bad_request(str(exc))
+    with begin() as conn:
+        audit.log(
+            conn,
+            admin["user_id"],
+            "gateway.key_updated",
+            "gateway",
+            "apithat.dev",
+            {"masked_key": info["masked_key"], "base_url": info["base_url"], "preferred_model": info["preferred_model"]},
+        )
+    return info
+
+
 @router.get("/llm-usage", tags=["admin-settings"])
 def llm_usage():
-    active_provider = "local-ai-pipeline"
-    models = {
-        "generator": "llama3",
-        "reviewer": "qwen2.5-coder:7b",
-        "auditor": "qwen2.5-coder:7b",
-    }
+    gw = eng.get_gateway_status()
+    active_provider = "apithat.dev" if gw.get("valid") else "local-ai-pipeline"
+    pref = gw.get("preferred_model") or "gpt-5.6-sol"
+    models = (
+        {"generator": pref, "reviewer": pref, "auditor": pref}
+        if gw.get("valid")
+        else {"generator": "llama3", "reviewer": "qwen2.5-coder:7b", "auditor": "qwen2.5-coder:7b"}
+    )
     with begin() as conn:
         cap = sr.get(conn, "generation.daily_budget_calls")
         by = q(conn, "SELECT stage, status, count(*) AS n FROM draft.llm_call_ledger WHERE (created_at AT TIME ZONE :tz)::date = (now() AT TIME ZONE :tz)::date "

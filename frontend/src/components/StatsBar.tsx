@@ -1,86 +1,40 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
 import type { StatItem } from './types';
 
 interface StatsBarProps {
   stats: StatItem[];
 }
 
-const colorMap = {
-  cyan: 'text-[#00d4ff]',
-  green: 'text-[#00e5a0]',
-  amber: 'text-[#ffb830]',
-  rose: 'text-[#ff4d6d]',
-  purple: 'text-[#a78bfa]',
+const colorMap: Record<string, string> = {
+  cyan: 'text-brand',
+  green: 'text-brand',
+  amber: 'text-copper',
+  rose: 'text-danger',
+  purple: 'text-info',
 };
 
 export default function StatsBar({ stats }: StatsBarProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.3 }}
-      className="flex flex-col sm:flex-row justify-center border border-[#243550] rounded-lg overflow-hidden max-w-[700px] mx-auto"
-    >
+    <div className="flex flex-col sm:flex-row justify-center border border-line rounded-xl overflow-hidden max-w-[700px] mx-auto bg-surface tabular-nums">
       {stats.map((stat, index) => (
-        <motion.div
+        <div
           key={index}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
-          className="flex-1 min-w-[110px] px-5 py-4 text-center border-b sm:border-b-0 sm:border-r border-[#243550] last:border-b-0 last:sm:border-r-0 bg-[#0d1320] hover:bg-[#111827] hover:border-[#00d4ff]/30 transition-all duration-300"
+          className="flex-1 min-w-[110px] px-5 py-4 text-center border-b sm:border-b-0 sm:border-r border-line last:border-b-0 last:sm:border-r-0 bg-surface hover:bg-soft transition-colors"
         >
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
-            className={`font-mono text-[1.4rem] font-bold block ${
-              stat.color ? colorMap[stat.color] : 'text-[#00d4ff]'
+          <span
+            className={`text-2xl font-bold block ${
+              stat.color ? colorMap[stat.color] || 'text-brand' : 'text-brand'
             }`}
           >
-            {typeof stat.value === 'number' ? (
-              <CountUp end={stat.value} duration={1.5} delay={0.5 + index * 0.1} />
-            ) : (
-              stat.value
-            )}
-          </motion.span>
-          <span className="text-[0.72rem] text-[#5a7298] uppercase tracking-[0.08em] mt-0.5 block">
+            {stat.value}
+          </span>
+          <span className="text-xs text-muted mt-1 block">
             {stat.label}
           </span>
-        </motion.div>
+        </div>
       ))}
-    </motion.div>
+    </div>
   );
-}
-
-function CountUp({ end, duration, delay }: { end: number; duration: number; delay: number }) {
-  const [count, setCount] = React.useState(0);
-  const [hasStarted, setHasStarted] = React.useState(false);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setHasStarted(true), delay * 1000);
-    return () => clearTimeout(timer);
-  }, [delay]);
-
-  React.useEffect(() => {
-    if (!hasStarted) return;
-    let startTime: number;
-    let animationFrame: number;
-
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / (duration * 1000), 1);
-      setCount(Math.floor(progress * end));
-      if (progress < 1) {
-        animationFrame = requestAnimationFrame(animate);
-      }
-    };
-
-    animationFrame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [hasStarted, end, duration]);
-
-  return <span>{count}</span>;
 }

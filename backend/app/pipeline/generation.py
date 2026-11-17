@@ -25,6 +25,103 @@ def _is_infra_error(message: str) -> bool:
     return message.startswith(("Ollama", "Loi Ollama"))
 
 
+def normalize_candidate_for_validation(candidate, world_schema: dict | None):
+    """Tự động bổ sung table_roles mặc định và cột khóa ngoại nối giữa các bảng trong tables_used
+    nếu Model A quên liệt kê (nhưng KHÔNG tự bịa nếu thiếu các trường gốc bắt buộc)."""
+    if not isinstance(candidate, dict):
+        return candidate
+    tables_used = candidate.get("tables_used")
+    question = candidate.get("question")
+    title = candidate.get("title")
+    if (
+        not isinstance(tables_used, list)
+        or not tables_used
+        or not isinstance(question, str)
+        or not question.strip()
+        or not isinstance(title, str)
+        or not title.strip()
+    ):
+        return candidate
+
+    out = dict(candidate)
+    ws = world_schema or {}
+    schema_cols = {
+        t["table"]: {c["name"] for c in t.get("columns", [])}
+        for t in ws.get("tables", [])
+        if isinstance(t, dict) and "table" in t
+    }
+
+    # 1. Bổ sung table_roles mặc định cho các bảng trong tables_used nếu thiếu
+    raw_roles = out.get("table_roles")
+    roles = dict(raw_roles) if isinstance(raw_roles, dict) else {}
+    for tbl in tables_used:
+        if isinstance(tbl, str) and tbl in schema_cols and not str(roles.get(tbl) or "").strip():
+            roles[tbl] = f"Bảng dữ liệu {tbl} dùng trong truy vấn"
+    out["table_roles"] = roles
+
+    # 2. Bổ sung join_relations và cột FK trong required_columns giữa các bảng trong tables_used
+    used = [t for t in tables_used if isinstance(t, str) and t in schema_cols]
+    used_set = set(used)
+    fks = [
+        fk for fk in (ws.get("fk_relations") or [])
+        if isinstance(fk, dict)
+        and fk.get("table_name") in used_set
+        and fk.get("referenced_table") in used_set
+    ]
+    raw_joins = out.get("join_relations")
+    joins = [dict(j) for j in raw_joins if isinstance(j, dict)] if isinstance(raw_joins, list) else []
+
+    if len(used_set) >= 2 and fks:
+        # Xây đồ thị thành phần liên thông hiện tại của joins để chỉ bù những cạnh nối còn thiếu
+        parent = {t: t for t in used}
+
+        def find(x: str) -> str:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a: str, b: str) -> bool:
+            ra, rb = find(a), find(b)
+            if ra == rb:
+                return False
+            parent[rb] = ra
+            return True
+
+        for rel in joins:
+            tn, rt = rel.get("table_name"), rel.get("referenced_table")
+            if tn in parent and rt in parent:
+                union(tn, rt)
+
+        for fk in fks:
+            if union(fk["table_name"], fk["referenced_table"]):
+                joins.append({
+                    "table_name": fk["table_name"],
+                    "columns": list(fk["columns"]),
+                    "referenced_table": fk["referenced_table"],
+                    "referenced_columns": list(fk["referenced_columns"]),
+                })
+    out["join_relations"] = joins
+
+    raw_req = out.get("required_columns")
+    if isinstance(raw_req, dict):
+        req = {t: list(cols) if isinstance(cols, list) else cols for t, cols in raw_req.items()}
+        for t in used:
+            if t not in req or not isinstance(req[t], list):
+                req[t] = []
+        for rel in joins:
+            fk = arena.matching_fk(rel, fks)
+            if not fk:
+                continue
+            for tbl, cols in ((fk["table_name"], fk["columns"]), (fk["referenced_table"], fk["referenced_columns"])):
+                if tbl in req and isinstance(req[tbl], list):
+                    for col in cols:
+                        if col in schema_cols.get(tbl, set()) and col not in req[tbl]:
+                            req[tbl].append(col)
+        out["required_columns"] = req
+    return out
+
+
 class GenerationRunner:
     def __init__(self, config: dict, worker_id: str):
         self.config, self.worker_id = config, worker_id
@@ -98,6 +195,7 @@ class GenerationRunner:
                                      prompt_version=arena.PROMPT_VERSION, attempt_no=retry + 1):
                     raw = arena.generate(cfg, arena.build_prompt(context, feedback))
                 candidate, _ = arena.normalize_candidate(raw, data["schema"], refs, tables, local["fk_relations"])
+                candidate = normalize_candidate_for_validation(candidate, context.get("world_schema"))
                 report = vd.validate_question(candidate, local, data["schema"], refs, corpus, cfg["DUPLICATE_HIGH"], cfg["DUPLICATE_REVIEW"])
                 goal = candidate.get("business_goal") if isinstance(candidate, dict) else None
                 if isinstance(goal, str) and goal and goal not in tried:

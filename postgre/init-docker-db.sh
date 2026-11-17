@@ -30,8 +30,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "enterprise_db" <<-
 EOSQL
 
 echo "=== [SQLArena Docker Init] Loading Legacy Compatibility Tables in sqlarena_db ==="
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sqlarena_db" -f /sqlarena-postgre/sqlarena_db/01_create_sqlarena_db.sql
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sqlarena_db" -f /sqlarena-postgre/sqlarena_db/02_seed_sqlarena_db.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sqlarena_db" -f /sqlarena-postgre/sqlarena_db/01_create_sqlarena_core.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sqlarena_db" -f /sqlarena-postgre/sqlarena_db/02_insert_sqlarena_core_data.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sqlarena_db" -f /sqlarena-postgre/sqlarena_db/03_create_review_pipeline.sql
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sqlarena_db" -f /sqlarena-postgre/app_db/01_create_app_tables.sql
 
 echo "=== [SQLArena Docker Init] Completed Successfully! ==="

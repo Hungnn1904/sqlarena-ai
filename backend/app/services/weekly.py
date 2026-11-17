@@ -402,10 +402,16 @@ def learner_question(conn: Connection, question_id: int, user_id: int | None = N
         raise not_found("Không tìm thấy câu hỏi")          # không thuộc bộ đề đang mở ⇒ 404 (không lộ tồn tại)
     smap = {x["skill_id"]: x for x in q(conn, "SELECT skill_id, code, name FROM core.skills")}
     sids = r["skill_ids"] or []
+    tc = q1(
+        conn,
+        "SELECT expected_result->'columns' AS cols FROM live.test_cases WHERE question_id=:q ORDER BY is_hidden ASC, test_id ASC LIMIT 1",
+        q=question_id,
+    )
+    out_cols = list(tc["cols"]) if (tc and isinstance(tc.get("cols"), list)) else []
     domain_category, topic = _infer_domain_and_topic(r["tables_used"], r["job_topic"], r["blueprint_domain"])
     return {"question_id": r["question_id"], "position": r["position"], "title": r["title"], "question": r["question"], "difficulty": r["difficulty"],
             "skills": [smap[i]["name"] for i in sids if i in smap], "skill_codes": [smap[i]["code"] for i in sids if i in smap],
-            "tables_used": r["tables_used"] or [], "schema_text": r["schema_text"],
+            "tables_used": r["tables_used"] or [], "schema_text": r["schema_text"], "output_columns": out_cols,
             "source_type": "ai_generated" if r["source_draft_id"] is not None else "seed",
             "source_draft_id": r["source_draft_id"], "job_id": r["job_id"], "job_topic": r["job_topic"],
             "topic": topic, "domain_category": domain_category, "created_at": r["created_at"],

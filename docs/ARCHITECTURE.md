@@ -1,109 +1,54 @@
-# Tài liệu Kiến trúc Hệ thống — SQLArena AI
+# Kiến Trúc Hệ Thống, Tích Hợp `apithat.dev` & Đa Luồng Sự Cố (`docs/ARCHITECTURE.md`)
 
-## 1. Tổng quan Kiến trúc 4 Tầng (4-Layer Clean Architecture)
+> Chuẩn hoá theo **MyKit v3.15** — Kết hợp sơ đồ vector SVG xuất bản từ `tech-diagramming` và sơ đồ Mermaid an toàn tuyệt đối trên Dark Mode (`0` khối nền sáng `rect rgb(2xx,...)`).
 
-Hệ thống **SQLArena AI** được thiết kế theo mô hình kiến trúc tách lớp nghiêm ngặt trên nền tảng **PostgreSQL 17**, **FastAPI (Python)** và **Next.js 16 (React/TypeScript)**:
+## 1. Kiến Trúc 4 Tầng & Định Tuyến VPS Không Cần Domain (`http://<VPS_IP>:3000`)
 
-```
-┌───────────────────────────────────────────────────────────────────────────┐
-│ TẦNG 4: GIAO DIỆN NGƯỜI DÙNG & QUẢN TRỊ (Next.js 16 · React · Monaco)    │
-│ • Làm bài (SQL Studio Workbench + Schema Explorer + AI SQL Coach)         │
-│ • Tiến độ học tập (Ma trận năng lực S1–S6 · Chuỗi ngày luyện tập)         │
-│ • Bảng xếp hạng (Tuần / Tháng / Toàn thời gian)                           │
-│ • Quản trị (Sinh đề AI · Duyệt đề · Kho đề · Bộ đề tuần · Người dùng)    │
-└────────────────────────────────────┬──────────────────────────────────────┘
-                                     │ REST API (/api/v1/*)
-┌────────────────────────────────────▼──────────────────────────────────────┐
-│ TẦNG 3: BACKEND ORCHESTRATION & SANDBOX ENGINE (FastAPI · SQLAlchemy)     │
-│ • Auth & RBAC (JWT · Admin / Learner)                                     │
-│ • Read-Only SQL Sandbox & Grading Engine (AST Guard + Result Diff)        │
-│ • Background Generation Worker & Audit Log                                │
-└─────────────────┬──────────────────────────────────────┬──────────────────┘
-                  │                                      │
-┌─────────────────▼──────────────────┐ ┌─────────────────▼──────────────────┐
-│ TẦNG 2: DUAL-MODEL AI PIPELINE     │ │ TẦNG 1: DỮ LIỆU & SANDBOX DB       │
-│ • Model A (Generator): llama3      │ │ • sqlarena_app (core / draft /     │
-│ • Model B (Reviewer):              │ │   live schemas)                    │
-│   qwen2.5-coder:7b (Blind 3/3)     │ │ • enterprise_db (13 bảng nghiệp vụ │
-│ • 7 Cổng kiểm định tự động         │ │   thương mại điện tử & nhân sự,    │
-│ • AI SQL Coach (Socratic Hints)    │ │   truy vấn qua role sqlarena_ai_ro)│
-└────────────────────────────────────┘ └────────────────────────────────────┘
+![Sơ đồ kiến trúc 4 tầng SQLArena AI](diagrams/system-architecture.svg)
+
+```mermaid
+flowchart TD
+    Browser["Trình duyệt Học viên / Giảng viên<br/>http://VPS_IP:3000"]
+    Nginx["Container sqlarena-frontend<br/>Nginx :3000 (Static Next.js 16 + Reverse Proxy)"]
+    FastAPI["Container sqlarena-backend<br/>FastAPI :8000 (Non-root UID 10001)"]
+    Worker["Container sqlarena-worker<br/>Fenced Lease Daemon (SKIP LOCKED)"]
+    PG["Container sqlarena-postgres<br/>PostgreSQL 17 (127.0.0.1 nội bộ)"]
+    Gateway["API Thật Gateway (https://apithat.dev/v1)<br/>gpt-5.6-sol / gpt-6.1-terra / gpt-6-sol + Ollama Fallback"]
+
+    Browser -->|"GET / (Static SPA)"| Nginx
+    Browser -->|"Same-Origin /api/v1/* (Zero CORS)"| Nginx
+    Nginx -->|"proxy_pass http://backend:8000"| FastAPI
+    FastAPI -->|"SQLAlchemy Core (sqlarena_app: core, draft, live)"| PG
+    FastAPI -->|"Read-Only Sandbox (sqlarena_ai_ro -> enterprise_db)"| PG
+    Worker -->|"Claim Job & Draft (lease_version)"| PG
+    Worker -->|"Model A + Blind Solver B (k=3) + Auditor"| Gateway
+    FastAPI -->|"Secret-Blind Key Probe (/v1/models) & AI Coach"| Gateway
 ```
 
----
-
-## 2. Tầng Dữ liệu & Khung Năng lực (`enterprise_db` & `sqlarena_app`)
-
-### 2.1. Cơ sở dữ liệu nghiệp vụ thực tế (`enterprise_db`)
-Kho dữ liệu thực hành gồm **13 bảng** thuộc lĩnh vực Thương mại điện tử, Chuỗi cung ứng và Nhân sự với hơn **13.400 dòng dữ liệu**:
-1. `categories` — Danh mục sản phẩm
-2. `suppliers` — Nhà cung cấp
-3. `products` — Sản phẩm & giá niêm yết
-4. `warehouses` — Kho hàng khu vực
-5. `inventory` — Tồn kho theo sản phẩm & kho
-6. `customers` — Hồ sơ khách hàng & phân hạng
-7. `orders` — Đơn đặt hàng
-8. `order_items` — Chi tiết dòng đơn hàng
-9. `payments` — Giao dịch thanh toán
-10. `shipments` — Vận chuyển & giao nhận
-11. `departments` — Phòng ban doanh nghiệp
-12. `employees` — Nhân sự & quản lý trực tiếp
-13. `reviews` — Đánh giá sản phẩm của khách hàng
-
-Mọi truy vấn từ quá trình AI sinh đề, AI kiểm định, học viên chạy thử (`Sandbox Run`) và chấm điểm (`Submit Grade`) đều kết nối qua role chỉ đọc **`sqlarena_ai_ro`** với giới hạn `statement_timeout = 3000ms` và `TRANSACTION READ ONLY`.
-
-### 2.2. Ba phân vùng Schema ứng dụng (`sqlarena_app`)
-- **`core.*`**: Quản lý người dùng (`core.users`), khung thế giới dữ liệu (`core.worlds`), khung 6 kỹ năng (`core.skills`), cấu hình hệ thống (`core.system_settings`) và nhật ký kiểm toán (`core.audit_logs`).
-- **`draft.*`**: Lưu trữ các tác vụ sinh đề (`draft.generation_jobs`), bản nháp câu hỏi do Model A sinh (`draft.question_drafts`), lịch sử giải độc lập của Model B (`draft.self_solve_runs`) và nhật ký gọi LLM (`draft.llm_call_logs`).
-- **`live.*`**: Ngân hàng câu hỏi chính thức (`live.questions`), bộ kiểm thử (`live.test_cases`), bộ đề tuần (`live.weekly_sets`, `live.weekly_set_items`), bài nộp của học viên (`live.submissions`) và hồ sơ năng lực (`live.user_skill_profiles`).
-
-### 2.3. Khung 6 Kỹ năng SQL (`S1–S6`)
-| Mã | Tên kỹ năng | Nội dung trọng tâm |
-|---|---|---|
-| `S1` | `SELECT / WHERE` | Truy vấn cơ bản, lọc điều kiện, sắp xếp `ORDER BY`, giới hạn `LIMIT` |
-| `S2` | `JOIN Multi-Table` | Kết nối nhiều bảng (`INNER JOIN`, `LEFT JOIN`, Self-Join) |
-| `S3` | `GROUP BY / HAVING` | Tổng hợp dữ liệu (`COUNT`, `SUM`, `AVG`) và lọc nhóm `HAVING` |
-| `S4` | `Subquery / CTE` | Truy vấn con lồng nhau và biểu thức bảng chung (`WITH ... AS`) |
-| `S5` | `Window Functions` | Hàm cửa sổ (`ROW_NUMBER`, `RANK`, `DENSE_RANK`, `LAG`, `LEAD`, `SUM() OVER`) |
-| `S6` | `Edge Cases & NULL` | Xử lý `NULL` (`COALESCE`, `NULLIF`), `CASE WHEN`, chia cho 0 và trùng lặp |
+### Giải thích Đời thực → Vận hành Kỹ thuật (`Real-Life Analogy -> Tech Operation`)
+- **Quầy Lễ Tân Một Cửa (`Nginx :3000` Reverse Proxy)**: Khách từ ngoài internet chỉ cần đi vào đúng cổng `3000` (`http://<VPS_IP>:3000`). Mọi yêu cầu `/api/v1/*` được lễ tân Nginx chuyển nội bộ sang phòng xử lý `http://backend:8000`, nhờ đó không bao giờ bị lỗi trình duyệt gọi nhầm về `127.0.0.1:8000` trên máy cá nhân của người xem và không cần mở cổng `8000` hay `5432` ra ngoài VPS.
+- **Tủ Giữ Nóng → Khay Gom Món → Bàn Phục Vụ (`Ready Pool -> Question Group -> Published Shelf`)**: Đề vừa vượt kiểm duyệt (`approved`) được cất vào **Kho Đề Sẵn Sàng (`live.questions`)**, không tự nhảy lẻ tẻ ra màn hình học viên. Giảng viên kéo thả hoặc tick chọn nhiều câu vào một **Nhóm Đề (`live.question_groups`)** rồi bấm **Đăng toàn bộ nhóm** 1 lần để phát hành đồng loạt.
 
 ---
 
-## 3. Quy trình Sinh đề & Kiểm định Kép (Dual-Model AI Pipeline)
+## 2. Quy Trình Kiểm Định Kép Hiệu Chỉnh & Tích Hợp Cổng `apithat.dev`
 
-Để loại bỏ hiện tượng ảo giác (Hallucination) khi AI tự ra đề và tự viết đáp án sai, hệ thống áp dụng kiến trúc **Hai Mô Hình Độc Lập (Generator – Blind Reviewer)**:
+![Quy trình Kiểm định Kép & Phát hành Nhóm đề](diagrams/dual-model-pipeline.svg)
 
-### Bước 1: Thiết kế Blueprint & Sinh đề bởi Model A (`llama3`)
-- Khi Quản trị viên tạo Job sinh đề (chọn cấp độ khó, kỹ năng mục tiêu `S1–S6`, số lượng câu và chủ đề nghiệp vụ), **Model A (`llama3`)** đóng vai trò **Generator**.
-- Model A nhận lược đồ `enterprise_db`, thiết kế câu hỏi nghiệp vụ bằng tiếng Việt kèm câu lệnh SQL đáp án mẫu (`candidate_sql`).
-- Hệ thống thực thi `candidate_sql` trực tiếp trên PostgreSQL 17 (`enterprise_db`) để thu thập bảng kết quả chuẩn (`expected_result`).
-
-### Bước 2: Giải độc lập mù (Blind Self-Solve) bởi Model B (`qwen2.5-coder:7b`)
-- **Model B (`qwen2.5-coder:7b`)** chỉ được đọc **đề bài tiếng Việt** và **lược đồ bảng** — tuyệt đối không được nhìn thấy `candidate_sql` của Model A.
-- Model B tự viết câu truy vấn SQL độc lập trong tối đa **3 lần thử (`self_solve_runs`)**.
-- Mỗi câu SQL của Model B được chạy thật trên `enterprise_db` và so khớp tập kết quả (số dòng, tên cột, giá trị từng ô dữ liệu) với kết quả của Model A.
-
-### Bước 3: Kiểm định qua 7 Cổng chất lượng (7 Verification Gates)
-Mỗi bản nháp (`draft.question_drafts`) được chấm qua 7 cổng tự động:
-1. **Cổng 1 — AST & Read-Only Safety**: Chỉ cho phép duy nhất 1 câu lệnh `SELECT` / `WITH`, cấm mọi từ khóa DDL/DML (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ALTER`, `GRANT`, `COPY`, `pg_sleep`) và cấm comment SQL (`--`, `/* */`).
-2. **Cổng 2 — Thực thi trên PostgreSQL 17**: Câu lệnh SQL của Model A chạy thành công trên `enterprise_db` trong giới hạn thời gian.
-3. **Cổng 3 — Tập kết quả không rỗng (Non-Empty Result Set)**: Kết quả trả về phải có ít nhất 1 dòng dữ liệu thực tế (`row_count >= 1`).
-4. **Cổng 4 — Cột dữ liệu tường minh**: Cấm `SELECT *` mơ hồ hoặc các cột trùng tên không có định danh (`alias`).
-5. **Cổng 5 — Đối chiếu đồng thuận Model B (`Consensus Pass`)**: Kết quả truy vấn độc lập của Model B khớp với kết quả của Model A.
-6. **Cổng 6 — Kiểm tra độ khớp Kỹ năng & Độ khó**: Cấu trúc AST của câu SQL phản ánh đúng nhóm kỹ năng (`JOIN`, `GROUP BY`, `CTE`, `Window Function`) đã yêu cầu.
-7. **Cổng 7 — Hiệu năng truy vấn (`EXPLAIN` Cost Gate)**: Đảm bảo truy vấn không gây Cartesian Product (Cross Join ngoài ý muốn) hoặc vượt ngưỡng thời gian thực thi.
-
-- Nếu vượt qua toàn bộ các cổng và đạt đồng thuận giữa Model A & Model B, bản nháp đạt trạng thái **`verified`**.
-- Nếu có bất kỳ điểm nghi vấn hoặc bất đồng kết quả nào giữa 2 mô hình, bản nháp được chuyển sang trạng thái **`needs_human`** để Quản trị viên kiểm tra, chỉnh sửa và phê duyệt thủ công.
+### Cơ chế điều phối khóa `https://apithat.dev/keys` (`backend/app/pipeline/engine.py`)
+1. **Nạp khóa Secret-Blind đa tầng**: Đọc theo thứ tự ưu tiên `Runtime Vault Override` > biến môi trường Docker > `backend/.env` / `.env` > `~/.mykit/vault.env` (quyền `0600`), không bao giờ trả khóa thô qua API hay ghi vào `live.audit_logs`.
+2. **Tự động khám phá Model theo nhóm khóa (`probe_apithat_key`)**: Gọi `GET https://apithat.dev/v1/models` (cache 5 phút theo mã băm SHA-256 của khóa), lọc bỏ model tạo ảnh/âm thanh và xếp ưu tiên các model lập trình/SQL có độ ổn định cao trên `apithat.dev` (`gpt-5.6-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-astra`, `claude-sonnet-5-5`).
+3. **Tương thích đa giao thức**: Tự động định tuyến dòng GPT/Qwen/DeepSeek/Gemini qua `/v1/chat/completions` (SSE streaming & JSON extraction) và dòng Claude qua `/v1/messages` (`anthropic-version: 2023-06-01`).
 
 ---
 
-## 4. Quy trình Xuất bản, Làm bài & Chấm điểm Tự động
+## 3. Ma Trận Đa Luồng & Tình Huống Biên Thực Chiến (`Multi-Flow & Production Scars`)
 
-1. **Phê duyệt & Phát hành (`draft` → `live`)**:
-   - Khi Quản trị viên bấm **Phê duyệt (Approve)** trên một bản nháp, hệ thống tự động tạo bản ghi trong `live.questions` và đóng gói bộ `live.test_cases` chuẩn.
-   - Các câu hỏi trong `live.questions` có thể được gom vào **Bộ đề tuần (`live.weekly_sets`)** để học viên luyện tập và thi đua.
-2. **Môi trường Luyện tập & Chấm điểm (`Read-Only Sandbox`)**:
-   - Học viên viết truy vấn trên trình soạn thảo Monaco SQL Studio, chạy thử (`Chạy thử SQL`) hoặc nộp bài (`Nộp bài`).
-   - Hệ thống kiểm tra an toàn cú pháp trước khi thực thi trên `enterprise_db` dưới quyền `sqlarena_ai_ro`.
-   - Bộ chấm điểm so sánh tập kết quả của học viên với từng Test Case chuẩn (kiểm tra thứ tự dòng khi đề có `ORDER BY`, chuẩn hóa số thực và kiểu dữ liệu), cập nhật điểm số vào `live.submissions` và tính toán lại độ thông thạo kỹ năng trong `live.user_skill_profiles`.
+| Nhóm tình huống | Kịch bản lỗi / Race Condition thực tế | Cơ chế phòng vệ trong Codebase |
+| :--- | :--- | :--- |
+| **1. Happy Path (Gom nhóm & Đăng 1 lần)** | Giảng viên kéo thả / chọn 5 câu `ready` vào nhóm rồi bấm Đăng. | `groups.publish()` khóa `FOR UPDATE`, kiểm tra `test_cases` khớp `dataset_version` và gắn nguyên tử toàn bộ câu vào kệ đang mở (`append_active`) hoặc bộ tuần mới (`new_weekly_set`). |
+| **2. Concurrency Race (Đua tranh đồng thời)** | Hai worker cùng bốc 1 job/draft, hoặc 2 tab Admin bấm `Publish` cùng lúc. | Dùng `FOR UPDATE SKIP LOCKED` kèm fencing token `lease_version` (`LeaseLost` tự hủy ghi đè nếu hết hạn lease). |
+| **3. Gateway Truncation / Transient Syntax** | 1/3 mẫu giải của Model B lỗi cú pháp thoáng qua hoặc khóa API hết hạn (`401`). | Nâng `max_tokens` (`1500/1200`), bật `REVIEW_REPAIR_ROUNDS=1`, chế độ `calibrated` duyệt khi `>=2/3` mẫu hợp lệ đồng thuận 100% kết quả (`0` mẫu đối kháng). Nếu khóa `401` hoặc timeout 2 slot liên tiếp -> dừng nhanh không đốt ngân sách. |
+| **4. Async State Skew (Thu hồi đề giữa chừng)** | Câu hỏi trong nhóm nháp bị Admin bấm `Retire` trước khi đăng nhóm. | `groups.publish()` tái kiểm tra `status == 'ready' AND NOT is_flagged` ngay trong transaction, trả `409 GROUP_NOT_PUBLISHABLE` chỉ rõ ID câu lỗi. |
+| **5. Tampering & BOLA / Zero-Leak** | Học viên chèn `DROP TABLE`, `; SELECT`, comment `--`, hoặc dò ID câu ngoài kệ. | `_strip_sql_comments()` lọc sạch comment ngoài chuỗi, chặn mọi từ khóa ghi và ép `SET LOCAL TRANSACTION READ ONLY`. Câu ngoài kệ trả `404`; chỉ trả tên cột `output_columns`. |
+| **6. VPS & BuildKit Unicode Scars** | Thư mục chứa dấu tiếng Việt làm lỗi header gRPC của Docker BuildKit; xung đột port `5432`/`3000`. | `deploy-vps.sh` và `start.sh` tự phát hiện đường dẫn Unicode bật `DOCKER_BUILDKIT=0`, dùng `.dockerignore` nén context còn `<2MB`, và khóa Postgres vào `127.0.0.1`. |

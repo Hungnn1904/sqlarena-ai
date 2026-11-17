@@ -58,12 +58,15 @@ def seed_demo_live(conn: Connection) -> dict:
     ]
     user_ids = {}
     for rid, email, uname, pwd, dname, bio in demo_users:
-        r = q1(conn, """INSERT INTO live.users (role_id, email, username, password_hash, display_name, bio, status)
-                        VALUES (:r, :e, :u, :p, :d, :b, 'active')
-                        ON CONFLICT ((lower(email))) DO UPDATE SET password_hash=EXCLUDED.password_hash, display_name=EXCLUDED.display_name
-                        RETURNING user_id""",
-               r=rid, e=email, u=uname, p=auth.hash_password(pwd), d=dname, b=bio)
-        user_ids[uname] = r["user_id"]
+        found = q1(conn, "SELECT user_id FROM live.users WHERE lower(email)=lower(:e) OR lower(username)=lower(:u) ORDER BY (lower(email)=lower(:e)) DESC LIMIT 1", e=email, u=uname)
+        if found:
+            user_ids[uname] = found["user_id"]
+        else:
+            r = q1(conn, """INSERT INTO live.users (role_id, email, username, password_hash, display_name, bio, status)
+                            VALUES (:r, :e, :u, :p, :d, :b, 'active')
+                            RETURNING user_id""",
+                   r=rid, e=email, u=uname, p=auth.hash_password(pwd), d=dname, b=bio)
+            user_ids[uname] = r["user_id"]
 
     # Promote 50 source questions -> live.questions + live.test_cases if not yet promoted
     existing_q = q1(conn, "SELECT count(*) AS n FROM live.questions")["n"]
@@ -152,5 +155,35 @@ def seed_demo_live(conn: Connection) -> dict:
                 ex(conn, """INSERT INTO live.submissions (user_id, question_id, set_id, submitted_sql, submission_status, execution_status, score, runtime_ms)
                             VALUES (:u, :q, :s, :sql, 'passed', 'passed', 100.0, :ms)""",
                    u=uid, q=qrow["question_id"], s=sid, sql=qrow["reference_sql"], ms=base_ms + idx * 9)
+
+    # Seed sample draft question group with 4 unassigned ready questions
+    sample_group_name = "Nhóm đề Thực hành JOIN & Doanh thu (Chờ đăng)"
+    if not q1(conn, "SELECT group_id FROM live.question_groups WHERE name=:n", n=sample_group_name):
+        unassigned_qids = [
+            r["question_id"]
+            for r in conn.exec_driver_sql(
+                """SELECT q.question_id
+                   FROM live.questions q
+                   WHERE q.status = 'ready'
+                     AND NOT EXISTS (SELECT 1 FROM live.weekly_set_items wsi WHERE wsi.question_id = q.question_id)
+                   ORDER BY (q.tables_used && ARRAY['orders', 'order_items', 'payments']::text[]) DESC,
+                            cardinality(q.tables_used) DESC,
+                            q.question_id ASC
+                   LIMIT 4"""
+            ).mappings()
+        ]
+        if unassigned_qids:
+            grp_row = q1(
+                conn,
+                """INSERT INTO live.question_groups (name, description, status, created_by)
+                   VALUES (:n, :d, 'draft', :u) RETURNING group_id""",
+                n=sample_group_name,
+                d="Nhóm câu hỏi thực hành truy vấn nối bảng (JOIN) và thống kê doanh thu chờ Giảng viên kiểm tra & phát hành hàng loạt.",
+                u=user_ids["admin"],
+            )
+            gid = grp_row["group_id"]
+            for pos, qid in enumerate(unassigned_qids, start=1):
+                ex(conn, "INSERT INTO live.question_group_items (group_id, question_id, position) VALUES (:g, :q, :p) ON CONFLICT DO NOTHING",
+                   g=gid, q=qid, p=pos)
 
     return {"users": len(user_ids), "questions": q1(conn, "SELECT count(*) AS n FROM live.questions")["n"]}

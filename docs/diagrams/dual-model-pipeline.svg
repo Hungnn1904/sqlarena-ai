@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 560" width="1080" height="560">
+  <defs>
+    <marker id="arrowA" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#67e8f9"/>
+    </marker>
+    <marker id="arrowB" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee"/>
+    </marker>
+    <marker id="arrowC" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowE" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#fde047"/>
+    </marker>
+    <marker id="arrowF" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#c084fc"/>
+    </marker>
+    <marker id="arrowG" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185"/>
+    </marker>
+    <marker id="arrowH" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#bae6fd"/>
+    </marker>
+    <pattern id="blueprintGrid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#0ea5e9" stroke-opacity="0.12" stroke-width="1"/>
+    </pattern>
+    <style>
+    text { font-family: 'SF Mono', 'Fira Code', Menlo, 'Microsoft YaHei', 'SimHei', monospace; }
+    .title { font-size: 30px; font-weight: 700; fill: #e0f2fe; }
+    .subtitle { font-size: 14px; font-weight: 500; fill: #7dd3fc; }
+    .section { font-size: 13px; font-weight: 700; fill: #67e8f9; letter-spacing: 1.4px; }
+    .section-sub { font-size: 12px; font-weight: 500; fill: #7dd3fc; }
+    .node-title { font-size: 18px; font-weight: 700; fill: #e0f2fe; }
+    .node-sub { font-size: 12px; font-weight: 500; fill: #bae6fd; }
+    .node-type { font-size: 11px; font-weight: 700; fill: #7dd3fc; letter-spacing: 0.08em; }
+    .arrow-label { font-size: 12px; font-weight: 600; fill: #e0f2fe; }
+    .legend { font-size: 12px; font-weight: 500; fill: #bae6fd; }
+    .footnote { font-size: 12px; font-weight: 500; fill: #7dd3fc; }
+    </style>
+  </defs>
+  <rect width="1080.0" height="560.0" fill="#082f49"/>
+  <text x="540.0" y="56" text-anchor="middle" class="title">Calibrated Dual-Model Verification &amp; Batch Group Publishing Flow</text>
+  <text x="540.0" y="82" text-anchor="middle" class="subtitle">Generator (Model A) != Blind Verifier (Model B) -&gt; Staging Pool -&gt; Lecturer Group Batch Publish</text>
+  <path d="M 0.0,0.0" fill="none" stroke="#67e8f9" stroke-width="2.1" marker-end="url(#arrowA)"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#fde047" stroke-width="2.1" marker-end="url(#arrowE)"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#22d3ee" stroke-width="2.1" marker-end="url(#arrowB)"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#fb7185" stroke-width="2.1" marker-end="url(#arrowG)" stroke-dasharray="6,4"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#22d3ee" stroke-width="2.1" marker-end="url(#arrowB)"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#67e8f9" stroke-width="2.1" marker-end="url(#arrowA)"/>
+  <path d="M 0.0,0.0" fill="none" stroke="#22d3ee" stroke-width="2.1" marker-end="url(#arrowB)"/>
+  <rect x="60.0" y="145.0" width="210.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="165.0" y="182.0" text-anchor="middle" class="node-title">1. Model A Synthesis</text>
+  <text x="165.0" y="204.0" text-anchor="middle" class="node-sub">Vietnamese Prompt + FK Norm</text>
+  <rect x="330.0" y="145.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="440.0" y="182.0" text-anchor="middle" class="node-title">2. Blind Solver B (k=3)</text>
+  <text x="440.0" y="204.0" text-anchor="middle" class="node-sub">pglast AST + PG17 Read-Only</text>
+  <rect x="610.0" y="145.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="720.0" y="182.0" text-anchor="middle" class="node-title">3. Calibrated Gate</text>
+  <text x="720.0" y="204.0" text-anchor="middle" class="node-sub">Consensus + ORDER BY + Audit</text>
+  <rect x="610.0" y="310.0" width="220.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="720.0" y="347.0" text-anchor="middle" class="node-title">Needs Human Queue</text>
+  <text x="720.0" y="369.0" text-anchor="middle" class="node-sub">Bulk Approve / Custom SQL</text>
+  <rect x="880.0" y="145.0" width="160.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="960.0" y="182.0" text-anchor="middle" class="node-title">4. Ready Staging Pool</text>
+  <text x="960.0" y="204.0" text-anchor="middle" class="node-sub">live.questions (No Auto-Leak)</text>
+  <rect x="330.0" y="420.0" width="240.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="450.0" y="457.0" text-anchor="middle" class="node-title">5. Question Group</text>
+  <text x="450.0" y="479.0" text-anchor="middle" class="node-sub">Drag-Drop &amp; Checkbox Pick</text>
+  <rect x="700.0" y="420.0" width="260.0" height="74.0" rx="8.0" fill="#0b3b5e" stroke="#67e8f9" stroke-width="1.8"/>
+  <text x="830.0" y="457.0" text-anchor="middle" class="node-title">6. Live Student Shelf</text>
+  <text x="830.0" y="479.0" text-anchor="middle" class="node-sub">Atomic Batch Publish (1..N)</text>
+  <rect x="-52.5" y="-14.0" width="105" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Draft Pending</text>
+  <rect x="-52.5" y="-14.0" width="105" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Result Hashes</text>
+  <rect x="-35.0" y="-14.0" width="70" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Approved</text>
+  <rect x="-38.5" y="-14.0" width="77" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Ambiguous</text>
+  <rect x="-49.0" y="-14.0" width="98" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Verified SQL</text>
+  <rect x="-45.5" y="-14.0" width="91" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">Pick / Drag</text>
+  <rect x="-59.5" y="-14.0" width="119" height="20" rx="6" fill="#082f49" opacity="0.9"/>
+  <text x="0.0" y="0.0" text-anchor="middle" class="arrow-label">1-Click Publish</text>
+  <text x="42.0" y="544.0" class="footnote">Hunter != Verifier Invariant · Calibrated Approval Floor · Atomic FOR UPDATE Batch Release</text>
+</svg>

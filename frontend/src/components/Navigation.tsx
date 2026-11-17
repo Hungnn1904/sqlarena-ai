@@ -12,7 +12,7 @@ interface NavigationProps {
 
 export default function Navigation({ items, activeId, onChange }: NavigationProps) {
   return (
-    <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#080c14]/80 border-b border-[#1e2d45]">
+    <nav className="sticky top-0 z-40 bg-surface border-b border-line">
       <div className="max-w-[1060px] mx-auto px-6">
         <ul className="flex gap-1 overflow-x-auto scrollbar-hide">
           {items.map((item) => {
@@ -20,17 +20,18 @@ export default function Navigation({ items, activeId, onChange }: NavigationProp
             return (
               <li key={item.id}>
                 <button
+                  type="button"
                   onClick={() => onChange(item.id)}
-                  className="relative px-4 py-3.5 text-sm font-medium transition-colors duration-200 whitespace-nowrap"
+                  className="relative px-4 min-h-11 text-sm font-medium transition-colors duration-200 whitespace-nowrap"
                 >
-                  <span className={isActive ? 'text-[#00d4ff]' : 'text-[#5a7298] hover:text-[#8ba3c7]'}>
+                  <span className={isActive ? 'text-brand font-semibold' : 'text-muted hover:text-ink'}>
                     {item.label}
                   </span>
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"
-                      className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#00d4ff]"
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand"
+                      transition={{ type: 'spring', stiffness: 450, damping: 30 }}
                     />
                   )}
                 </button>

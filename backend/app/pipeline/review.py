@@ -128,13 +128,14 @@ class ReviewRunner:
             world = q1(conn, "SELECT name, dataset_version FROM core.worlds WHERE world_id=:w", w=draft["world_id"])
             data = load_engine_data(conn, world["name"])
             k, lease_s, hb_s = sr.get(conn, "solve.samples_k"), sr.get(conn, "generation.lease_seconds"), sr.get(conn, "generation.heartbeat_seconds")
+            calibrated = sr.get(conn, "review.approval_mode") == "calibrated"
         try:
             verify_catalog(cfg, data)
             datasets = rv.build_datasets(cfg)
             ctx = build_context(draft, data, cfg["REVIEW_FEWSHOT"])
         except (rv.InfraError, ValueError) as exc:
             return self._release(draft, f"infra: {exc}")
-        base_solver, base_auditor = rv.make_solver(cfg), rv.make_auditor(cfg)
+        base_solver, base_auditor = rv.make_solver(cfg), rv.make_auditor(cfg, calibrated=calibrated)
 
         def solver(prompt, seed, temperature, model=None):
             with eng.llm_context(job_id=draft["job_id"], draft_id=draft["draft_id"], stage="solve_b", prompt_name="solve_b",
@@ -149,7 +150,8 @@ class ReviewRunner:
         try:
             with Heartbeat("draft", draft["draft_id"], self.worker_id, draft["review_lease_version"], lease_s, hb_s) as hb:
                 result = rv.review_draft(ctx, datasets, solver, k, cfg["REVIEW_SAMPLE_RETRIES"], cfg["REVIEW_ZERO_VALID_ACTION"],
-                                         models=cfg["REVIEW_MODELS"], auditor=auditor, repair_rounds=cfg["REVIEW_REPAIR_ROUNDS"])
+                                         models=cfg["REVIEW_MODELS"], auditor=auditor, repair_rounds=cfg["REVIEW_REPAIR_ROUNDS"],
+                                         calibrated=calibrated)
                 hb.check()
                 # dữ liệu Enterprise phải không đổi trong lúc chạy
                 after = {d.ref: rv.catalog_version(cfg, d.kwargs["dbname"])[0] for d in datasets}

@@ -10,8 +10,8 @@ const beVietnamPro = Be_Vietnam_Pro({
 });
 
 export const metadata: Metadata = {
-  title: "SQLArena AI Question Generator",
-  description: "Hệ thống tự động hóa sinh câu hỏi SQL có kiểm soát",
+  title: "SQL Arena PTIT - Hệ thống thực hành & chấm thi SQL tự động",
+  description: "Nền tảng luyện tập, ra đề theo nhóm và chấm điểm truy vấn SQL trực tiếp trên PostgreSQL 17",
 };
 
 export default function RootLayout({
@@ -22,8 +22,9 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
+      data-theme="light"
       suppressHydrationWarning
-      className={`${beVietnamPro.variable} light hybrid h-full antialiased`}
+      className={`${beVietnamPro.variable} light h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
         <Providers>{children}</Providers>

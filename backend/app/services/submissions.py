@@ -108,12 +108,69 @@ def stable_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def _strip_sql_comments(sql: str) -> str:
+    """Loại bỏ comment dòng (-- ...) và comment khối (/* ... */) nằm ngoài chuỗi ký tự nháy đơn/nháy kép."""
+    out: list[str] = []
+    i, n = 0, len(sql)
+    in_single = False
+    in_double = False
+    while i < n:
+        ch = sql[i]
+        nxt = sql[i + 1] if i + 1 < n else ""
+        if in_single:
+            out.append(ch)
+            if ch == "'" and nxt == "'":
+                out.append(nxt)
+                i += 2
+                continue
+            if ch == "'":
+                in_single = False
+            i += 1
+            continue
+        if in_double:
+            out.append(ch)
+            if ch == '"' and nxt == '"':
+                out.append(nxt)
+                i += 2
+                continue
+            if ch == '"':
+                in_double = False
+            i += 1
+            continue
+        if ch == "'":
+            in_single = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '"':
+            in_double = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "-" and nxt == "-":
+            i += 2
+            while i < n and sql[i] != "\n":
+                i += 1
+            if i < n and sql[i] == "\n":
+                out.append("\n")
+                i += 1
+            continue
+        if ch == "/" and nxt == "*":
+            end = sql.find("*/", i + 2)
+            if end < 0:
+                raise ValueError("Comment SQL /* ... */ chưa được đóng")
+            out.append(" ")
+            i = end + 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def guard_select(sql: str) -> str:
-    text = (sql or "").strip()
+    text = _strip_sql_comments(sql or "").strip()
     if not text:
         raise ValueError("Truy vấn SQL đang để trống")
-    if "--" in text or "/*" in text or "*/" in text:
-        raise ValueError("Không chấp nhận comment SQL (-- hoặc /* */)")
     if text.endswith(";"):
         text = text[:-1].rstrip()
     if ";" in text:
@@ -749,6 +806,7 @@ def monthly_leaderboard(conn: Connection, year: int | None = None, month: int | 
     except ValueError:
         raise bad_request("Năm hoặc tháng không hợp lệ")
     next_m = date(y + (1 if m == 12 else 0), 1 if m == 12 else m + 1, 1)
+    tz = get_settings().app_timezone
 
     total_q = q1(
         conn,
@@ -756,27 +814,60 @@ def monthly_leaderboard(conn: Connection, year: int | None = None, month: int | 
            FROM live.weekly_sets ws
            JOIN live.weekly_set_items i USING (set_id)
            WHERE ws.status IN ('published', 'closed')
-             AND ws.week_start >= :ms AND ws.week_start < :nm
-             AND NOT i.is_voided""",
+             AND NOT i.is_voided
+             AND (
+               (ws.week_start >= :ms AND ws.week_start < :nm)
+               OR (
+                 ws.status = 'published'
+                 AND EXISTS (
+                   SELECT 1 FROM live.submissions s2
+                   WHERE s2.question_id = i.question_id
+                     AND s2.submission_status = 'passed'
+                     AND (s2.submitted_at AT TIME ZONE :tz)::date >= :ms
+                     AND (s2.submitted_at AT TIME ZONE :tz)::date < :nm
+                 )
+               )
+             )""",
         ms=m_start,
         nm=next_m,
+        tz=tz,
     )["n"]
 
     rows = q(
         conn,
         """WITH monthly_q AS (
-             SELECT DISTINCT i.question_id
+             SELECT DISTINCT i.question_id,
+                    (ws.week_start >= :ms AND ws.week_start < :nm) AS in_month_set
              FROM live.weekly_sets ws
              JOIN live.weekly_set_items i USING (set_id)
              WHERE ws.status IN ('published', 'closed')
-               AND ws.week_start >= :ms AND ws.week_start < :nm
                AND NOT i.is_voided
+               AND (
+                 (ws.week_start >= :ms AND ws.week_start < :nm)
+                 OR (
+                   ws.status = 'published'
+                   AND EXISTS (
+                     SELECT 1 FROM live.submissions s2
+                     WHERE s2.question_id = i.question_id
+                       AND s2.submission_status = 'passed'
+                       AND (s2.submitted_at AT TIME ZONE :tz)::date >= :ms
+                       AND (s2.submitted_at AT TIME ZONE :tz)::date < :nm
+                   )
+                 )
+               )
            ), first_pass AS (
              SELECT DISTINCT ON (sub.user_id, sub.question_id)
                     sub.user_id, sub.question_id, sub.submitted_at AS first_passed_at, sub.runtime_ms
              FROM live.submissions sub
              JOIN monthly_q mq USING (question_id)
              WHERE sub.submission_status = 'passed'
+               AND (
+                 mq.in_month_set
+                 OR (
+                   (sub.submitted_at AT TIME ZONE :tz)::date >= :ms
+                   AND (sub.submitted_at AT TIME ZONE :tz)::date < :nm
+                 )
+               )
              ORDER BY sub.user_id, sub.question_id, sub.submitted_at, sub.submission_id
            ), scores AS (
              SELECT user_id,
@@ -796,6 +887,7 @@ def monthly_leaderboard(conn: Connection, year: int | None = None, month: int | 
            ORDER BY rank""",
         ms=m_start,
         nm=next_m,
+        tz=tz,
     )
     return {
         "period": {"year": y, "month": m},

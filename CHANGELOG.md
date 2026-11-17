@@ -1,21 +1,23 @@
-# Changelog
+# Changelog — SQLArena AI
 
-## [1.2.0] — Khớp Tài liệu chốt
-- Mặc định bộ đề tuần **20 câu = 5/10/5** (trước đó 50 câu theo seed v7); `weekly.close_requires_cutoff` mặc định tắt.
-- Chọn/publish đề yêu cầu **test case hợp lệ đúng dataset/version** (`invalid_test_cases`, `stale_dataset_version`).
-- Admin **chỉnh sửa** draft `needs_human`/`rejected`: `PATCH /admin/drafts/{id}`, `POST …/requeue`; draft về `pending` và chạy lại toàn bộ cổng. Sửa lỗi đánh số `review_round` để vòng review lại không bị mất bằng chứng.
-- Người học: `GET /weekly/history` (lịch sử tóm tắt), lọc theo tên `q`. Job sinh đề: `skill_ids` tùy chọn.
-- Tài liệu: bảng đối chiếu phạm vi (DESIGN_DECISIONS §4). 46 test.
+## [2.0.0] — 2026-11-17 (Chuẩn hoá Đồ án MyKit v3.15, Question Groups, Calibrated AI & VPS Docker)
 
-## [1.1.0] — Bộ đề tuần
-- Thêm `live.weekly_sets`, `live.weekly_set_items` (migration `0002`).
-- API quản trị bộ đề tuần: tạo (tự chọn đề READY, tính thiếu hụt, xếp job sinh bổ sung), thay items, publish, close (atomic, archive câu READY, `CLOSE_HOOKS`).
-- **Đổi API người học:** bỏ `GET /questions` (pool phẳng); thêm `GET /weekly/current`, `GET /weekly/current/questions`; `GET /questions/{id}` chỉ trả câu thuộc bộ PUBLISHED.
-- `retire` câu trong bộ PUBLISHED ⇒ `is_voided`; trong bộ DRAFT ⇒ gỡ và đánh lại thứ tự. `restore` chặn câu từng thuộc bộ.
-- Thêm cấu hình `weekly.question_count`, `weekly.close_requires_cutoff`; `GET /admin/questions` có `weekly_set_id`.
-- Tài liệu: `docs/API.md`, `docs/WEEKLY_SETS.md`, `docs/OPERATIONS.md`, `CHANGELOG.md`; cập nhật README và DESIGN_DECISIONS. 40 test.
+### Added
+- **Hệ thống Gom nhóm & Đăng đề hàng loạt (`0004_question_groups`)**: Bổ sung bảng `live.question_groups` + `live.question_group_items`, bộ API `/api/v1/admin/question-groups/*` và giao diện 2 cột hỗ trợ kéo thả (`Drag & Drop`), tick chọn nhiều đề, sắp xếp thứ tự và đăng nguyên nhóm lên kệ trong 1 giao dịch nguyên tử (`append_active` / `new_weekly_set`).
+- **Duyệt hàng loạt & Soạn đề thủ công**: Thêm `POST /api/v1/admin/drafts/bulk-approve`, tùy chọn sửa trực tiếp `custom_sql` khi duyệt bản nháp, và `POST /api/v1/admin/questions/manual` kiểm chứng trực tiếp trên PostgreSQL 17.
+- **Tích hợp `apithat.dev` Secret-Blind Vault**: Tự động khám phá danh sách model theo nhóm khóa qua `/v1/models` (`gpt-5.6-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-astra`, `claude-*`), bổ sung API `/api/v1/admin/gateway-status`, `/api/v1/admin/gateway-key`, giao diện nhập khóa ẩn trên trang Quản trị và công cụ CLI `./scripts/set-apithat-key.sh`.
+- **Triển khai VPS không cần Domain (`scripts/deploy-vps.sh`)**: Định tuyến cùng nguồn `/api/` qua Nginx Reverse Proxy trên cổng `:3000`, tự động phát hiện xung đột cổng, xử lý đường dẫn Unicode cho Docker BuildKit và hỗ trợ `--rollback` về Last-Known-Good SHA.
+- **Bộ tài liệu & Sơ đồ chuẩn MyKit v3.15**: Chuẩn hoá `AGENTS.md`, `CLAUDE.md`, `frontend/DESIGN.md`, `docs/{LAW,ARCHITECTURE,WBS,DECISIONS,REVIEW}.md`, `docs/api/OPENAPI_V1.md` và sơ đồ vector `docs/diagrams/*.svg`.
 
-## [1.0.0] — AI Pipeline & Question Management
-- Backend FastAPI + Worker: job sinh đề, draft, kiểm duyệt Model B, admin approve/reject, promote sang `live.questions` + `live.test_cases`.
-- BudgetGuard + `llm_call_ledger`; lease/heartbeat/fencing; settings registry; audit log.
-- Migration `0001`; seed 50 đề nguồn; `ai/` giữ nguyên.
+### Changed
+- **Chế độ Kiểm duyệt Hiệu chỉnh (`review.approval_mode = "calibrated"`)**: Giữ nguyên 100% chốt chặn an toàn/đồng thuận kết quả trên PostgreSQL 17, đồng thời loại bỏ các lỗi rớt oan hình thức (alias tiếng Anh không nêu trong đề, `>=2/3` mẫu hợp lệ đồng thuận tuyệt đối, chuẩn hoá cột FK thiếu cho Model A, khôi phục `REVIEW_REPAIR_ROUNDS` và nâng `max_tokens` lên `1500/1200`).
+- **Ngắt Auto-Leak khi duyệt đề**: `promotion.promote()` chỉ đưa câu hỏi vào kho `live.questions (status='ready')`, không tự chèn lẻ tẻ vào bộ đề đang mở.
+- **Đại tu UX góc nhìn Người mới**: Khắc phục lỗi tương phản chữ trên nút nền đậm ở Light Mode, khôi phục font `monospace` (`tabular-nums`), nâng cỡ chữ đề bài lên `16px`, thay auto-login ngầm bằng màn hình chào mừng tường minh, lưu nháp SQL theo bài, hiển thị `PK`/`FK`, `output_columns`, cho phép SQL comment `--` / `/* */` và tích hợp thanh trợ lý `AI Coach` + `EXPLAIN`.
+
+### Removed
+- Dọn sạch 25 tệp `.md` nháp lịch sử bị trùng lặp hoặc lỗi thời trong `docs/`, `ai/`, `backend/`, `frontend/`, `seed_create/`, `tai_lieu/` và cấu hình `.ck.json` cũ.
+
+---
+
+## [1.0.0] — 2026-10-29
+- Khởi tạo kiến trúc nền tảng SQLArena v7: PostgreSQL 17 (`sqlarena_app` + `enterprise_db` 13 bảng, 50 câu hỏi nguồn `ENT-001..ENT-050`), Dual-Model Pipeline (Model A + Model B), Bộ đề tuần (`weekly_sets`), Sandbox chỉ đọc và hệ thống chấm điểm/xếp hạng.

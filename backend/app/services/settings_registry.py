@@ -16,6 +16,7 @@ class Spec:
     minimum: float | None = None
     maximum: float | None = None
     hard_max: float | None = None          # trần an toàn: API không được nới
+    choices: tuple[Any, ...] | None = None
     mutable: bool = True
     restart_required: bool = False
 
@@ -32,6 +33,13 @@ REGISTRY: dict[str, Spec] = {
     "weekly.question_count": Spec(dict, {"1": 5, "2": 10, "3": 5}, "Mục tiêu mỗi tuần theo độ khó {1:Easy,2:Medium,3:Hard} (tài liệu chốt: 20 câu = 5/10/5)", hard_max=100),
     "weekly.close_requires_cutoff": Spec(bool, False, "Bật để chỉ cho đóng tuần sau mốc kết thúc (week_start + 7 ngày). Mặc định tắt: admin chủ động đóng tuần cũ để chuyển bộ mới"),
     "review.checklist_enabled": Spec(bool, False, "Chạy checklist LLM bổ sung (mặc định tắt)", mutable=False),
+    "review.approval_mode": Spec(
+        str,
+        "calibrated",
+        "Chế độ tự động duyệt đề: calibrated (cân bằng thực tế, giữ 100% chốt đúng/sai dữ liệu) hoặc strict (khắt khe hình thức)",
+        choices=("calibrated", "strict"),
+        mutable=True,
+    ),
 }
 
 
@@ -74,6 +82,8 @@ def validate(key: str, value: Any) -> Any:
         if not ok_keys or not 0 < sum(value.values()) <= spec.hard_max:
             raise bad_request(f"'{key}' phải là {{\"1\":n,\"2\":n,\"3\":n}} (số nguyên ≥ 0), tổng trong (0, {int(spec.hard_max)}]", {"key": key})
         return {k: int(value.get(k, 0)) for k in ("1", "2", "3")}
+    if spec.choices is not None and value not in spec.choices:
+        raise bad_request(f"'{key}' phải thuộc {list(spec.choices)}", {"key": key, "choices": list(spec.choices)})
     if spec.type in (int, float):
         if spec.minimum is not None and value < spec.minimum or spec.maximum is not None and value > spec.maximum:
             raise bad_request(f"'{key}' phải trong [{spec.minimum}, {spec.maximum}]", {"key": key})

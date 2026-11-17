@@ -14,7 +14,7 @@ def ok(columns, rows):
     return {"status": "ok", "columns": columns, "rows": rv.norm_rows(rows), "row_count": len(rows), "truncated": False}
 
 
-class FakeDataset:
+class DatasetFixture:
     def __init__(self, ref, results, version="v1", flaky=False):
         self.ref, self.results, self.version, self.flaky, self.calls = ref, results, version, flaky, 0
 
@@ -103,7 +103,7 @@ class SqlAnalysis(unittest.TestCase):
 
 class Decision(unittest.TestCase):
     def run_review(self, sqls, results, ctx=None, datasets=None, k=3, **kw):
-        datasets = datasets or [FakeDataset("enterprise/base", results)]
+        datasets = datasets or [DatasetFixture("enterprise/base", results)]
         kw.setdefault("auditor", passing_audit)
         return rv.review_draft(ctx or make_ctx(), datasets, scripted(sqls), k, kw.pop("retries", 0), **kw)
 
@@ -131,13 +131,13 @@ class Decision(unittest.TestCase):
         self.assertFalse(out["testcases"])
 
     def test_variant_dataset_catches_hardcoded_answer(self):
-        base = FakeDataset("enterprise/base", {Q: ROWS, Q + " WHERE total_amount > 5": ROWS})
-        variant = FakeDataset("enterprise/v2", {Q: ROWS, Q + " WHERE total_amount > 5": ok(["order_id", "total_amount"], [[1, 10]])})
+        base = DatasetFixture("enterprise/base", {Q: ROWS, Q + " WHERE total_amount > 5": ROWS})
+        variant = DatasetFixture("enterprise/v2", {Q: ROWS, Q + " WHERE total_amount > 5": ok(["order_id", "total_amount"], [[1, 10]])})
         out = self.run_review([Q, Q + " WHERE total_amount > 5", Q], None, datasets=[base, variant])
         self.assertEqual(out["status"], "needs_human")
 
     def test_nondeterministic_reference_is_rejected(self):
-        ds = FakeDataset("enterprise/base", {Q: ROWS}, flaky=True)
+        ds = DatasetFixture("enterprise/base", {Q: ROWS}, flaky=True)
         out = self.run_review([Q] * 3, None, datasets=[ds])
         self.assertEqual((out["status"], out["reasons"]), ("rejected", ["nondeterministic_reference"]))
 
@@ -177,7 +177,7 @@ class Decision(unittest.TestCase):
         def solver(prompt, seed, temperature, model=None):
             prompts.append(prompt)
             return ("DELETE FROM orders" if len(prompts) == 1 else Q), {}
-        out = rv.review_draft(make_ctx(), [FakeDataset("enterprise/base", {Q: ROWS})], solver, 1, 1,
+        out = rv.review_draft(make_ctx(), [DatasetFixture("enterprise/base", {Q: ROWS})], solver, 1, 1,
                               auditor=passing_audit)
         self.assertEqual(out["status"], "approved")
         self.assertIn("PREVIOUS ATTEMPT WAS REJECTED", prompts[1])
@@ -211,7 +211,7 @@ class ImprovedChecks(unittest.TestCase):
         def solver(prompt, seed, temperature, model=None):
             seen.append((model, temperature))
             return Q, {}
-        out = rv.review_draft(make_ctx(), [FakeDataset("enterprise/base", {Q: ROWS})], solver, 3, 0,
+        out = rv.review_draft(make_ctx(), [DatasetFixture("enterprise/base", {Q: ROWS})], solver, 3, 0,
                               models=["a", "b"], auditor=passing_audit)
         self.assertEqual(out["status"], "approved")
         self.assertEqual(seen, [("a", 0.0), ("a", None), ("b", 0.0)])
@@ -269,7 +269,7 @@ class SemanticSafety(unittest.TestCase):
 
     def test_semantic_auditor_flag_blocks_approval(self):
         q = Q
-        ds = FakeDataset("enterprise/base", {q: ROWS})
+        ds = DatasetFixture("enterprise/base", {q: ROWS})
         audit = lambda _ctx, _sql: {"verdict": "needs_human", "issues": ["HAVING counts all orders, not delivered orders"],
                                    "checks": [{"requirement": "delivered threshold", "status": "fail", "finding": "Wrong aggregate filter"}]}
         out = rv.review_draft(make_ctx(), [ds], scripted([q] * 3), 3, 0, auditor=audit)

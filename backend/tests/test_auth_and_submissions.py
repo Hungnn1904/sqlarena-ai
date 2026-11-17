@@ -20,7 +20,7 @@ def _seed_question_with_expected(conn) -> int:
     db.ex(conn, """INSERT INTO live.test_cases (question_id, dataset_ref, dataset_version, type, expected_result, is_hidden)
                    VALUES (:q, 'enterprise/base', 1, 'standard', CAST(:e AS jsonb), false)""", q=qid, e=exp)
     ws = db.q1(conn, """INSERT INTO live.weekly_sets (title, week_start, status, published_at)
-                        VALUES ('Tuần Test', :ws, 'published', now()) RETURNING set_id""", ws=date(2026, 10, 26))
+                        VALUES ('Tuần Test', :ws, 'published', now()) RETURNING set_id""", ws=date.today().replace(day=1))
     db.ex(conn, "INSERT INTO live.weekly_set_items (set_id, question_id, position) VALUES (:s, :q, 1)", s=ws["set_id"], q=qid)
     return qid
 

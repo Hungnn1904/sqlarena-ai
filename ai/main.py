@@ -29,7 +29,7 @@ DRAFT_FIELDS = ("world_id", "question", "compare_mode", "difficulty", "skills",
 
 
 def load_config():
-    config = {**dotenv_values(HERE / ".env"), **os.environ}
+    config = {**dotenv_values(HERE / ".env.example"), **dotenv_values(HERE / ".env"), **os.environ}
     if config.get("AI_PROVIDER") != "ollama":
         raise ValueError("AI_PROVIDER chi ho tro ollama trong Model A v1.")
     for key in ("MAX_RETRIES", "STATEMENT_TIMEOUT_MS", "MAX_RESULT_ROWS",

@@ -3,40 +3,64 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
+  Play,
+  Send,
+  RotateCcw,
+  Lightbulb,
+  Wrench,
+  Gauge,
+  Table2,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  KeyRound,
+  Link2,
+} from 'lucide-react';
+import {
   getWeeklyCurrent,
   getWeeklyQuestions,
   getQuestionDetail,
   getQuestionSubmissions,
   getDatasetSchema,
   runSandboxSql,
+  explainSandboxSql,
+  askAiSqlCoach,
   submitGradingSql,
+  extractApiError,
 } from '../lib/api';
 import { useTheme } from './theme-provider';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
-const DIFF_META: Record<number, { label: string; badge: string }> = {
+const DIFF_META: Record<number, { label: string; shortLabel: string; badge: string }> = {
   1: {
-    label: 'Dễ (L1)',
-    badge: 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60',
+    label: 'Dễ (Mức 1)',
+    shortLabel: 'Dễ',
+    badge: 'badge-easy',
   },
   2: {
-    label: 'Trung bình (L2)',
-    badge: 'bg-amber-950/60 text-amber-300 border-amber-800/60',
+    label: 'Trung bình (Mức 2)',
+    shortLabel: 'Trung bình',
+    badge: 'badge-medium',
   },
   3: {
-    label: 'Khó (L3)',
-    badge: 'bg-rose-950/60 text-rose-300 border-rose-800/60',
+    label: 'Khó (Mức 3)',
+    shortLabel: 'Khó',
+    badge: 'badge-hard',
   },
 };
 
 const SKILL_MAP: Record<number, string> = {
-  1: 'S1 · SELECT / WHERE',
-  2: 'S2 · JOIN',
-  3: 'S3 · GROUP BY / HAVING',
-  4: 'S4 · Subquery / CTE',
-  5: 'S5 · Window Functions',
-  6: 'S6 · NULL & Edge Cases',
+  1: 'S1: SELECT / WHERE',
+  2: 'S2: JOIN nhiều bảng',
+  3: 'S3: GROUP BY / HAVING',
+  4: 'S4: Subquery / CTE',
+  5: 'S5: Window Functions',
+  6: 'S6: Xử lý NULL & ngoại lệ',
 };
 
 const DOMAIN_CATEGORIES = [
@@ -48,17 +72,15 @@ const DOMAIN_CATEGORIES = [
   'Sản phẩm & Nhà cung cấp',
 ];
 
-function isAiQuestion(q: any): boolean {
-  if (!q) return false;
-  return (
-    q.source_type === 'ai_generated' ||
-    Boolean(q.source_draft_id) ||
-    Number(q.position || q.question_id) > 20
-  );
+function stripLeadingEmoji(text?: string | null): string {
+  if (!text) return '';
+  return String(text)
+    .replace(/^[^\p{L}\p{N}(["'`]+/u, '')
+    .trim();
 }
 
 function getDomainCategory(q: any): string {
-  if (!q) return 'Nghiệp vụ chuẩn';
+  if (!q) return 'Nghiệp vụ doanh nghiệp';
   if (q.domain_category && DOMAIN_CATEGORIES.includes(q.domain_category)) {
     return q.domain_category;
   }
@@ -84,6 +106,19 @@ function getDomainCategory(q: any): string {
   return q.domain_category || 'Đơn hàng & Doanh thu';
 }
 
+function buildStarterSql(detail: any): string {
+  const firstTable = detail?.tables_used?.[0] || 'categories';
+  const outCols: string[] = detail?.output_columns || detail?.expected_columns || [];
+  if (outCols.length > 0) {
+    return `-- Viết câu lệnh SELECT trả về đúng các cột: ${outCols.join(', ')}\nSELECT *\nFROM ${firstTable}\nLIMIT 10;`;
+  }
+  return `SELECT *\nFROM ${firstTable}\nLIMIT 10;`;
+}
+
+function getDraftStorageKey(qId: number): string {
+  return `sqlarena_draft_q_${qId}`;
+}
+
 export default function LearnerWorkbench({
   onSubmissionComplete,
 }: {
@@ -93,41 +128,61 @@ export default function LearnerWorkbench({
   const [viewMode, setViewMode] = useState<'list' | 'solve'>('list');
   const [weeklyMeta, setWeeklyMeta] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [loadingList, setLoadingList] = useState<boolean>(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [questionDetail, setQuestionDetail] = useState<any>(null);
   const [schemaInfo, setSchemaInfo] = useState<any>(null);
+  const [showAllSchemaTables, setShowAllSchemaTables] = useState<boolean>(false);
 
-  // Filters & Classification
-  const [sourceFilter, setSourceFilter] = useState<'ALL' | 'ai_generated' | 'seed'>('ALL');
+  // Filters (Clean default: Easy -> Hard, Advanced collapsed)
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [domainFilter, setDomainFilter] = useState<string>('ALL');
-  const [sortOrder, setSortOrder] = useState<'newest_ai_first' | 'code_asc'>('newest_ai_first');
+  const [sortOrder, setSortOrder] = useState<'difficulty_asc' | 'position_asc' | 'newest_first'>('difficulty_asc');
   const [diffFilter, setDiffFilter] = useState<number | undefined>(undefined);
   const [skillFilter, setSkillFilter] = useState<number | undefined>(undefined);
   const [solvedFilter, setSolvedFilter] = useState<boolean | undefined>(undefined);
   const [searchQ, setSearchQ] = useState('');
 
-  // Editor & Console
+  // Editor, Draft Persistence & Console
   const [sql, setSql] = useState<string>('SELECT * FROM categories LIMIT 10;');
+  const [draftSavedHint, setDraftSavedHint] = useState<boolean>(false);
   const [running, setRunning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [explainLoading, setExplainLoading] = useState(false);
+
   const [output, setOutput] = useState<any>(null);
+  const [coachData, setCoachData] = useState<any>(null);
+  const [explainData, setExplainData] = useState<any>(null);
   const [qSubs, setQSubs] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [consoleTab, setConsoleTab] = useState<'results' | 'tests' | 'history'>('results');
+  const [consoleTab, setConsoleTab] = useState<'results' | 'tests' | 'coach' | 'explain' | 'history'>('results');
+
+  const updateSqlWithAutosave = (nextValue: string, qIdOverride?: number | null) => {
+    setSql(nextValue);
+    const activeQid = qIdOverride ?? selectedId;
+    if (activeQid && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(getDraftStorageKey(activeQid), nextValue);
+        setDraftSavedHint(true);
+      } catch {}
+    }
+  };
 
   const loadQuestions = async () => {
+    setLoadingList(true);
     try {
       const [meta, qList] = await Promise.all([
-        getWeeklyCurrent(),
+        getWeeklyCurrent().catch(() => null),
         getWeeklyQuestions({
           difficulty: diffFilter,
           skill_id: skillFilter,
           solved: solvedFilter,
-          q: searchQ || undefined,
+          q: searchQ.trim() || undefined,
         }),
       ]);
-      setWeeklyMeta(meta);
-      const items = qList.items || [];
+      if (meta) setWeeklyMeta(meta);
+      const items = qList?.items || [];
       setQuestions(items);
       if (
         items.length > 0 &&
@@ -136,7 +191,9 @@ export default function LearnerWorkbench({
         setSelectedId(items[0].question_id);
       }
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không tải được danh sách đề bài');
+      setErrorMsg(extractApiError(e, 'Chưa tải được danh sách bài tập'));
+    } finally {
+      setLoadingList(false);
     }
   };
 
@@ -153,14 +210,26 @@ export default function LearnerWorkbench({
   useEffect(() => {
     if (!selectedId) return;
     setOutput(null);
+    setCoachData(null);
+    setExplainData(null);
     setErrorMsg(null);
+    setDraftSavedHint(false);
+
     getQuestionDetail(selectedId)
       .then((d) => {
         setQuestionDetail(d);
-        const firstTable = d.tables_used?.[0] || 'categories';
-        setSql(`SELECT *\nFROM ${firstTable}\nLIMIT 10;`);
+        if (typeof window !== 'undefined') {
+          const savedDraft = window.localStorage.getItem(getDraftStorageKey(selectedId));
+          if (savedDraft && savedDraft.trim().length > 0) {
+            setSql(savedDraft);
+            setDraftSavedHint(true);
+            return;
+          }
+        }
+        setSql(buildStarterSql(d));
       })
-      .catch((e) => setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi tải đề bài'));
+      .catch((e) => setErrorMsg(extractApiError(e, 'Không tải được nội dung câu hỏi')));
+
     getQuestionSubmissions(selectedId)
       .then((r) => setQSubs(r?.items || []))
       .catch(() => setQSubs([]));
@@ -169,6 +238,15 @@ export default function LearnerWorkbench({
   const handleOpenQuestion = (qId: number) => {
     setSelectedId(qId);
     setViewMode('solve');
+  };
+
+  const handleResetTemplate = () => {
+    const starter = buildStarterSql(questionDetail);
+    setSql(starter);
+    if (selectedId && typeof window !== 'undefined') {
+      window.localStorage.setItem(getDraftStorageKey(selectedId), starter);
+    }
+    setDraftSavedHint(false);
   };
 
   const handleRunSandbox = async () => {
@@ -181,7 +259,7 @@ export default function LearnerWorkbench({
       const res = await runSandboxSql(selectedId, sql);
       setOutput({ mode: 'run', ...res });
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Truy vấn không hợp lệ');
+      setErrorMsg(extractApiError(e, 'Câu lệnh SQL chưa hợp lệ'));
     } finally {
       setRunning(false);
     }
@@ -194,11 +272,46 @@ export default function LearnerWorkbench({
     setConsoleTab('results');
     try {
       const res = await runSandboxSql(qId, `SELECT * FROM ${tableName} LIMIT 5;`);
-      setOutput({ mode: 'run', ...res });
+      setOutput({ mode: 'preview', previewTable: tableName, ...res });
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Không xem trước được bảng');
+      setErrorMsg(extractApiError(e, `Không xem trước được dữ liệu bảng ${tableName}`));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleAskCoach = async (mode: 'review' | 'autofix') => {
+    if (!selectedId) return;
+    setCoachLoading(true);
+    setConsoleTab('coach');
+    try {
+      const errCtx = errorMsg || output?.error || undefined;
+      const res = await askAiSqlCoach({
+        question_id: selectedId,
+        sql,
+        mode,
+        error_context: mode === 'autofix' ? errCtx : undefined,
+      });
+      setCoachData(res);
+    } catch (e: any) {
+      setErrorMsg(extractApiError(e, 'Chưa lấy được gợi ý từ Trợ lý SQL'));
+    } finally {
+      setCoachLoading(false);
+    }
+  };
+
+  const handleExplainSql = async () => {
+    if (!selectedId) return;
+    setExplainLoading(true);
+    setErrorMsg(null);
+    setConsoleTab('explain');
+    try {
+      const res = await explainSandboxSql(selectedId, sql);
+      setExplainData(res);
+    } catch (e: any) {
+      setErrorMsg(extractApiError(e, 'Không thể chạy EXPLAIN trên câu lệnh hiện tại'));
+    } finally {
+      setExplainLoading(false);
     }
   };
 
@@ -220,7 +333,7 @@ export default function LearnerWorkbench({
       setQSubs(subsRes?.items || []);
       if (onSubmissionComplete) onSubmissionComplete();
     } catch (e: any) {
-      setErrorMsg(e?.response?.data?.message || e?.response?.data?.error?.message || 'Lỗi chấm bài');
+      setErrorMsg(extractApiError(e, 'Chấm bài không thành công. Hãy kiểm tra lại cú pháp SQL.'));
     } finally {
       setSubmitting(false);
     }
@@ -231,29 +344,32 @@ export default function LearnerWorkbench({
   const usedTableNames: string[] = questionDetail?.tables_used || [];
   const relevantTables =
     usedTableNames.length > 0
-      ? allTables.filter((tb: any) =>
-          usedTableNames.includes(tb.name || tb.table)
-        )
-      : allTables.slice(0, 2);
-
-  const aiCount = questions.filter((q) => isAiQuestion(q)).length;
-  const seedCount = questions.length - aiCount;
+      ? allTables.filter((tb: any) => usedTableNames.includes(tb.name || tb.table))
+      : allTables.slice(0, 3);
+  const displayedTables = showAllSchemaTables ? allTables : relevantTables;
 
   const filteredQuestions = questions
     .filter((q) => {
-      if (sourceFilter === 'ai_generated' && !isAiQuestion(q)) return false;
-      if (sourceFilter === 'seed' && isAiQuestion(q)) return false;
       if (domainFilter !== 'ALL' && getDomainCategory(q) !== domainFilter) return false;
+      if (searchQ.trim()) {
+        const kw = searchQ.trim().toLowerCase();
+        const codeStr = `sql${q.position || q.question_id}`.toLowerCase();
+        const titleStr = String(q.title || '').toLowerCase();
+        if (!titleStr.includes(kw) && !codeStr.includes(kw)) return false;
+      }
       return true;
     })
     .sort((a, b) => {
       const posA = Number(a.position || a.question_id || 0);
       const posB = Number(b.position || b.question_id || 0);
-      if (sortOrder === 'newest_ai_first') {
-        const aiA = isAiQuestion(a) ? 1 : 0;
-        const aiB = isAiQuestion(b) ? 1 : 0;
-        if (aiA !== aiB) return aiB - aiA;
-        return aiA ? posB - posA : posA - posB;
+      const diffA = Number(a.difficulty || 1);
+      const diffB = Number(b.difficulty || 1);
+      if (sortOrder === 'difficulty_asc') {
+        if (diffA !== diffB) return diffA - diffB;
+        return posA - posB;
+      }
+      if (sortOrder === 'newest_first') {
+        return Number(b.question_id || 0) - Number(a.question_id || 0);
       }
       return posA - posB;
     });
@@ -264,258 +380,270 @@ export default function LearnerWorkbench({
     currentIdx >= 0 && currentIdx < filteredQuestions.length - 1
       ? filteredQuestions[currentIdx + 1]?.question_id
       : null;
-  const solvedCount = weeklyMeta?.solved_count || 0;
-  const totalCount = weeklyMeta?.question_count || questions.length || 20;
 
-  // VIEW 1: CODE PTIT STYLE PROBLEM LIST TABLE
+  const solvedCount =
+    weeklyMeta?.solved_count ?? questions.filter((q) => q.solved).length;
+  const totalCount = weeklyMeta?.question_count || questions.length || 0;
+  const activeAdvancedCount =
+    (domainFilter !== 'ALL' ? 1 : 0) +
+    (skillFilter !== undefined ? 1 : 0) +
+    (solvedFilter !== undefined ? 1 : 0) +
+    (sortOrder !== 'difficulty_asc' ? 1 : 0);
+
+  // VIEW 1: CLEAN BEGINNER-FRIENDLY EXERCISE LIST
   if (viewMode === 'list') {
     return (
-      <div className="space-y-4">
-        {/* Thanh phân loại nguồn đề & Chủ đề */}
-        <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--line)] space-y-3">
-          {/* Row 1: Quick Source Type Tabs + Sort Toggle */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-[var(--line)]">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-[var(--ink)] mr-1">
-                Thanh phân loại nguồn đề &amp; Chủ đề:
-              </span>
-              <button
-                onClick={() => setSourceFilter('ALL')}
-                className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
-                  sourceFilter === 'ALL'
-                    ? 'bg-[var(--green)] border-[var(--green)] text-[var(--on-accent)]'
-                    : 'bg-[var(--paper)] border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)]'
-                }`}
-              >
-                Tất cả bài tập ({questions.length})
-              </button>
-              <button
-                onClick={() => setSourceFilter('ai_generated')}
-                className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
-                  sourceFilter === 'ai_generated'
-                    ? 'bg-emerald-600 border-emerald-500 text-white'
-                    : 'bg-emerald-950/50 border-emerald-800/70 text-emerald-300 hover:bg-emerald-900/50'
-                }`}
-              >
-                Đề AI mới sinh ({aiCount})
-              </button>
-              <button
-                onClick={() => setSourceFilter('seed')}
-                className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
-                  sourceFilter === 'seed'
-                    ? 'bg-[var(--green)] border-[var(--green)] text-[var(--on-accent)]'
-                    : 'bg-[var(--paper)] border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)]'
-                }`}
-              >
-                Đề gốc chuẩn ({seedCount})
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() =>
-                  setSortOrder(
-                    sortOrder === 'newest_ai_first' ? 'code_asc' : 'newest_ai_first'
-                  )
-                }
-                className="px-3 py-1.5 rounded bg-[var(--paper)] hover:bg-[var(--soft)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                {sortOrder === 'newest_ai_first'
-                  ? 'Sắp xếp: Đề mới sinh lên đầu'
-                  : 'Sắp xếp: Mã bài SQL01 -> SQL26'}
-              </button>
-              <div className="text-xs font-medium text-[var(--text2)]">
-                {weeklyMeta?.title || 'Tuần #42'} · Đã giải{' '}
-                <strong className="text-[var(--green)]">
-                  {solvedCount}/{totalCount}
-                </strong>
-              </div>
-            </div>
+      <div className="space-y-5">
+        {/* 3-Step Quick Guide for Beginners */}
+        <div className="p-4 sm:p-5 rounded-xl bg-surface border border-line flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-lg sm:text-xl font-bold text-ink">
+              {weeklyMeta?.title || 'Danh sách bài tập thực hành SQL'}
+            </h1>
+            <p className="text-sm text-text2 leading-relaxed">
+              Cách làm bài nhanh: <strong>1.</strong> Chọn một bài mức <strong>Dễ</strong> bên dưới,{' '}
+              <strong>2.</strong> Xem cấu trúc bảng &amp; cột cần trả về,{' '}
+              <strong>3.</strong> Bấm <strong>Chạy thử</strong> kiểm tra kết quả rồi bấm <strong>Nộp bài</strong>.
+            </p>
           </div>
-
-          {/* Row 2: Domain Category Pills */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {['ALL', ...DOMAIN_CATEGORIES].map((cat) => {
-              const active = domainFilter === cat;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setDomainFilter(cat)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium border transition ${
-                    active
-                      ? 'bg-[var(--copper)] border-[var(--copper)] text-white'
-                      : 'bg-[var(--paper)] border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)]'
-                  }`}
-                >
-                  {cat === 'ALL' ? 'Tất cả chủ đề' : cat}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Row 3: Search + Difficulty + Skill + Solved Filters */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
-            <input
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && loadQuestions()}
-              placeholder="Tìm mã bài hoặc tiêu đề..."
-              className="w-full sm:w-64 px-3 py-1.5 rounded bg-[var(--paper)] border border-[var(--line)] text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--green)]"
-            />
-            <button
-              onClick={loadQuestions}
-              className="px-3 py-1.5 rounded bg-[var(--soft)] hover:bg-[var(--paper)] border border-[var(--line)] text-xs font-medium text-[var(--ink)]"
-            >
-              Tìm kiếm
-            </button>
-
-            <div className="flex items-center gap-1">
-              {[
-                { label: 'Tất cả', val: undefined },
-                { label: 'Dễ (L1)', val: 1 },
-                { label: 'Trung bình (L2)', val: 2 },
-                { label: 'Khó (L3)', val: 3 },
-              ].map((b) => (
-                <button
-                  key={b.label}
-                  onClick={() => setDiffFilter(b.val)}
-                  className={`px-2.5 py-1.5 rounded text-xs font-medium border transition ${
-                    diffFilter === b.val
-                      ? 'bg-[var(--green)] border-[var(--green)] text-[var(--on-accent)]'
-                      : 'bg-[var(--paper)] border-[var(--line)] text-[var(--text2)] hover:text-[var(--ink)]'
-                  }`}
-                >
-                  {b.label}
-                </button>
-              ))}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="px-4 py-2.5 rounded-xl bg-soft border border-line text-sm tabular-nums">
+              <span className="text-text2">Tiến độ hoàn thành: </span>
+              <strong className="text-brand font-bold">
+                {solvedCount}/{totalCount} bài
+              </strong>
             </div>
-
-            <select
-              value={skillFilter ?? ''}
-              onChange={(e) =>
-                setSkillFilter(e.target.value ? Number(e.target.value) : undefined)
-              }
-              className="px-2.5 py-1.5 rounded bg-[var(--paper)] border border-[var(--line)] text-xs text-[var(--ink)] focus:outline-none"
-            >
-              <option value="">Mọi kỹ năng (S1–S6)</option>
-              <option value="1">S1 · SELECT / WHERE</option>
-              <option value="2">S2 · JOIN</option>
-              <option value="3">S3 · GROUP BY / HAVING</option>
-              <option value="4">S4 · Subquery / CTE</option>
-              <option value="5">S5 · Window Functions</option>
-              <option value="6">S6 · NULL & Edge Cases</option>
-            </select>
-
-            <select
-              value={
-                solvedFilter === undefined ? '' : solvedFilter ? 'solved' : 'unsolved'
-              }
-              onChange={(e) =>
-                setSolvedFilter(
-                  e.target.value === ''
-                    ? undefined
-                    : e.target.value === 'solved'
-                )
-              }
-              className="px-2.5 py-1.5 rounded bg-[var(--paper)] border border-[var(--line)] text-xs text-[var(--ink)] focus:outline-none"
-            >
-              <option value="">Tất cả trạng thái</option>
-              <option value="solved">Đã giải (AC)</option>
-              <option value="unsolved">Chưa làm</option>
-            </select>
           </div>
         </div>
 
-        {/* Code PTIT Style Full-Width Table */}
-        <div className="rounded-lg bg-[var(--surface)] border border-[var(--line)] overflow-hidden">
+        {/* Clean Filter Toolbar */}
+        <div className="p-4 rounded-xl bg-surface border border-line space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+              <div className="relative flex-1 max-w-sm min-w-[220px]">
+                <Search className="w-4 h-4 text-muted absolute left-3.5 top-3" />
+                <input
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && loadQuestions()}
+                  placeholder="Tìm theo tên hoặc mã bài..."
+                  className="w-full pl-9 pr-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink placeholder:text-muted"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { label: 'Tất cả', val: undefined },
+                  { label: 'Dễ', val: 1 },
+                  { label: 'Trung bình', val: 2 },
+                  { label: 'Khó', val: 3 },
+                ].map((b) => {
+                  const active = diffFilter === b.val;
+                  return (
+                    <button
+                      key={b.label}
+                      type="button"
+                      data-solid-btn={active ? 'true' : undefined}
+                      onClick={() => setDiffFilter(b.val)}
+                      className={`px-3.5 min-h-10 rounded-lg text-sm font-semibold ${
+                        active ? 'btn-primary' : 'btn-secondary'
+                      }`}
+                    >
+                      {b.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters((v) => !v)}
+              className="btn-subtle px-3.5 min-h-10 rounded-lg text-sm font-medium flex items-center gap-2"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-muted" />
+              <span>Bộ lọc nâng cao</span>
+              {activeAdvancedCount > 0 && (
+                <span className="badge-info px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums">
+                  {activeAdvancedCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {showAdvancedFilters && (
+            <div className="pt-3 border-t border-line grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">
+                  Nhóm kỹ năng SQL
+                </label>
+                <select
+                  value={skillFilter ?? ''}
+                  onChange={(e) =>
+                    setSkillFilter(e.target.value ? Number(e.target.value) : undefined)
+                  }
+                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
+                >
+                  <option value="">Tất cả kỹ năng (S1 đến S6)</option>
+                  {Object.entries(SKILL_MAP).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">
+                  Chủ đề nghiệp vụ
+                </label>
+                <select
+                  value={domainFilter}
+                  onChange={(e) => setDomainFilter(e.target.value)}
+                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
+                >
+                  <option value="ALL">Tất cả chủ đề</option>
+                  {DOMAIN_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">
+                  Trạng thái hoàn thành
+                </label>
+                <select
+                  value={
+                    solvedFilter === undefined ? '' : solvedFilter ? 'solved' : 'unsolved'
+                  }
+                  onChange={(e) =>
+                    setSolvedFilter(
+                      e.target.value === '' ? undefined : e.target.value === 'solved'
+                    )
+                  }
+                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
+                >
+                  <option value="">Tất cả bài tập</option>
+                  <option value="unsolved">Chưa hoàn thành</option>
+                  <option value="solved">Đã giải đúng</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">
+                  Thứ tự hiển thị
+                </label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as any)}
+                  className="w-full px-3 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
+                >
+                  <option value="difficulty_asc">Từ Dễ đến Khó (Khuyên dùng)</option>
+                  <option value="position_asc">Theo thứ tự bộ đề</option>
+                  <option value="newest_first">Bài mới cập nhật lên đầu</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Exercise Table */}
+        <div className="rounded-xl bg-surface border border-line overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-sm tabular-nums">
               <thead>
-                <tr className="bg-[var(--soft)] border-b border-[var(--line)] text-[var(--text2)] font-semibold">
-                  <th className="py-3 px-4 w-32">Trạng thái</th>
-                  <th className="py-3 px-4 w-28">Mã bài</th>
-                  <th className="py-3 px-4">Tiêu đề bài tập &amp; Nguồn đề</th>
-                  <th className="py-3 px-4 w-64">Phân loại (Type / Kỹ năng)</th>
-                  <th className="py-3 px-4 w-32">Độ khó</th>
+                <tr className="bg-soft border-b border-line text-text2 font-semibold">
+                  <th className="py-3.5 px-4 w-36">Trạng thái</th>
+                  <th className="py-3.5 px-4 w-28">Mã bài</th>
+                  <th className="py-3.5 px-4">Tiêu đề câu hỏi</th>
+                  <th className="py-3.5 px-4 w-72">Chủ đề &amp; Bảng dữ liệu</th>
+                  <th className="py-3.5 px-4 w-36">Độ khó</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--line)]">
-                {filteredQuestions.length > 0 ? (
+              <tbody className="divide-y divide-line">
+                {loadingList ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-sm text-muted">
+                      Đang tải danh sách câu hỏi...
+                    </td>
+                  </tr>
+                ) : filteredQuestions.length > 0 ? (
                   filteredQuestions.map((q: any) => {
                     const diff = DIFF_META[q.difficulty] || DIFF_META[1];
-                    const code = `SQL${String(q.position || q.question_id).padStart(2, '0')}`;
-                    const ai = isAiQuestion(q);
+                    const posNum = q.position || q.question_id;
+                    const code = `SQL${posNum}`;
                     const domainCat = getDomainCategory(q);
-                    const skillLabel =
-                      Array.isArray(q.skill_codes) && q.skill_codes.length > 0
-                        ? `${q.skill_codes.join(', ')} · ${(q.skills || []).join(', ')}`
-                        : Array.isArray(q.skills) && q.skills.length > 0
-                        ? q.skills.join(', ')
-                        : q.skill_code && q.skill_name
-                        ? `${q.skill_code} · ${q.skill_name}`
-                        : SKILL_MAP[q.skill_id] || 'S1 · SELECT / WHERE';
                     const tablesArr = Array.isArray(q.tables_used) ? q.tables_used : [];
                     return (
                       <tr
                         key={q.question_id}
+                        tabIndex={0}
                         onClick={() => handleOpenQuestion(q.question_id)}
-                        className="hover:bg-[var(--soft)]/60 cursor-pointer transition"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleOpenQuestion(q.question_id);
+                          }
+                        }}
+                        className="hover:bg-soft cursor-pointer transition-colors"
                       >
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           {q.solved ? (
-                            <span className="inline-block px-2 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)] font-semibold text-[11px]">
-                              Đã giải (AC)
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md badge-easy text-xs font-semibold">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Đã giải</span>
                             </span>
                           ) : q.attempted || Number(q.submission_count || 0) > 0 ? (
-                            <span className="inline-block px-2 py-0.5 rounded bg-amber-950/50 text-amber-300 border border-amber-800/50 font-semibold text-[11px]">
+                            <span className="inline-block px-2.5 py-1 rounded-md badge-medium text-xs font-semibold">
                               Đang thử
                             </span>
                           ) : (
-                            <span className="inline-block px-2 py-0.5 rounded bg-[var(--soft)] text-[var(--muted)] text-[11px]">
+                            <span className="inline-block px-2.5 py-1 rounded-md badge-neutral text-xs font-medium">
                               Chưa làm
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-[var(--copper)]">{code}</div>
-                          {ai ? (
-                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-[10px] font-semibold">
-                              Đề AI #{q.source_draft_id || q.question_id}
-                            </span>
-                          ) : (
-                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-[var(--soft)] border border-[var(--line)] text-[var(--muted)] text-[10px] font-medium">
-                              Đề gốc
-                            </span>
-                          )}
+                        <td className="py-3.5 px-4">
+                          <code className="text-sm font-bold text-brand">{code}</code>
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-[var(--ink)] hover:text-[var(--green)]">
+                        <td className="py-3.5 px-4">
+                          <div className="font-semibold text-ink text-sm leading-snug">
                             {q.title}
                           </div>
-                          <div className="text-[11px] text-[var(--muted)] mt-1">
-                            {ai
-                              ? `Chủ đề AI: ${q.topic || q.job_topic || domainCat} · Sinh từ Bản nháp #${q.source_draft_id || q.question_id} (Job #${q.job_id || 1})`
-                              : `Phân loại: ${domainCat || 'Nghiệp vụ chuẩn'} · Bảng: ${tablesArr.join(', ') || 'enterprise_db'}`}
-                          </div>
+                          {Array.isArray(q.skills) && q.skills.length > 0 && (
+                            <div className="text-xs text-muted mt-1">
+                              Kỹ năng: {q.skills.join(', ')}
+                            </div>
+                          )}
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)]">
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-md badge-neutral text-xs font-medium">
                               {domainCat}
                             </span>
-                            <span className="px-2 py-0.5 rounded bg-[var(--soft)] text-[10px] text-[var(--text2)]">
-                              {skillLabel}
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] text-[10px] text-[var(--muted)]">
-                              {tablesArr.length} bảng
-                            </span>
+                            {tablesArr.slice(0, 2).map((tb: string) => (
+                              <code
+                                key={tb}
+                                className="px-2 py-0.5 rounded bg-canvas border border-line text-xs text-text2"
+                              >
+                                {tb}
+                              </code>
+                            ))}
+                            {tablesArr.length > 2 && (
+                              <span className="text-xs text-muted">
+                                +{tablesArr.length - 2} bảng
+                              </span>
+                            )}
                           </div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded border text-[11px] font-medium ${diff.badge}`}
+                            className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${diff.badge}`}
                           >
-                            {diff.label}
+                            {diff.shortLabel}
                           </span>
                         </td>
                       </tr>
@@ -523,11 +651,8 @@ export default function LearnerWorkbench({
                   })
                 ) : (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="py-10 text-center text-xs text-[var(--muted)]"
-                    >
-                      Không tìm thấy bài tập phù hợp với bộ lọc hiện tại.
+                    <td colSpan={5} className="py-12 text-center text-sm text-muted">
+                      Không có bài tập nào khớp với bộ lọc hiện tại. Hãy thử chọn lại &quot;Tất cả&quot; độ khó.
                     </td>
                   </tr>
                 )}
@@ -539,163 +664,229 @@ export default function LearnerWorkbench({
     );
   }
 
-  // VIEW 2: SOLVE WORKSPACE (PROBLEM + INLINE RELEVANT SCHEMA ON LEFT, EDITOR + CONSOLE ON RIGHT)
+  // VIEW 2: SOLVE WORKSPACE (LEFT: PROBLEM + PK/FK SCHEMA, RIGHT: EDITOR + AI COACH/EXPLAIN + CONSOLE)
   const activeListItem = questions.find((q) => q.question_id === selectedId);
   const mergedQ = { ...(activeListItem || {}), ...(questionDetail || {}) };
   const diff = DIFF_META[mergedQ?.difficulty || 1] || DIFF_META[1];
-  const qCode = `SQL${String(mergedQ?.position || selectedId || 1).padStart(2, '0')}`;
-  const isDetailAi = isAiQuestion(mergedQ);
+  const qCode = `SQL${mergedQ?.position || selectedId || 1}`;
   const detailDomain = getDomainCategory(mergedQ);
-  const detailSkills =
-    Array.isArray(mergedQ?.skill_codes) && mergedQ.skill_codes.length > 0
-      ? `${mergedQ.skill_codes.join(', ')} · ${(mergedQ.skills || []).join(', ')}`
-      : Array.isArray(mergedQ?.skills) && mergedQ.skills.length > 0
-      ? mergedQ.skills.join(', ')
-      : SKILL_MAP[mergedQ?.skill_id] || 'S1 · SELECT / WHERE';
+  const outputColumns: string[] =
+    questionDetail?.output_columns || questionDetail?.expected_columns || [];
+  const hasSqlError = Boolean(errorMsg || output?.error);
+
+  const insertOutputColumnsToSelect = () => {
+    if (!outputColumns.length) return;
+    const firstTable = usedTableNames[0] || 'categories';
+    const template = `SELECT ${outputColumns.join(', ')}\nFROM ${firstTable}\nLIMIT 20;`;
+    updateSqlWithAutosave(template);
+  };
 
   return (
     <div className="space-y-4">
-      {/* Top Navigation Bar */}
-      <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Solve Header Navigation */}
+      <div className="p-3.5 rounded-xl bg-surface border border-line flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
+            type="button"
             onClick={() => setViewMode('list')}
-            className="px-3 py-1.5 rounded bg-[var(--soft)] hover:bg-[var(--paper)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)]"
+            className="btn-subtle px-3.5 min-h-10 rounded-lg text-sm font-semibold flex items-center gap-1.5"
           >
-            Quay lại danh sách đề
+            <ArrowLeft className="w-4 h-4" />
+            <span>Danh sách đề bài</span>
           </button>
-          <span className="text-xs font-bold text-[var(--copper)]">{qCode}</span>
-          {isDetailAi ? (
-            <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-[11px] font-semibold">
-              [Đề AI mới sinh · Draft #{mergedQ?.source_draft_id || selectedId}]
-            </span>
-          ) : (
-            <span className="px-2 py-0.5 rounded bg-[var(--soft)] border border-[var(--line)] text-[var(--text2)] text-[11px] font-semibold">
-              [Đề gốc chuẩn]
-            </span>
-          )}
-          <span className={`px-2 py-0.5 rounded border text-[11px] font-medium ${diff.badge}`}>
+          <code className="px-2.5 py-1 rounded-md bg-soft border border-line text-sm font-bold text-brand">
+            {qCode}
+          </code>
+          <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${diff.badge}`}>
             {diff.label}
           </span>
-          {questionDetail?.solved && (
-            <span className="px-2 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)] text-[11px] font-semibold">
-              Đã giải (AC)
+          <span className="px-2.5 py-1 rounded-md badge-neutral text-xs font-medium">
+            {detailDomain}
+          </span>
+          {mergedQ?.solved && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md badge-easy text-xs font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Đã hoàn thành</span>
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => prevQuestionId && setSelectedId(prevQuestionId)}
             disabled={!prevQuestionId}
-            className="px-3 py-1.5 rounded bg-[var(--paper)] hover:bg-[var(--soft)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] disabled:opacity-40"
+            className="btn-secondary px-3 min-h-10 rounded-lg text-sm font-medium flex items-center gap-1 disabled:opacity-40"
           >
-            Bài trước
+            <ChevronLeft className="w-4 h-4" />
+            <span>Bài trước</span>
           </button>
           <button
+            type="button"
             onClick={() => nextQuestionId && setSelectedId(nextQuestionId)}
             disabled={!nextQuestionId}
-            className="px-3 py-1.5 rounded bg-[var(--paper)] hover:bg-[var(--soft)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] disabled:opacity-40"
+            className="btn-secondary px-3 min-h-10 rounded-lg text-sm font-medium flex items-center gap-1 disabled:opacity-40"
           >
-            Bài tiếp
+            <span>Bài tiếp</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Main Split Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Left Column: Problem Statement + Inline Relevant Table Schema */}
+      {/* Main 2-Column Dense Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Column: Problem Prose (16px) + Output Columns + PK/FK Schema Explorer */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="p-5 rounded-lg bg-[var(--surface)] border border-[var(--line)] space-y-3">
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <span className="px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] font-semibold text-[var(--ink)]">
-                Chủ đề (Domain): {detailDomain}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-[var(--soft)] text-[var(--text2)] font-medium">
-                Kỹ năng (Skill): {detailSkills}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] text-[var(--muted)]">
-                Các bảng sử dụng (Tables): {usedTableNames.join(', ') || 'enterprise_db'}
-              </span>
-            </div>
-            <h1 className="text-lg font-bold text-[var(--ink)] leading-snug">
-              {questionDetail?.title || 'Đang tải đề bài...'}
+          <div className="p-5 rounded-xl bg-surface border border-line space-y-4">
+            <h1 className="text-xl font-bold text-ink leading-snug">
+              {questionDetail?.title || 'Đang tải nội dung bài tập...'}
             </h1>
-            <p className="text-xs text-[var(--text2)] leading-relaxed whitespace-pre-line">
-              {questionDetail?.question || ''}
-            </p>
 
-            {questionDetail?.expected_columns?.length > 0 && (
-              <div className="pt-2 border-t border-[var(--line)]">
-                <div className="text-[11px] font-semibold text-[var(--muted)] mb-1.5">
-                  Các cột kết quả cần trả về:
+            <div className="text-base text-ink leading-relaxed whitespace-pre-line">
+              {questionDetail?.question || ''}
+            </div>
+
+            {outputColumns.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-soft border border-line space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-ink">
+                    Cột kết quả cần trả về theo thứ tự:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={insertOutputColumnsToSelect}
+                    className="btn-secondary px-2.5 min-h-8 rounded-md text-xs font-medium"
+                  >
+                    Chèn tên cột vào SELECT
+                  </button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {questionDetail.expected_columns.map((col: string) => (
-                    <span
-                      key={col}
-                      className="px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--line)] text-xs font-semibold text-[var(--copper)]"
+                <div className="flex flex-wrap gap-2">
+                  {outputColumns.map((col: string, idx: number) => (
+                    <code
+                      key={`${col}-${idx}`}
+                      className="px-2.5 py-1 rounded-md bg-surface border border-line text-sm font-semibold text-brand"
                     >
-                      {col}
-                    </span>
+                      {idx + 1}. {col}
+                    </code>
                   ))}
                 </div>
               </div>
             )}
+
+            {usedTableNames.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted">
+                <span>Bảng dữ liệu liên quan:</span>
+                {usedTableNames.map((tb) => (
+                  <button
+                    key={tb}
+                    type="button"
+                    onClick={() => handlePreviewTable(tb)}
+                    className="btn-secondary px-2.5 min-h-8 rounded-md font-mono text-xs"
+                    title="Bấm để xem 5 dòng mẫu của bảng này"
+                  >
+                    {tb}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Inline Schema of Tables Used by This Problem */}
-          <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--line)] space-y-3">
-            <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
-              <span className="text-xs font-bold text-[var(--ink)]">
-                Cấu trúc bảng dữ liệu sử dụng ({relevantTables.length})
-              </span>
-              <span className="text-[11px] text-[var(--muted)]">
-                PostgreSQL 17
-              </span>
+          {/* Schema Explorer with PK & FK */}
+          <div className="p-4 rounded-xl bg-surface border border-line space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
+              <div className="flex items-center gap-2">
+                <Table2 className="w-4 h-4 text-brand" />
+                <span className="text-sm font-bold text-ink">
+                  Sơ đồ bảng dữ liệu ({displayedTables.length})
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  data-solid-btn={!showAllSchemaTables ? 'true' : undefined}
+                  onClick={() => setShowAllSchemaTables(false)}
+                  className={`px-2.5 min-h-8 rounded-md text-xs font-medium ${
+                    !showAllSchemaTables ? 'btn-primary' : 'btn-secondary'
+                  }`}
+                >
+                  Bảng của bài ({relevantTables.length})
+                </button>
+                <button
+                  type="button"
+                  data-solid-btn={showAllSchemaTables ? 'true' : undefined}
+                  onClick={() => setShowAllSchemaTables(true)}
+                  className={`px-2.5 min-h-8 rounded-md text-xs font-medium ${
+                    showAllSchemaTables ? 'btn-primary' : 'btn-secondary'
+                  }`}
+                >
+                  Tất cả ({allTables.length})
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-              {relevantTables.map((tb: any) => {
+            <p className="text-xs text-muted">
+              Bấm vào tên bảng bất kỳ để chạy nhanh <code className="text-ink">SELECT * LIMIT 5</code> xem dữ liệu thật.
+            </p>
+
+            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+              {displayedTables.map((tb: any) => {
                 const tableName = tb.name || tb.table || 'table';
                 const cols = tb.columns || [];
                 return (
                   <div
                     key={tableName}
-                    className="rounded border border-[var(--line)] bg-[var(--paper)] overflow-hidden"
+                    className="rounded-lg border border-line bg-canvas overflow-hidden"
                   >
-                    <div className="px-3 py-2 bg-[var(--soft)] border-b border-[var(--line)] flex items-center justify-between gap-2">
-                      <div>
-                        <span className="text-xs font-bold text-[var(--ink)]">
-                          {tableName}
-                        </span>
+                    <div className="px-3.5 py-2.5 bg-soft border-b border-line flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handlePreviewTable(tableName)}
+                        className="text-left flex items-center gap-2 hover:text-brand font-semibold text-sm text-ink min-h-8"
+                        title={`Xem 5 dòng mẫu của bảng ${tableName}`}
+                      >
+                        <code className="font-bold">{tableName}</code>
                         {tb.row_count !== undefined && (
-                          <span className="ml-2 text-[11px] text-[var(--muted)]">
+                          <span className="text-xs text-muted font-normal tabular-nums">
                             ({tb.row_count} dòng)
                           </span>
                         )}
-                      </div>
+                      </button>
                       <button
+                        type="button"
                         onClick={() => handlePreviewTable(tableName)}
-                        className="px-2.5 py-1 rounded bg-[var(--surface)] hover:bg-[var(--green)] hover:text-[var(--on-accent)] border border-[var(--line)] text-[11px] font-medium text-[var(--ink)] transition"
+                        className="btn-secondary px-2.5 min-h-8 rounded-md text-xs font-medium"
                       >
-                        Xem dữ liệu mẫu
+                        Xem 5 dòng mẫu
                       </button>
                     </div>
-                    <div className="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
-                      {cols.map((c: any) => (
-                        <div
-                          key={c.name}
-                          className="flex items-center justify-between px-2 py-1 rounded bg-[var(--surface)] border border-[var(--line)]"
-                        >
-                          <span className="font-medium text-[var(--ink)]">
-                            {c.name}
-                          </span>
-                          <span className="text-[11px] text-[var(--muted)]">
-                            {c.type}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="p-2.5 space-y-1.5">
+                      {cols.map((c: any) => {
+                        const isPk = Boolean(c.pk || c.is_primary_key);
+                        const fkTarget = c.references || c.fk || null;
+                        return (
+                          <div
+                            key={c.name}
+                            className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-surface border border-line text-sm"
+                          >
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <code className="font-medium text-ink text-sm">{c.name}</code>
+                              {isPk && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded badge-medium text-xs font-semibold">
+                                  <KeyRound className="w-3 h-3" />
+                                  <span>PK</span>
+                                </span>
+                              )}
+                              {fkTarget && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded badge-info text-xs font-medium">
+                                  <Link2 className="w-3 h-3" />
+                                  <span>FK -&gt; {fkTarget}</span>
+                                </span>
+                              )}
+                            </div>
+                            <code className="text-xs text-muted">{c.type}</code>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -704,137 +895,222 @@ export default function LearnerWorkbench({
           </div>
         </div>
 
-        {/* Right Column: SQL Editor + Grading Console */}
+        {/* Right Column: SQL Editor + Learning Assistant + Results Console */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="rounded-lg bg-[var(--surface)] border border-[var(--line)] overflow-hidden">
-            <div className="px-4 py-2.5 bg-[var(--soft)] border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-[var(--ink)]">
-                query.sql · PostgreSQL 17
-              </span>
-              <div className="flex items-center gap-2">
+          <div className="rounded-xl bg-surface border border-line overflow-hidden">
+            {/* Editor Action Bar */}
+            <div className="px-4 py-3 bg-soft border-b border-line flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <code className="text-sm font-semibold text-ink">query.sql</code>
+                {draftSavedHint && (
+                  <span className="text-xs text-muted">Đã tự lưu nháp trên trình duyệt</span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => {
-                    const firstTable = questionDetail?.tables_used?.[0] || 'categories';
-                    setSql(`SELECT *\nFROM ${firstTable}\nLIMIT 10;`);
-                  }}
-                  className="px-3 py-1.5 rounded bg-[var(--surface)] hover:bg-[var(--paper)] border border-[var(--line)] text-xs font-medium text-[var(--ink)]"
+                  type="button"
+                  onClick={handleResetTemplate}
+                  className="btn-secondary px-3 min-h-10 rounded-lg text-sm font-medium flex items-center gap-1.5"
                 >
-                  Đặt lại
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Đặt lại SQL mẫu</span>
                 </button>
                 <button
+                  type="button"
+                  data-solid-btn="true"
                   onClick={handleRunSandbox}
                   disabled={running || submitting}
-                  className="px-3.5 py-1.5 rounded bg-[var(--copper)] text-[var(--on-accent)] text-xs font-semibold disabled:opacity-50"
+                  className="btn-copper px-4 min-h-10 rounded-lg text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {running ? 'Đang chạy...' : 'Chạy thử'}
+                  <Play className="w-4 h-4" />
+                  <span>{running ? 'Đang chạy...' : 'Chạy thử'}</span>
                 </button>
                 <button
+                  type="button"
+                  data-solid-btn="true"
                   onClick={handleSubmitGrade}
                   disabled={submitting || running}
-                  className="px-4 py-1.5 rounded bg-[var(--green)] hover:bg-[var(--green-hover)] text-[var(--on-accent)] text-xs font-semibold disabled:opacity-50"
+                  className="btn-primary px-4 min-h-10 rounded-lg text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {submitting ? 'Đang chấm...' : 'Nộp bài'}
+                  <Send className="w-4 h-4" />
+                  <span>{submitting ? 'Đang chấm...' : 'Nộp bài'}</span>
                 </button>
               </div>
             </div>
 
-            <div className="h-[280px] border-b border-[var(--line)]">
+            {/* Monaco SQL Editor */}
+            <div className="h-[300px] border-b border-line">
               <MonacoEditor
                 height="100%"
                 defaultLanguage="sql"
                 theme={theme === 'dark' ? 'vs-dark' : 'light'}
                 value={sql}
-                onChange={(v) => setSql(v || '')}
+                onChange={(v) => updateSqlWithAutosave(v || '')}
                 options={{
                   minimap: { enabled: false },
-                  fontSize: 13,
+                  fontSize: 14,
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   wordWrap: 'on',
-                  padding: { top: 12, bottom: 12 },
+                  padding: { top: 14, bottom: 14 },
                 }}
               />
             </div>
 
+            {/* Learning Assistant Toolbar (AI Coach & EXPLAIN) */}
+            <div className="px-4 py-2.5 bg-canvas border-b border-line flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-semibold text-text2">
+                Trợ lý học tập:
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={coachLoading}
+                  onClick={() => handleAskCoach('review')}
+                  className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Lightbulb className="w-3.5 h-3.5 text-copper" />
+                  <span>{coachLoading ? 'Đang phân tích...' : 'Gợi ý hướng giải'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={coachLoading}
+                  data-solid-btn={hasSqlError ? 'true' : undefined}
+                  onClick={() => handleAskCoach('autofix')}
+                  className={`px-3 min-h-9 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
+                    hasSqlError ? 'btn-danger' : 'btn-secondary'
+                  }`}
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>Giải thích lỗi SQL</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={explainLoading}
+                  onClick={handleExplainSql}
+                  className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Gauge className="w-3.5 h-3.5 text-brand" />
+                  <span>
+                    {explainLoading ? 'Đang đo EXPLAIN...' : 'Phân tích hiệu năng (EXPLAIN)'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
             {/* Console Tabs */}
-            <div className="px-4 py-2 bg-[var(--soft)] border-b border-[var(--line)] flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
+            <div className="px-4 py-2 bg-soft border-b border-line flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {[
-                  { id: 'results', label: 'Kết quả' },
-                  { id: 'tests', label: 'Test Cases' },
+                  { id: 'results', label: 'Kết quả chạy' },
+                  { id: 'tests', label: 'Chi tiết Test Cases' },
+                  { id: 'coach', label: 'Gợi ý Trợ lý AI' },
+                  { id: 'explain', label: 'Kế hoạch EXPLAIN' },
                   { id: 'history', label: `Lịch sử nộp (${qSubs.length})` },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setConsoleTab(t.id as any)}
-                    className={`px-3 py-1 rounded text-xs font-semibold transition ${
-                      consoleTab === t.id
-                        ? 'bg-[var(--green)] text-[var(--on-accent)]'
-                        : 'text-[var(--text2)] hover:text-[var(--ink)]'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                ].map((t) => {
+                  const active = consoleTab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      data-solid-btn={active ? 'true' : undefined}
+                      onClick={() => setConsoleTab(t.id as any)}
+                      className={`px-3 min-h-9 rounded-lg text-xs font-semibold ${
+                        active ? 'btn-primary' : 'text-text2 hover:text-ink hover:bg-surface'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
               </div>
               {output?.runtime_ms !== undefined && (
-                <span className="text-xs text-[var(--muted)]">
-                  Thời gian: {output.runtime_ms} ms
+                <span className="text-xs text-muted tabular-nums">
+                  Thời gian thực thi: {output.runtime_ms} ms
                 </span>
               )}
             </div>
 
             {/* Console Body */}
-            <div className="p-4 max-h-[360px] overflow-y-auto">
+            <div className="p-4 max-h-[420px] overflow-y-auto space-y-3">
               {errorMsg && (
-                <div className="p-3 rounded bg-[var(--red)]/10 border border-[var(--red)]/30 text-[var(--red)] text-xs">
-                  {errorMsg}
+                <div className="p-3.5 rounded-xl badge-hard text-sm flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>{errorMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    data-solid-btn="true"
+                    onClick={() => handleAskCoach('autofix')}
+                    className="btn-danger px-3 min-h-9 rounded-lg text-xs font-semibold shrink-0"
+                  >
+                    Nhờ AI giải thích lỗi này
+                  </button>
                 </div>
               )}
 
-              {!errorMsg && consoleTab === 'results' && (
-                <div className="space-y-3 text-xs">
+              {/* TAB: RESULTS */}
+              {consoleTab === 'results' && (
+                <div className="space-y-3 text-sm">
                   {output?.mode === 'submit' && (
                     <div
-                      className={`p-3 rounded border flex flex-wrap items-center justify-between gap-2 ${
-                        output.passed
-                          ? 'bg-[var(--green)]/15 border-[var(--green)] text-[var(--ink)]'
-                          : 'bg-[var(--red)]/10 border-[var(--red)]/40 text-[var(--ink)]'
+                      className={`p-4 rounded-xl flex flex-wrap items-center justify-between gap-2 ${
+                        output.passed || output.submission_status === 'passed'
+                          ? 'badge-easy'
+                          : 'badge-hard'
                       }`}
                     >
                       <div className="font-bold">
-                        {output.passed
-                          ? 'Chính xác (Accepted) — Đã vượt qua toàn bộ Test Cases!'
-                          : `Chưa chính xác (${output.status || 'Wrong Answer'})`}
+                        {output.passed || output.submission_status === 'passed'
+                          ? 'Chính xác! Câu truy vấn đã vượt qua toàn bộ bộ kiểm thử.'
+                          : `Chưa khớp kết quả chuẩn (${output.submission_status || output.status || 'Sai kết quả'})`}
                       </div>
-                      <div className="font-semibold">
+                      <div className="font-semibold tabular-nums">
                         Điểm: {output.score ?? 0}/100 ({output.passed_AutoTests ?? output.passed_tests ?? 0}/
-                        {output.total_AutoTests ?? output.total_tests ?? 1} tests)
+                        {output.total_AutoTests ?? output.total_tests ?? 1} bộ test)
                       </div>
                     </div>
                   )}
 
+                  {output?.mode === 'preview' && output?.previewTable && (
+                    <div className="px-3 py-2 rounded-lg badge-info text-xs font-semibold">
+                      Đang hiển thị 5 dòng dữ liệu mẫu của bảng <code>{output.previewTable}</code>
+                    </div>
+                  )}
+
                   {output?.error && (
-                    <div className="p-3 rounded bg-[var(--red)]/10 border border-[var(--red)]/30 text-[var(--red)]">
-                      {output.error}
+                    <div className="p-3.5 rounded-xl badge-hard text-sm flex flex-wrap items-center justify-between gap-3">
+                      <span>{output.error}</span>
+                      <button
+                        type="button"
+                        data-solid-btn="true"
+                        onClick={() => handleAskCoach('autofix')}
+                        className="btn-danger px-3 min-h-9 rounded-lg text-xs font-semibold"
+                      >
+                        Giải thích lỗi SQL
+                      </button>
                     </div>
                   )}
 
                   {output?.rows ? (
                     <div className="space-y-2">
-                      <div className="text-[11px] text-[var(--muted)]">
+                      <div className="text-xs text-muted tabular-nums">
                         Trả về {output.row_count ?? output.rows.length} dòng dữ liệu
                       </div>
                       {output.rows.length > 0 ? (
-                        <div className="overflow-x-auto border border-[var(--line)] rounded">
-                          <table className="w-full text-left border-collapse text-xs">
+                        <div className="overflow-x-auto border border-line rounded-lg">
+                          <table className="w-full text-left border-collapse text-sm tabular-nums">
                             <thead>
-                              <tr className="bg-[var(--soft)] border-b border-[var(--line)] text-[var(--ink)] font-semibold">
+                              <tr className="bg-soft border-b border-line text-ink font-semibold">
                                 {(output.columns || Object.keys(output.rows[0] || {})).map(
                                   (col: string) => (
                                     <th
                                       key={col}
-                                      className="px-3 py-2 border-r border-[var(--line)] last:border-r-0"
+                                      className="px-3 py-2.5 border-r border-line last:border-r-0 font-mono text-xs"
                                     >
                                       {col}
                                     </th>
@@ -842,20 +1118,22 @@ export default function LearnerWorkbench({
                                 )}
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-[var(--line)]">
+                            <tbody className="divide-y divide-line">
                               {output.rows.slice(0, 50).map((row: any, rIdx: number) => (
-                                <tr key={rIdx} className="hover:bg-[var(--soft)]/40">
+                                <tr key={rIdx} className="hover:bg-soft">
                                   {(output.columns || Object.keys(output.rows[0] || {})).map(
                                     (col: string, cIdx: number) => {
                                       const val = Array.isArray(row) ? row[cIdx] : row[col];
                                       return (
                                         <td
                                           key={col}
-                                          className="px-3 py-1.5 border-r border-[var(--line)] last:border-r-0 text-[var(--ink)]"
+                                          className="px-3 py-2 border-r border-line last:border-r-0 text-ink text-sm"
                                         >
-                                          {val === null || val === undefined
-                                            ? 'NULL'
-                                            : String(val)}
+                                          {val === null || val === undefined ? (
+                                            <code className="text-xs text-muted">NULL</code>
+                                          ) : (
+                                            String(val)
+                                          )}
                                         </td>
                                       );
                                     }
@@ -866,96 +1144,244 @@ export default function LearnerWorkbench({
                           </table>
                         </div>
                       ) : (
-                        <div className="p-4 text-center text-[var(--muted)] bg-[var(--paper)] rounded border border-[var(--line)]">
-                          Truy vấn thực thi thành công nhưng không có dòng dữ liệu nào trả về (0 rows).
+                        <div className="p-5 text-center text-sm text-muted bg-canvas rounded-lg border border-line">
+                          Câu lệnh hợp lệ nhưng không có dòng dữ liệu nào thỏa mãn điều kiện (0 dòng).
                         </div>
                       )}
                     </div>
                   ) : (
-                    !output && (
-                      <div className="py-8 text-center text-[var(--muted)]">
-                        Nhấn &quot;Chạy thử&quot; để kiểm tra kết quả truy vấn hoặc &quot;Nộp bài&quot; để chấm điểm.
+                    !output &&
+                    !errorMsg && (
+                      <div className="py-8 text-center text-sm text-muted">
+                        Bấm <strong>Chạy thử</strong> để kiểm tra bảng kết quả hoặc bấm{' '}
+                        <strong>Nộp bài</strong> để chấm điểm tự động.
                       </div>
                     )
                   )}
                 </div>
               )}
 
-              {!errorMsg && consoleTab === 'tests' && (
-                <div className="space-y-3 text-xs">
+              {/* TAB: TEST CASES */}
+              {consoleTab === 'tests' && (
+                <div className="space-y-3 text-sm">
                   {output?.test_cases?.length > 0 ? (
                     output.test_cases.map((tc: any) => (
                       <div
                         key={tc.test_id}
-                        className="p-3 rounded bg-[var(--paper)] border border-[var(--line)] space-y-2"
+                        className="p-3.5 rounded-xl bg-canvas border border-line space-y-2"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-bold text-[var(--ink)]">
-                            {tc.passed ? 'Đạt' : 'Chưa đạt'} · Dataset: {tc.dataset_ref} ({tc.type})
+                          <span
+                            className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                              tc.passed ? 'badge-easy' : 'badge-hard'
+                            }`}
+                          >
+                            {tc.passed ? 'Đạt' : 'Chưa đạt'} ({tc.dataset_ref || tc.type})
                           </span>
-                          <span className="text-[var(--text2)]">
-                            Số dòng mẫu: <strong>{tc.expected_rows}</strong> · Thực tế:{' '}
+                          <span className="text-xs text-text2 tabular-nums">
+                            Số dòng chuẩn: <strong>{tc.expected_rows}</strong> | Thực tế:{' '}
                             <strong>{tc.actual_rows}</strong>
                           </span>
                         </div>
                         {tc.diagnostic_hint && (
-                          <div className="p-2 rounded bg-[var(--surface)] border border-[var(--line)] text-[var(--copper)]">
-                            Nhận xét: {tc.diagnostic_hint}
+                          <div className="p-2.5 rounded-lg bg-surface border border-line text-sm text-text2">
+                            Gợi ý kiểm tra: {tc.diagnostic_hint}
                           </div>
                         )}
                       </div>
                     ))
                   ) : (
-                    <div className="py-8 text-center text-[var(--muted)]">
-                      Nhấn &quot;Nộp bài&quot; để xem chi tiết kết quả đối chiếu từng Test Case.
+                    <div className="py-8 text-center text-sm text-muted">
+                      Bấm <strong>Nộp bài</strong> để xem kết quả đối chiếu từng bộ kiểm thử.
                     </div>
                   )}
                 </div>
               )}
 
-              {!errorMsg && consoleTab === 'history' && (
-                <div className="space-y-2 text-xs">
-                  {qSubs.length > 0 ? (
-                    qSubs.map((sub: any) => (
-                      <div
-                        key={sub.submission_id}
-                        className="p-3 rounded bg-[var(--paper)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-2"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`px-2 py-0.5 rounded font-semibold text-[11px] ${
-                              sub.submission_status === 'passed' || sub.status === 'accepted' || sub.passed
-                                ? 'bg-[var(--green)]/15 text-[var(--green)]'
-                                : 'bg-[var(--red)]/15 text-[var(--red)]'
-                            }`}
-                          >
-                            {sub.submission_status === 'passed' || sub.status === 'accepted' || sub.passed
-                              ? 'Đạt (Accepted)'
-                              : (sub.submission_status || sub.status || 'failed').toUpperCase()}
-                          </span>
-                          <span className="font-semibold text-[var(--ink)]">
-                            {sub.score}/100 điểm
-                          </span>
-                          <span className="text-[var(--muted)]">{sub.runtime_ms ?? 0} ms</span>
-                          <span className="text-[var(--muted)]">
-                            {sub.submitted_at
-                              ? new Date(sub.submitted_at).toLocaleString('vi-VN')
-                              : ''}
-                          </span>
+              {/* TAB: AI COACH */}
+              {consoleTab === 'coach' && (
+                <div className="space-y-3 text-sm">
+                  {coachLoading ? (
+                    <div className="py-8 text-center text-sm text-muted">
+                      Trợ lý AI đang phân tích câu lệnh SQL và yêu cầu đề bài...
+                    </div>
+                  ) : coachData ? (
+                    <div className="p-4 rounded-xl bg-canvas border border-line space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
+                        <div className="font-bold text-ink">
+                          {stripLeadingEmoji(coachData.headline) || 'Phân tích & Gợi ý truy vấn SQL'}
                         </div>
-                        {sub.submitted_sql && (
-                          <button
-                            onClick={() => setSql(sub.submitted_sql)}
-                            className="px-2.5 py-1 rounded bg-[var(--surface)] hover:bg-[var(--soft)] border border-[var(--line)] text-[var(--ink)] font-medium"
-                          >
-                            Nạp lại code
-                          </button>
+                        {coachData.clean_score !== undefined && (
+                          <span className="badge-easy px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums">
+                            Điểm cấu trúc: {coachData.clean_score}/100
+                          </span>
                         )}
                       </div>
-                    ))
+
+                      {Array.isArray(coachData.insights) && coachData.insights.length > 0 && (
+                        <ul className="space-y-2 text-sm text-text2 list-disc pl-5">
+                          {coachData.insights.map((ins: string, idx: number) => (
+                            <li key={idx} className="leading-relaxed">
+                              {stripLeadingEmoji(ins)}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {coachData.suggested_sql && (
+                        <div className="pt-2 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-muted">
+                              Khung truy vấn gợi ý:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateSqlWithAutosave(coachData.suggested_sql)}
+                              className="btn-secondary px-3 min-h-8 rounded-md text-xs font-semibold"
+                            >
+                              Đưa khung gợi ý vào trình soạn thảo
+                            </button>
+                          </div>
+                          <pre className="p-3 rounded-lg bg-surface border border-line text-xs text-ink overflow-x-auto">
+                            {coachData.suggested_sql}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <div className="py-8 text-center text-[var(--muted)]">
-                      Chưa có lịch sử nộp bài cho câu hỏi này.
+                    <div className="py-8 text-center text-sm text-muted">
+                      Bấm <strong>Gợi ý hướng giải</strong> hoặc <strong>Giải thích lỗi SQL</strong> ở thanh công cụ phía trên để nhận hướng dẫn từng bước.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: EXPLAIN PLAN */}
+              {consoleTab === 'explain' && (
+                <div className="space-y-3 text-sm">
+                  {explainLoading ? (
+                    <div className="py-8 text-center text-sm text-muted">
+                      Đang thu thập kế hoạch thực thi EXPLAIN ANALYZE từ PostgreSQL 17...
+                    </div>
+                  ) : explainData ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 tabular-nums">
+                        <div className="p-3 rounded-lg bg-canvas border border-line">
+                          <div className="text-xs text-muted">Thời gian lập kế hoạch</div>
+                          <div className="text-base font-bold text-ink mt-0.5">
+                            {Number(explainData.planning_time_ms || 0).toFixed(2)} ms
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-canvas border border-line">
+                          <div className="text-xs text-muted">Thời gian thực thi</div>
+                          <div className="text-base font-bold text-brand mt-0.5">
+                            {Number(explainData.execution_time_ms || 0).toFixed(2)} ms
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-canvas border border-line">
+                          <div className="text-xs text-muted">Tổng chi phí ước tính (Cost)</div>
+                          <div className="text-base font-bold text-ink mt-0.5">
+                            {Number(explainData.total_cost || 0).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {Array.isArray(explainData.warnings) && explainData.warnings.length > 0 && (
+                        <div className="p-3 rounded-lg badge-medium text-xs space-y-1">
+                          {explainData.warnings.map((w: string, i: number) => (
+                            <div key={i}>{w}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {Array.isArray(explainData.plan_nodes) && explainData.plan_nodes.length > 0 && (
+                        <div className="overflow-x-auto border border-line rounded-lg">
+                          <table className="w-full text-left border-collapse text-xs tabular-nums">
+                            <thead>
+                              <tr className="bg-soft border-b border-line text-ink font-semibold">
+                                <th className="py-2 px-3">Bước thực thi (Node)</th>
+                                <th className="py-2 px-3">Bảng / Đối tượng</th>
+                                <th className="py-2 px-3">Dòng thực tế</th>
+                                <th className="py-2 px-3">Chi phí (Cost)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line">
+                              {explainData.plan_nodes.map((nd: any, idx: number) => (
+                                <tr key={idx} className="bg-surface">
+                                  <td className="py-2 px-3 font-mono font-medium text-ink">
+                                    {nd.node_type || nd.type || 'Plan Node'}
+                                  </td>
+                                  <td className="py-2 px-3 font-mono text-text2">
+                                    {nd.relation || nd.relation_name || '-'}
+                                  </td>
+                                  <td className="py-2 px-3 text-ink">
+                                    {nd.actual_rows ?? nd.rows ?? 0}
+                                  </td>
+                                  <td className="py-2 px-3 text-muted">
+                                    {nd.total_cost ?? nd.cost ?? 0}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-sm text-muted">
+                      Bấm <strong>Phân tích hiệu năng (EXPLAIN)</strong> để xem PostgreSQL 17 quét bảng và sử dụng chỉ mục như thế nào.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: SUBMISSION HISTORY */}
+              {consoleTab === 'history' && (
+                <div className="space-y-2.5 text-sm">
+                  {qSubs.length > 0 ? (
+                    qSubs.map((sub: any) => {
+                      const passed =
+                        sub.submission_status === 'passed' ||
+                        sub.status === 'accepted' ||
+                        sub.passed;
+                      return (
+                        <div
+                          key={sub.submission_id}
+                          className="p-3 rounded-xl bg-canvas border border-line flex flex-wrap items-center justify-between gap-2 tabular-nums"
+                        >
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                                passed ? 'badge-easy' : 'badge-hard'
+                              }`}
+                            >
+                              {passed ? 'Đạt (100 điểm)' : 'Chưa đạt'}
+                            </span>
+                            <span className="font-semibold text-ink text-sm">
+                              {sub.score ?? 0}/100 điểm
+                            </span>
+                            <span className="text-xs text-muted">{sub.runtime_ms ?? 0} ms</span>
+                            <span className="text-xs text-muted">
+                              {sub.submitted_at
+                                ? new Date(sub.submitted_at).toLocaleString('vi-VN')
+                                : ''}
+                            </span>
+                          </div>
+                          {sub.submitted_sql && (
+                            <button
+                              type="button"
+                              onClick={() => updateSqlWithAutosave(sub.submitted_sql)}
+                              className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold"
+                            >
+                              Nạp lại câu lệnh này
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-8 text-center text-sm text-muted">
+                      Bạn chưa có lượt nộp bài nào cho câu hỏi này.
                     </div>
                   )}
                 </div>

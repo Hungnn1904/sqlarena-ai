@@ -17,6 +17,7 @@ import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from dotenv import dotenv_values
@@ -33,21 +34,194 @@ import validator as vd        # noqa: E402
 
 _PASSTHROUGH_PREFIXES = ("REVIEW_", "OLLAMA_", "MODEL_", "CATALOG_DB_", "ENTERPRISE_DB_", "GENERATION_", "RETRY_",
                          "MAX_", "STATEMENT_", "DUPLICATE_", "WORLD_ID", "RULES_PATH", "AI_PROVIDER", "APITHAT_")
-_GATEWAY_ROTATION_POOL = ["gpt-6-sol", "gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"]
+_GATEWAY_ROTATION_POOL = ["gpt-5.6-sol", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-astra", "gpt-6.1-sol"]
+_NON_TEXT_KEYWORDS = ("image", "embedding", "whisper", "tts", "audio", "moderation", "rerank", "video")
 _rr_index = 0
 _rr_lock = threading.Lock()
+_runtime_gateway_override: dict[str, str] = {}
+_discovered_cache: dict[str, tuple[float, list[str]]] = {}
 _raw_ollama_request: Callable = arena.ollama_request
 
 
+def _normalize_apithat_base(url: str | None) -> str:
+    raw = (url or "https://apithat.dev/v1").strip().rstrip("/")
+    if raw in ("https://apithat.dev", "http://apithat.dev", "https://api.apithat.dev"):
+        return f"{raw}/v1"
+    return raw
+
+
+def _mask_secret(secret: str | None) -> str | None:
+    val = (secret or "").strip()
+    if not val or val.startswith("sk-your-"):
+        return None
+    if len(val) <= 10:
+        return "***"
+    return f"{val[:4]}...{val[-4:]}"
+
+
 def _merged_env() -> dict:
-    merged = {**dotenv_values(AI_DIR / ".env.example"), **dotenv_values(BACKEND_DIR / ".env")}
-    merged.update({k: v for k, v in os.environ.items() if k.startswith(_PASSTHROUGH_PREFIXES)})
+    vault_file = Path.home() / ".mykit" / "vault.env"
+    merged = {
+        **dotenv_values(AI_DIR / ".env.example"),
+        **(dotenv_values(vault_file) if vault_file.is_file() else {}),
+        **(dotenv_values(REPO_ROOT / ".env") if (REPO_ROOT / ".env").is_file() else {}),
+        **dotenv_values(BACKEND_DIR / ".env"),
+    }
+    merged.update({k: v for k, v in os.environ.items() if k.startswith(_PASSTHROUGH_PREFIXES) and v != ""})
+    merged.update({k: v for k, v in _runtime_gateway_override.items() if v})
     res = {k: v for k, v in merged.items() if v is not None}
     if not res.get("CATALOG_DB_USER") and res.get("ENTERPRISE_DB_USER"):
         res["CATALOG_DB_USER"] = res["ENTERPRISE_DB_USER"]
     if not res.get("CATALOG_DB_PASSWORD") and res.get("ENTERPRISE_DB_PASSWORD"):
         res["CATALOG_DB_PASSWORD"] = res["ENTERPRISE_DB_PASSWORD"]
     return res
+
+
+def probe_apithat_key(api_key: str, base_url: str = "https://apithat.dev/v1") -> list[str]:
+    """Xác thực APITHAT_API_KEY trực tiếp với apithat.dev và khám phá danh sách model khả dụng của nhóm key."""
+    key = (api_key or "").strip()
+    if not key or key.startswith("sk-your-") or len(key) < 12:
+        raise ValueError("APITHAT_API_KEY trống hoặc chưa đúng định dạng.")
+    norm_base = _normalize_apithat_base(base_url)
+    key_hash = hashlib.sha256(f"{norm_base}:{key}".encode()).hexdigest()
+    now = time.monotonic()
+    cached = _discovered_cache.get(key_hash)
+    if cached and (now - cached[0]) < 300:
+        return list(cached[1])
+
+    req = urllib.request.Request(
+        f"{norm_base}/models",
+        headers={"Authorization": f"Bearer {key}", "User-Agent": "SQLArena-AI/2.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise ValueError("APITHAT_API_KEY không hợp lệ hoặc đã hết hạn trên apithat.dev (401 Unauthorized).") from exc
+        raise ValueError(f"Không thể kết nối {norm_base}/models (HTTP {exc.code}).") from exc
+    except Exception as exc:
+        raise ValueError(f"Lỗi mạng khi kết nối {norm_base}: {exc}") from exc
+
+    raw_ids = [
+        str(m.get("id", "")).strip()
+        for m in (payload.get("data") or [])
+        if isinstance(m, dict) and m.get("id")
+    ]
+    text_models = [
+        mid for mid in raw_ids
+        if not any(kw in mid.lower() for kw in _NON_TEXT_KEYWORDS)
+    ]
+    priority = [
+        *_GATEWAY_ROTATION_POOL,
+        "gpt-5.6-terra",
+        "claude-sonnet-5-5",
+        "claude-haiku-4-5",
+        "deepseek-v3",
+        "qwen2.5-coder",
+    ]
+    ordered = [m for m in priority if m in text_models] + [m for m in text_models if m not in priority]
+    final_models = ordered or list(_GATEWAY_ROTATION_POOL)
+    _discovered_cache[key_hash] = (now, final_models)
+    return list(final_models)
+
+
+def set_runtime_gateway_key(
+    api_key: str,
+    base_url: str = "https://apithat.dev/v1",
+    preferred_model: str | None = None,
+    persist_env: bool = True,
+) -> dict:
+    models = probe_apithat_key(api_key, base_url)
+    norm_base = _normalize_apithat_base(base_url)
+    chosen_model = (preferred_model or "").strip() or models[0]
+    _runtime_gateway_override["APITHAT_API_KEY"] = api_key.strip()
+    _runtime_gateway_override["APITHAT_BASE_URL"] = norm_base
+    _runtime_gateway_override["APITHAT_MODEL"] = chosen_model
+    if persist_env:
+        _upsert_env_secret(BACKEND_DIR / ".env", {
+            "APITHAT_API_KEY": api_key.strip(),
+            "APITHAT_BASE_URL": norm_base,
+            "APITHAT_MODEL": chosen_model,
+        })
+    return {
+        "configured": True,
+        "valid": True,
+        "provider": "apithat.dev",
+        "masked_key": _mask_secret(api_key),
+        "base_url": norm_base,
+        "preferred_model": chosen_model,
+        "available_models": models[:16],
+        "rotation_pool": list(_GATEWAY_ROTATION_POOL),
+    }
+
+
+def clear_runtime_gateway_override() -> None:
+    _runtime_gateway_override.clear()
+    _discovered_cache.clear()
+
+
+def _upsert_env_secret(env_path: Path, updates: dict[str, str]) -> None:
+    existing_lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.is_file() else []
+    remaining = dict(updates)
+    out_lines: list[str] = []
+    for line in existing_lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            k = stripped.split("=", 1)[0].strip()
+            if k in remaining:
+                out_lines.append(f"{k}={remaining.pop(k)}")
+                continue
+        out_lines.append(line)
+    for k, v in remaining.items():
+        out_lines.append(f"{k}={v}")
+    env_path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    try:
+        os.chmod(env_path, 0o600)
+    except OSError:
+        pass
+
+
+def get_gateway_status() -> dict:
+    merged = _merged_env()
+    key = (merged.get("APITHAT_API_KEY") or "").strip()
+    base_url = _normalize_apithat_base(merged.get("APITHAT_BASE_URL"))
+    pref_model = (merged.get("APITHAT_MODEL") or "").strip() or _GATEWAY_ROTATION_POOL[0]
+    if not key or key.startswith("sk-your-"):
+        return {
+            "configured": False,
+            "valid": False,
+            "provider": "local-ollama",
+            "masked_key": None,
+            "base_url": base_url,
+            "preferred_model": pref_model,
+            "available_models": [],
+            "rotation_pool": list(_GATEWAY_ROTATION_POOL),
+        }
+    try:
+        models = probe_apithat_key(key, base_url)
+        return {
+            "configured": True,
+            "valid": True,
+            "provider": "apithat.dev",
+            "masked_key": _mask_secret(key),
+            "base_url": base_url,
+            "preferred_model": pref_model,
+            "available_models": models[:16],
+            "rotation_pool": list(_GATEWAY_ROTATION_POOL),
+        }
+    except ValueError as exc:
+        return {
+            "configured": True,
+            "valid": False,
+            "provider": "apithat.dev",
+            "masked_key": _mask_secret(key),
+            "base_url": base_url,
+            "preferred_model": pref_model,
+            "available_models": [],
+            "rotation_pool": list(_GATEWAY_ROTATION_POOL),
+            "error": str(exc),
+        }
 
 
 def load_engine_config(overrides: dict | None = None) -> dict:
@@ -61,8 +235,8 @@ def load_engine_config(overrides: dict | None = None) -> dict:
             cfg[k] = merged[k]
     api_key = (cfg.get("APITHAT_API_KEY") or "").strip()
     if api_key and not api_key.startswith("sk-your-"):
-        cfg["MAX_RETRIES"] = 0
-        cfg["REVIEW_REPAIR_ROUNDS"] = 0
+        cfg["MAX_RETRIES"] = max(1, min(int(cfg.get("MAX_RETRIES", 2)), 2))
+        cfg["REVIEW_REPAIR_ROUNDS"] = max(1, min(int(cfg.get("REVIEW_REPAIR_ROUNDS", 1)), 1))
     cfg["MODEL_NAME"] = "llama3"
     cfg["REVIEW_MODEL_NAME"] = "qwen2.5-coder:7b"
     cfg["REVIEW_AUDIT_MODEL_NAME"] = "qwen2.5-coder:7b"
@@ -95,7 +269,9 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
     if path != "/api/generate":
         return _raw_ollama_request(config, path, body)
 
-    base_url = (config.get("APITHAT_BASE_URL") or os.environ.get("APITHAT_BASE_URL") or _merged_env().get("APITHAT_BASE_URL") or "http://localhost:11434/v1").rstrip("/")
+    base_url = _normalize_apithat_base(
+        config.get("APITHAT_BASE_URL") or os.environ.get("APITHAT_BASE_URL") or _merged_env().get("APITHAT_BASE_URL")
+    )
     prompt = (body or {}).get("prompt", "")
     marker = "CONTEXT:\n"
     if marker in prompt and "\n\nOUTPUT OBJECT" in prompt:
@@ -177,44 +353,82 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
     else:
         sys_prompt = "Return ONLY valid JSON without markdown code fences."
 
+    try:
+        active_pool = probe_apithat_key(api_key, base_url)[:6] or list(_GATEWAY_ROTATION_POOL)
+    except Exception:
+        active_pool = list(_GATEWAY_ROTATION_POOL)
     global _rr_index
     with _rr_lock:
-        start = _rr_index
-        _rr_index = (_rr_index + 1) % len(_GATEWAY_ROTATION_POOL)
-    rotated = [_GATEWAY_ROTATION_POOL[(start + i) % len(_GATEWAY_ROTATION_POOL)] for i in range(len(_GATEWAY_ROTATION_POOL))]
-    req_model = str((body or {}).get("model") or config.get("APITHAT_MODEL") or config.get("MODEL_NAME") or "").strip()
-    candidates = ([req_model] + [m for m in rotated if m != req_model]) if req_model in _GATEWAY_ROTATION_POOL else rotated
+        start = _rr_index % len(active_pool)
+        _rr_index = (_rr_index + 1) % len(active_pool)
+    rotated = [active_pool[(start + i) % len(active_pool)] for i in range(len(active_pool))]
+    req_model = str(_runtime_gateway_override.get("APITHAT_MODEL") or config.get("APITHAT_MODEL") or (body or {}).get("model") or "").strip()
+    if req_model in ("", "auto-rotate", "llama3", "qwen2.5-coder:7b"):
+        candidates = rotated
+    else:
+        candidates = [req_model] + [m for m in rotated if m != req_model]
 
     last_err = "unknown"
     is_model_a = bool((_ctx.get() and _ctx.get().stage == "model_a") or (isinstance(fmt, dict) and "title" in (fmt.get("properties") or {})))
     public_model = "llama3" if is_model_a else "qwen2.5-coder:7b"
-    max_tok = 650 if is_model_a else 500
-    for candidate_model in candidates:
+    max_tok = 1500 if is_model_a else 1200
+    for candidate_model in candidates[:4]:
         t0 = time.perf_counter_ns()
-        payload = {"model": candidate_model, "temperature": float(opts.get("temperature", 0.2)),
-                   "reasoning_effort": "low", "max_tokens": max_tok, "stream": True,
-                   "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}]}
-        req = urllib.request.Request(f"{base_url}/chat/completions", data=json.dumps(payload).encode("utf-8"),
-                                     headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}",
-                                              "User-Agent": "SQLArena-AI/1.0"})
         try:
-            chunks: list[str] = []
-            with urllib.request.urlopen(req, timeout=75) as resp:
-                for raw_line in resp:
-                    line = raw_line.decode("utf-8", errors="replace").strip()
-                    if not line.startswith("data:"):
-                        continue
-                    data_str = line[5:].strip()
-                    if data_str == "[DONE]":
-                        break
-                    try:
-                        evt = json.loads(data_str)
-                        delta = ((evt.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
-                        if delta:
-                            chunks.append(delta)
-                    except Exception:
-                        pass
-            content = "".join(chunks)
+            if candidate_model.startswith("claude-"):
+                anth_root = base_url[:-3] if base_url.endswith("/v1") else base_url
+                anth_payload = {
+                    "model": candidate_model,
+                    "max_tokens": max_tok,
+                    "temperature": float(opts.get("temperature", 0.2)),
+                    "system": sys_prompt,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+                req = urllib.request.Request(
+                    f"{anth_root}/v1/messages",
+                    data=json.dumps(anth_payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-api-key": api_key,
+                        "Authorization": f"Bearer {api_key}",
+                        "anthropic-version": "2023-06-01",
+                        "User-Agent": "SQLArena-AI/2.0",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=75) as resp:
+                    anth_obj = json.loads(resp.read().decode("utf-8", errors="replace"))
+                content = "".join(
+                    blk.get("text", "") for blk in (anth_obj.get("content") or []) if isinstance(blk, dict)
+                )
+            else:
+                payload = {"model": candidate_model, "temperature": float(opts.get("temperature", 0.2)),
+                           "reasoning_effort": "low", "max_tokens": max_tok, "stream": True,
+                           "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}]}
+                req = urllib.request.Request(f"{base_url}/chat/completions", data=json.dumps(payload).encode("utf-8"),
+                                             headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}",
+                                                      "User-Agent": "SQLArena-AI/2.0"})
+                chunks: list[str] = []
+                with urllib.request.urlopen(req, timeout=75) as resp:
+                    raw_bytes = resp.read().decode("utf-8", errors="replace")
+                if "data:" in raw_bytes:
+                    for raw_line in raw_bytes.splitlines():
+                        line = raw_line.strip()
+                        if not line.startswith("data:"):
+                            continue
+                        data_str = line[5:].strip()
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            evt = json.loads(data_str)
+                            delta = ((evt.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
+                            if delta:
+                                chunks.append(delta)
+                        except Exception:
+                            pass
+                    content = "".join(chunks)
+                else:
+                    obj = json.loads(raw_bytes)
+                    content = (((obj.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
             clean_json_str = _extract_clean_json(content)
             parsed = json.loads(clean_json_str)
             if not isinstance(parsed, dict):
@@ -229,8 +443,8 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
                 "total_duration": time.perf_counter_ns() - t0,
             }
         except Exception as exc:
-            last_err = f"{public_model}: {exc}"
-    raise ValueError(f"Ollama HTTP error across pool: {last_err}")
+            last_err = f"{candidate_model}: {exc}"
+    raise ValueError(f"Gateway apithat.dev error across pool: {last_err}")
 
 
 # ----------------------------------------------------------------------------- LLM ledger interceptor

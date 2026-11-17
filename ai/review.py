@@ -209,7 +209,7 @@ def ordering_requested(question):
 
 def expected_columns_from_text(question):
     """Read the explicit output-column contract used by SQLArena's generated questions."""
-    match = re.search(r"(?im)^\s*Cột kết quả theo thứ tự\s*:\s*([^\n]+)", question or "")
+    match = re.search(r"(?im)(?:^|[.!?]\s*)Cột\s+kết\s+quả(?:\s+theo\s+thứ\s+tự)?\s*:\s*([^\n.]+)", question or "")
     if not match:
         return []
     raw = match.group(1).strip().rstrip(".")
@@ -838,6 +838,7 @@ def draft_context(row):
     defs = {t["table"]: t for t in sc.get("tables", [])}
     skills = row.get("skills") or []
     schema = {t: {c["name"]: c.get("type") or c.get("postgres_type") or "" for c in defs[t]["columns"]} for t in tables_used if t in defs}
+    full_schema = {t: {c["name"]: c.get("type") or c.get("postgres_type") or "" for c in defs[t]["columns"]} for t in defs}
     used = set(tables_used)
     fks = [f"{f['table_name']}({', '.join(f['columns'])}) -> {f['referenced_table']}({', '.join(f['referenced_columns'])})"
            for f in sc.get("fk_relations", []) if f.get("table_name") in used and f.get("referenced_table") in used]
@@ -858,7 +859,7 @@ def draft_context(row):
     ctx = {"draft_id": row["draft_id"], "question": question, "difficulty": row["difficulty"],
             "parent_ids": [p for p in parents if isinstance(p, str)], "examples": [],
             "skill": meta.get("primary_skill_group") or (skills[0] if skills else None),
-            "tables_used": tables_used, "schema": schema, "fks": fks, "checks": checks, "rules": rules,
+            "tables_used": tables_used, "schema": schema, "full_schema": full_schema, "fks": fks, "checks": checks, "rules": rules,
             "primary_keys": {k for t in tables_used if t in defs for k in defs[t].get("primary_key", [])},
             "all_checks": [c for t in tables_used if t in defs for c in defs[t].get("checks", [])],
             "expected_output_columns": expected_columns, "ordering_required": ordering_meta,
@@ -1024,7 +1025,7 @@ def audit_requirement_group(requirement):
     return None
 
 
-def call_semantic_auditor(config, ctx, sql):
+def call_semantic_auditor(config, ctx, sql, calibrated: bool = False):
     if not config.get("REVIEW_SEMANTIC_AUDIT", True):
         return {"verdict": "needs_human", "issues": ["Semantic audit is disabled; fail-closed."], "checks": []}
     model = config["REVIEW_AUDIT_MODEL_NAME"]
@@ -1047,6 +1048,18 @@ def call_semantic_auditor(config, ctx, sql):
     if (not isinstance(result, dict) or result.get("verdict") not in ("pass", "needs_human")
             or not isinstance(result.get("issues"), list) or not isinstance(result.get("checks"), list)):
         return {"verdict": "needs_human", "issues": ["semantic_audit_invalid_schema"], "checks": []}
+    if calibrated:
+        issues = [str(x)[:400] for x in result["issues"] if str(x).strip()]
+        failed_checks = [
+            c for c in result["checks"]
+            if isinstance(c, dict) and c.get("status") not in (None, "pass")
+        ]
+        if result["verdict"] != "pass" or issues or failed_checks:
+            result["verdict"] = "needs_human"
+            if failed_checks:
+                issues.extend(str(c.get("finding", "Auditor khong xac minh duoc mot yeu cau"))[:400] for c in failed_checks)
+            result["issues"] = list(dict.fromkeys(issues)) or ["semantic_audit_needs_human"]
+        return result
     # Fail closed: any issue, failed check, uncertain check, or non-pass verdict blocks auto-approval.
     uncertain = [c for c in result["checks"]
                  if (not isinstance(c, dict) or c.get("status") != "pass"
@@ -1078,17 +1091,19 @@ def call_semantic_auditor(config, ctx, sql):
     return result
 
 
-def make_auditor(config):
-    return lambda ctx, sql: call_semantic_auditor(config, ctx, sql)
+def make_auditor(config, calibrated: bool = False):
+    return lambda ctx, sql: call_semantic_auditor(config, ctx, sql, calibrated=calibrated)
 
 
 def model_for(index, k, models):
     return models[index * len(models) // k] if models else None
 
 
-def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None, models=None, feedback=None, seed_offset=0):
+def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None, models=None, feedback=None, seed_offset=0,
+                  calibrated: bool = False):
     """Moi mau: toi da 1+retries lan goi; chi nhan mau qua guard va chay duoc tren MOI dataset."""
     samples = []
+    allowed_schema = (ctx.get("full_schema") or ctx["schema"]) if calibrated else ctx["schema"]
     for index in range(k):
         sample_feedback, attempts = feedback, []
         model = model_for(index, k, models)
@@ -1104,7 +1119,7 @@ def solve_samples(ctx, datasets, solver, k, retries, log=lambda *_: None, models
                 continue
             record["sql"], sample["sql"] = sql, sql
             try:
-                tree, info = guard_sql(sql, ctx["schema"])
+                tree, info = guard_sql(sql, allowed_schema)
             except SQL_ERRORS as exc:
                 record["error"] = sample_feedback = f"guard: {exc}"
                 continue
@@ -1422,8 +1437,15 @@ def explicit_semantic_contract_issues(ctx, sql):
 
     return list(dict.fromkeys(issues))
 
+COMMON_ENTERPRISE_STATUS_LITERALS = frozenset({
+    "active", "inactive", "completed", "delivered", "cancelled", "canceled",
+    "pending", "paid", "unpaid", "refunded", "approved", "rejected",
+    "shipped", "processing", "returned", "open", "closed", "confirmed", "failed",
+})
+
+
 def _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action="needs_human", log=lambda *_: None,
-                       models=None, auditor=None, feedback=None, seed_offset=0):
+                       models=None, auditor=None, feedback=None, seed_offset=0, calibrated: bool = False):
     """Tra ve dict ket qua; khong ghi DB. Fail-closed: thieu bang chung -> khong approved."""
     out = {"draft_id": ctx["draft_id"], "status": None, "reasons": [], "mode": None, "reference_sql": None,
            "samples": [], "testcases": [], "stages": {}, "notes": []}
@@ -1434,15 +1456,16 @@ def _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action="nee
         return out
 
     samples = solve_samples(ctx, datasets, solver, k, retries, log, models,
-                            feedback=feedback, seed_offset=seed_offset)
+                            feedback=feedback, seed_offset=seed_offset, calibrated=calibrated)
     out["samples"] = samples
     valid = [s for s in samples if s["ok"]]
-    out["stages"]["solve"] = {"passed": len(valid) == k, "valid": len(valid), "k": k}
+    min_valid = 2 if (calibrated and k >= 3) else k
+    out["stages"]["solve"] = {"passed": len(valid) >= min_valid, "valid": len(valid), "k": k}
     if not valid:
         # Failure to solve is not proof that the question itself is invalid.
         out.update(status=zero_valid_action, reasons=["no_valid_solution"])
         return out
-    if len(valid) < k:
+    if len(valid) < min_valid:
         out.update(status="needs_human", reasons=["insufficient_valid_solutions"])
         return out
 
@@ -1499,38 +1522,92 @@ def _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action="nee
         elif mode == "ordered" and not same_result(res, again, "ordered"):
             reasons_reject.append("nondeterministic_reference")
     features = selected["info"]["features"]
-    reasons_human += skill_difficulty_issues(ctx["skill"], ctx["difficulty"], features)
-    expected_cols = ctx.get("expected_output_columns") or expected_columns_from_text(ctx.get("question", ""))
+    sd_issues = skill_difficulty_issues(ctx["skill"], ctx["difficulty"], features)
+    if sd_issues:
+        if calibrated:
+            out["notes"].append({"skill_difficulty_notes": sd_issues})
+        else:
+            reasons_human += sd_issues
+
+    text_expected_cols = expected_columns_from_text(ctx.get("question", ""))
+    meta_expected_cols = ctx.get("expected_output_columns") or text_expected_cols
+    expected_cols = text_expected_cols if calibrated else meta_expected_cols
     if expected_cols and selected["info"]["output_columns"] != expected_cols:
         reasons_human.append("output_columns_mismatch")
         out["notes"].append({"expected_output_columns": expected_cols,
                               "actual_output_columns": selected["info"]["output_columns"]})
+    elif calibrated and meta_expected_cols and selected["info"]["output_columns"] != meta_expected_cols:
+        out["notes"].append({"blueprint_output_columns_note": meta_expected_cols,
+                              "actual_output_columns": selected["info"]["output_columns"]})
+
     if mode == "ordered" and not ordering_deterministic(selected["tree"], selected["info"]["output_columns"],
                                                          [selected["results"][ds.ref] for ds in datasets], ctx["primary_keys"]):
-        reasons_human.append("order_tiebreaker_missing")
+        ordered_consistent = (
+            "nondeterministic_reference" not in reasons_reject
+            and all(same_result(selected["results"][ds.ref], s["results"][ds.ref], "ordered") for s in valid for ds in datasets)
+        )
+        if calibrated and ordered_consistent:
+            out["notes"].append({"order_tiebreaker_note": "order_tiebreaker_missing"})
+        else:
+            reasons_human.append("order_tiebreaker_missing")
+
     shadowed = shadowed_subquery_aliases(selected["tree"])
     if shadowed:
-        reasons_human.append("subquery_alias_shadowing")
         out["notes"].append({"shadowed_subquery_aliases": shadowed})
+        if not calibrated:
+            reasons_human.append("subquery_alias_shadowing")
+
     hard = hardcoded_id_literals(selected["tree"], ctx["question"])
     if hard:
         reasons_human.append("hardcoded_id_literal")
         out["notes"].append({"hardcoded": hard})
+
     if set(selected["info"]["tables"]) != set(ctx["tables_used"]):
-        reasons_human.append("tables_mismatch")
         out["notes"].append({"declared": sorted(ctx["tables_used"]), "used": selected["info"]["tables"]})
+        valid_schema_tables = set(ctx.get("full_schema") or ctx.get("schema") or ctx.get("tables_used") or [])
+        if not (calibrated and set(selected["info"]["tables"]) <= valid_schema_tables):
+            reasons_human.append("tables_mismatch")
+
     invented = unstated_string_literals(selected["tree"], ctx["question"], ctx.get("all_checks", []))
     if invented:
-        reasons_human.append("unstated_string_literal")
         out["notes"].append({"unstated_literals": invented})
-    if ctx["duplicate"].get("suspected_duplicate"):
-        reasons_human.append("suspected_duplicate")
+        if calibrated:
+            blocking_invented = [
+                lit for lit in invented
+                if lit.strip("%_ ").casefold() not in COMMON_ENTERPRISE_STATUS_LITERALS
+            ]
+            if blocking_invented:
+                reasons_human.append("unstated_string_literal")
+        else:
+            reasons_human.append("unstated_string_literal")
+
+    dup_info = ctx.get("duplicate") or {}
+    if dup_info.get("suspected_duplicate"):
+        if not calibrated:
+            reasons_human.append("suspected_duplicate")
+        else:
+            sim = float(dup_info.get("similarity") or 0.0)
+            pairs = dup_info.get("logic_review_pairs") or []
+            max_matched = max((len(p.get("matching_fields") or []) for p in pairs if isinstance(p, dict)), default=0)
+            if (
+                dup_info.get("exact_duplicate")
+                or dup_info.get("logic_duplicate")
+                or sim >= 0.72
+                or (max_matched >= 3 and sim >= 0.55)
+            ):
+                reasons_human.append("suspected_duplicate")
+            else:
+                out["notes"].append({"duplicate_review_note": {"similarity": sim, "max_matched_fields": max_matched}})
+
     if len(datasets) == 1:
         out["notes"].append("Chi co 1 dataset: chua bat duoc dap an dung rieng cho du lieu hien co (hardcode gia tri).")
     contract_issues = explicit_semantic_contract_issues(ctx, selected["sql"])
     grain_issues = one_to_many_join_grain_issues(ctx, selected["tree"], selected["info"])
     contract_issues.extend(grain_issues)
     contract_issues = list(dict.fromkeys(contract_issues))
+    if calibrated and "month_output_must_be_date" in contract_issues:
+        out["notes"].append({"semantic_contract_note": "month_output_must_be_date"})
+        contract_issues = [x for x in contract_issues if x != "month_output_must_be_date"]
     out["stages"]["semantic_contract"] = {"passed": not contract_issues, "issues": contract_issues}
     reasons_human.extend(contract_issues)
     out["stages"]["post"] = {"passed": not (reasons_reject or reasons_human),
@@ -1553,12 +1630,24 @@ def _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action="nee
         raise
     except Exception as exc:
         audit = {"verdict": "needs_human", "issues": [f"semantic_audit_exception: {type(exc).__name__}"], "checks": []}
-    audit_passed = (isinstance(audit, dict) and audit.get("verdict") == "pass" and not audit.get("issues")
-                    and isinstance(audit.get("checks"), list) and len(audit.get("checks", [])) >= 5
-                    and all(isinstance(c, dict) and c.get("status") == "pass"
-                            and isinstance(c.get("requirement"), str) and c.get("requirement", "").strip()
-                            and isinstance(c.get("finding"), str) and c.get("finding", "").strip()
-                            for c in audit.get("checks", [])))
+    if calibrated:
+        failed_checks = [
+            c for c in (audit.get("checks") or [])
+            if isinstance(c, dict) and c.get("status") not in (None, "pass")
+        ] if isinstance(audit, dict) else []
+        audit_passed = (
+            isinstance(audit, dict)
+            and audit.get("verdict") == "pass"
+            and not audit.get("issues")
+            and not failed_checks
+        )
+    else:
+        audit_passed = (isinstance(audit, dict) and audit.get("verdict") == "pass" and not audit.get("issues")
+                        and isinstance(audit.get("checks"), list) and len(audit.get("checks", [])) >= 5
+                        and all(isinstance(c, dict) and c.get("status") == "pass"
+                                and isinstance(c.get("requirement"), str) and c.get("requirement", "").strip()
+                                and isinstance(c.get("finding"), str) and c.get("finding", "").strip()
+                                for c in audit.get("checks", [])))
     out["stages"]["semantic_audit"] = {"passed": audit_passed,
                                         "verdict": audit.get("verdict") if isinstance(audit, dict) else "needs_human",
                                         "issues": audit.get("issues", []) if isinstance(audit, dict) else ["invalid_audit_result"],
@@ -1623,14 +1712,14 @@ def _repair_feedback(result):
 
 
 def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_human", log=lambda *_: None,
-                 models=None, auditor=None, repair_rounds=0):
+                 models=None, auditor=None, repair_rounds=0, calibrated: bool = False):
     """Run the review and, if configured, retry a failed candidate at most N times.
 
     Every repair round regenerates k candidates and re-runs *all* guards, executions,
     consensus, contracts and semantic audit. A successful audit never overrides a hard-rule failure.
     """
     maximum = max(0, min(int(repair_rounds or 0), 2))
-    result = _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action, log, models, auditor)
+    result = _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action, log, models, auditor, calibrated=calibrated)
     history = []
     for repair_index in range(maximum):
         reasons = set(result.get("reasons") or [])
@@ -1643,7 +1732,7 @@ def review_draft(ctx, datasets, solver, k, retries, zero_valid_action="needs_hum
         history.append({"round": repair_index + 1, "prior_status": result.get("status"),
                         "prior_reasons": sorted(reasons), "feedback": feedback[:1800]})
         repaired = _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action, log, models, auditor,
-                                      feedback=feedback, seed_offset=(repair_index + 1) * 10000)
+                                      feedback=feedback, seed_offset=(repair_index + 1) * 10000, calibrated=calibrated)
         result = repaired
         if result.get("status") == "approved":
             history[-1]["outcome"] = "approved_after_repair"

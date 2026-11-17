@@ -19,7 +19,55 @@ class JobCreate(BaseModel):
 class ApproveBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     selected_run_id: int | None = None
+    custom_sql: str | None = Field(default=None, max_length=20000)
     note: str | None = Field(default=None, max_length=500)
+
+
+class BulkApproveBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    draft_ids: list[int] = Field(min_length=1, max_length=100)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class ManualQuestionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=3, max_length=200)
+    question: str = Field(min_length=10, max_length=4000)
+    reference_sql: str = Field(min_length=1, max_length=20000)
+    difficulty: int = Field(ge=1, le=3)
+    skill_ids: list[int] = Field(min_length=1, max_length=20)
+    compare_mode: str | None = Field(default=None, pattern="^(ordered|unordered)$")
+
+
+class QuestionGroupCreateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    question_ids: list[int] = Field(default_factory=list, max_length=200)
+    draft_ids: list[int] = Field(default_factory=list, max_length=100)
+
+
+class QuestionGroupUpdateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class QuestionGroupItemsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question_ids: list[int] = Field(max_length=200)
+
+
+class QuestionGroupAddItemsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question_ids: list[int] = Field(default_factory=list, max_length=200)
+    draft_ids: list[int] = Field(default_factory=list, max_length=100)
+
+
+class QuestionGroupPublishBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: str = Field(default="append_active", pattern="^(append_active|new_weekly_set)$")
+    set_title: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class RejectBody(BaseModel):
@@ -68,6 +116,14 @@ class DraftEditBody(BaseModel):
 class RequeueBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     note: str | None = Field(default=None, max_length=500)
+
+
+class GatewayKeyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    api_key: str = Field(min_length=12, max_length=300)
+    base_url: str = Field(default="https://apithat.dev/v1", min_length=8, max_length=200)
+    preferred_model: str | None = Field(default=None, max_length=100)
+    persist_env: bool = True
 
 
 # ===== Auth, Profile & Submissions (Nguyên + Đạt) =====

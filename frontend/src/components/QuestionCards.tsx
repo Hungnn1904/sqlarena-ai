@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useQuestions } from '@/lib/hooks';
 import { Search, ChevronDown, Database, FileCode, MessageSquare, CheckCircle } from 'lucide-react';
 
@@ -9,43 +8,42 @@ type Difficulty = 'easy' | 'medium' | 'hard';
 type Status = 'pending_review' | 'approved' | 'rejected' | 'active' | 'archived';
 
 const difficultyStyles: Record<Difficulty, string> = {
-  easy: 'bg-[rgba(0,229,160,0.1)] text-[#00e5a0] border border-[#00e5a0]',
-  medium: 'bg-[rgba(255,184,48,0.1)] text-[#ffb830] border border-[#ffb830]',
-  hard: 'bg-[rgba(255,77,109,0.1)] text-[#ff4d6d] border border-[#ff4d6d]',
+  easy: 'badge-easy',
+  medium: 'badge-medium',
+  hard: 'badge-hard',
 };
 
 const statusStyles: Record<Status, string> = {
-  pending_review: 'bg-[rgba(255,184,48,0.1)] text-[#ffb830]',
-  approved: 'bg-[rgba(0,229,160,0.1)] text-[#00e5a0]',
-  rejected: 'bg-[rgba(255,77,109,0.1)] text-[#ff4d6d]',
-  active: 'bg-[rgba(0,212,255,0.1)] text-[#00d4ff]',
-  archived: 'bg-[rgba(167,139,250,0.1)] text-[#a78bfa]',
+  pending_review: 'badge-medium',
+  approved: 'badge-easy',
+  rejected: 'badge-hard',
+  active: 'badge-info',
+  archived: 'badge-neutral',
 };
 
 const statusLabel: Record<Status, string> = {
-  pending_review: 'Pending',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  active: 'Active',
-  archived: 'Archived',
+  pending_review: 'Chờ duyệt',
+  approved: 'Đã duyệt',
+  rejected: 'Đã từ chối',
+  active: 'Đang mở',
+  archived: 'Lưu trữ',
 };
 
 interface DetailBlockProps {
   icon: React.ReactNode;
   label: string;
   content: string | undefined;
-  lang?: string;
 }
 
-function DetailBlock({ icon, label, content, lang }: DetailBlockProps) {
+function DetailBlock({ icon, label, content }: DetailBlockProps) {
   if (!content) return null;
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[0.7rem] font-mono uppercase tracking-[0.1em] text-[#5a7298]">
+      <div className="flex items-center gap-2 text-xs font-semibold text-muted">
         {icon}
-        {label}
+        <span>{label}</span>
       </div>
-      <pre className="bg-[#080c14] border border-[#1e2d45] rounded-lg p-3 overflow-auto text-[0.78rem] leading-[1.6] font-mono text-[#a8c4e8] max-h-[280px]">
+      <pre className="bg-canvas border border-line rounded-lg p-3 overflow-auto text-xs leading-relaxed text-ink max-h-[280px]">
         <code>{content}</code>
       </pre>
     </div>
@@ -62,9 +60,7 @@ export default function QuestionCards() {
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
 
   const itemsPerPage = 9;
-
   const questions = React.useMemo(() => data?.questions ?? [], [data]);
-
   const allTopics = React.useMemo(
     () => Array.from(new Set(questions.map((q) => q.topic))).sort(),
     [questions]
@@ -77,7 +73,9 @@ export default function QuestionCards() {
   const filtered = React.useMemo(() => {
     return questions.filter((q) => {
       const s = search.toLowerCase();
-      const domain = (q as any).metadata_json ? JSON.parse((q as any).metadata_json)?.domain : ((q as any).domain || '');
+      const domain = (q as any).metadata_json
+        ? JSON.parse((q as any).metadata_json)?.domain
+        : (q as any).domain || '';
       const matchesSearch =
         (q.question_text?.toLowerCase() ?? '').includes(s) ||
         q.id.toLowerCase().includes(s) ||
@@ -108,219 +106,195 @@ export default function QuestionCards() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="bg-[#0d1320] border border-[#1e2d45] rounded-xl p-5 h-40 animate-pulse" />
-        ))}
+      <div className="p-8 text-center text-sm text-muted bg-surface border border-line rounded-xl">
+        Đang tải danh sách câu hỏi...
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="text-center py-12 text-[#ff4d6d] text-sm">
-        Failed to load questions. Please try again later.
+      <div className="text-center py-12 text-danger text-sm">
+        Không tải được danh sách câu hỏi.
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-wrap gap-3 items-center"
-      >
+      <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[240px]">
           <input
             type="text"
-            placeholder="Search questions, ID, domain..."
+            placeholder="Tìm kiếm câu hỏi..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#0d1320] border border-[#1e2d45] rounded-lg px-4 py-2.5 pl-10 text-sm text-[#e2eaf6] placeholder-[#5a7298] focus:outline-none focus:border-[#00d4ff] transition-colors"
+            className="w-full bg-surface border border-line rounded-lg px-4 min-h-10 pl-10 text-sm text-ink placeholder:text-muted"
           />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5a7298]" />
+          <Search className="absolute left-3 top-3 w-4 h-4 text-muted" />
         </div>
 
         <select
           value={filterTopic}
           onChange={(e) => setFilterTopic(e.target.value)}
-          className="bg-[#0d1320] border border-[#1e2d45] rounded-lg px-3 py-2.5 text-sm text-[#e2eaf6] focus:outline-none focus:border-[#00d4ff]"
+          className="bg-surface border border-line rounded-lg px-3 min-h-10 text-sm text-ink"
         >
-          <option value="all">All Topics</option>
+          <option value="all">Mọi chủ đề</option>
           {allTopics.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
 
         <select
           value={filterDifficulty}
           onChange={(e) => setFilterDifficulty(e.target.value as Difficulty | 'all')}
-          className="bg-[#0d1320] border border-[#1e2d45] rounded-lg px-3 py-2.5 text-sm text-[#e2eaf6] focus:outline-none focus:border-[#00d4ff]"
+          className="bg-surface border border-line rounded-lg px-3 min-h-10 text-sm text-ink"
         >
-          <option value="all">All Difficulties</option>
-          <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
-          <option value="hard">Hard</option>
+          <option value="all">Mọi độ khó</option>
+          <option value="easy">Dễ</option>
+          <option value="medium">Trung bình</option>
+          <option value="hard">Khó</option>
         </select>
 
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value as Status | 'all')}
-          className="bg-[#0d1320] border border-[#1e2d45] rounded-lg px-3 py-2.5 text-sm text-[#e2eaf6] focus:outline-none focus:border-[#00d4ff]"
+          className="bg-surface border border-line rounded-lg px-3 min-h-10 text-sm text-ink"
         >
-          <option value="all">All Statuses</option>
+          <option value="all">Mọi trạng thái</option>
           {allStatuses.map((s) => (
-            <option key={s} value={s}>{statusLabel[s]}</option>
+            <option key={s} value={s}>
+              {statusLabel[s]}
+            </option>
           ))}
         </select>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <AnimatePresence mode="popLayout">
-          {pageItems.map((q, index) => {
-            const isExpanded = expanded.has(q.id);
-            return (
-              <motion.div
-                key={q.id}
-                layout
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.25, delay: index * 0.04 }}
-                className={`bg-[#0d1320] border border-[#1e2d45] rounded-xl overflow-hidden transition-colors hover:border-[#243550] ${
-                  isExpanded ? 'md:col-span-2 lg:col-span-3' : ''
-                }`}
-              >
-                <div className="p-5 space-y-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-block font-mono text-[0.65rem] px-2 py-0.5 rounded font-semibold uppercase tracking-[0.05em] bg-[rgba(0,212,255,0.1)] text-[#00d4ff] border border-[#00d4ff]/30">
-                        {q.topic || 'SQL'}
-                      </span>
-                      <span
-                        className={`inline-block font-mono text-[0.65rem] px-2 py-0.5 rounded font-semibold uppercase tracking-[0.05em] ${difficultyStyles[q.difficulty]}`}
-                      >
-                        {q.difficulty}
-                      </span>
-                      <span
-                        className={`inline-block font-mono text-[0.65rem] px-2 py-0.5 rounded font-semibold uppercase tracking-[0.05em] ${statusStyles[q.status]}`}
-                      >
-                        {statusLabel[q.status]}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => toggleExpand(q.id)}
-                      className="text-[#5a7298] hover:text-[#00d4ff] transition-colors shrink-0"
+        {pageItems.map((q) => {
+          const isExpanded = expanded.has(q.id);
+          return (
+            <div
+              key={q.id}
+              className={`bg-surface border border-line rounded-xl overflow-hidden ${
+                isExpanded ? 'md:col-span-2 lg:col-span-3' : ''
+              }`}
+            >
+              <div className="p-5 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-block text-xs px-2.5 py-0.5 rounded-md font-semibold badge-info">
+                      {q.topic || 'SQL'}
+                    </span>
+                    <span
+                      className={`inline-block text-xs px-2.5 py-0.5 rounded-md font-semibold ${difficultyStyles[q.difficulty]}`}
                     >
-                      <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                        <ChevronDown className="w-4 h-4" />
-                      </motion.div>
-                    </button>
+                      {q.difficulty}
+                    </span>
+                    <span
+                      className={`inline-block text-xs px-2.5 py-0.5 rounded-md font-semibold ${statusStyles[q.status]}`}
+                    >
+                      {statusLabel[q.status]}
+                    </span>
                   </div>
-
-                  <div className="space-y-1">
-                    <p className="text-sm text-[#e2eaf6] leading-relaxed line-clamp-3">
-                      {q.question_text || q.id}
-                    </p>
-                    <div className="flex items-center gap-2 text-[0.7rem] text-[#5a7298] font-mono">
-                      <span>{q.id}</span>
-                      <span className="text-[#1e2d45]">|</span>
-                      <span>{((q as any).metadata_json ? JSON.parse((q as any).metadata_json)?.domain : (q as any).domain) || '—'}</span>
-                      <span className="text-[#1e2d45]">|</span>
-                      <span>{q.created_at ? new Date(q.created_at).toLocaleDateString('vi-VN') : '—'}</span>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(q.id)}
+                    className="btn-secondary min-w-8 min-h-8 rounded-md flex items-center justify-center shrink-0"
+                  >
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    />
+                  </button>
                 </div>
 
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="px-5 pb-5 pt-0 space-y-5 border-t border-[#1e2d45]">
-                        <div className="pt-4 grid grid-cols-1 lg:grid-cols-2 gap-5">
-                          <DetailBlock
-                            icon={<MessageSquare className="w-3.5 h-3.5" />}
-                            label="Question Text"
-                            content={q.question_text}
-                          />
-                          <DetailBlock
-                            icon={<Database className="w-3.5 h-3.5" />}
-                            label="Schema SQL"
-                            content={q.schema_sql}
-                          />
-                          <DetailBlock
-                            icon={<FileCode className="w-3.5 h-3.5" />}
-                            label="Seed Data"
-                            content={q.seed_sql}
-                          />
-                          <DetailBlock
-                            icon={<CheckCircle className="w-3.5 h-3.5" />}
-                            label="Answer Query"
-                            content={q.answer_sql}
-                          />
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+                <div className="space-y-1">
+                  <p className="text-sm text-ink leading-relaxed line-clamp-3">
+                    {q.question_text || q.id}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <code>{q.id}</code>
+                    <span>|</span>
+                    <span>{q.created_at ? new Date(q.created_at).toLocaleDateString('vi-VN') : '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div className="px-5 pb-5 pt-4 border-t border-line grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  <DetailBlock
+                    icon={<MessageSquare className="w-3.5 h-3.5" />}
+                    label="Nội dung đề"
+                    content={q.question_text}
+                  />
+                  <DetailBlock
+                    icon={<Database className="w-3.5 h-3.5" />}
+                    label="Cấu trúc bảng"
+                    content={q.schema_sql}
+                  />
+                  <DetailBlock
+                    icon={<FileCode className="w-3.5 h-3.5" />}
+                    label="Dữ liệu mẫu"
+                    content={q.seed_sql}
+                  />
+                  <DetailBlock
+                    icon={<CheckCircle className="w-3.5 h-3.5" />}
+                    label="Truy vấn đáp án"
+                    content={q.answer_sql}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {pageItems.length === 0 && (
-        <div className="px-4 py-12 text-center text-[#5a7298] text-sm">
-          No questions found matching your filters.
+        <div className="px-4 py-12 text-center text-muted text-sm">
+          Không tìm thấy câu hỏi phù hợp.
         </div>
       )}
 
       {filtered.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center justify-between"
-        >
-          <span className="text-[0.75rem] text-[#5a7298]">
-            Showing {(currentPage - 1) * itemsPerPage + 1} -{' '}
-            {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted tabular-nums">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1} đến{' '}
+            {Math.min(currentPage * itemsPerPage, filtered.length)} trong {filtered.length}
           </span>
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="px-3 py-1.5 rounded-md text-sm text-[#5a7298] hover:text-[#e2eaf6] hover:bg-[#111827] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="btn-secondary px-3 min-h-9 rounded-md text-sm disabled:opacity-40"
             >
-              Prev
+              Trước
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
                 key={page}
+                type="button"
+                data-solid-btn={page === currentPage ? 'true' : undefined}
                 onClick={() => setCurrentPage(page)}
-                className={`px-3 py-1.5 rounded-md text-sm font-mono transition-colors ${
-                  page === currentPage
-                    ? 'bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30'
-                    : 'text-[#5a7298] hover:text-[#e2eaf6] hover:bg-[#111827]'
+                className={`px-3 min-h-9 rounded-md text-sm tabular-nums ${
+                  page === currentPage ? 'btn-primary' : 'btn-secondary'
                 }`}
               >
                 {page}
               </button>
             ))}
             <button
+              type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="px-3 py-1.5 rounded-md text-sm text-[#5a7298] hover:text-[#e2eaf6] hover:bg-[#111827] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="btn-secondary px-3 min-h-9 rounded-md text-sm disabled:opacity-40"
             >
-              Next
+              Tiếp
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

@@ -29,3 +29,4 @@ frontend/dist/
 .serena/
 graphify-out/
 .ck.json
+.deploy-lkg.sha

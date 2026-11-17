@@ -24,6 +24,7 @@ function applyHtmlThemeClasses(mode: ThemeMode) {
   const el = document.documentElement;
   el.classList.remove('dark', 'light', 'hybrid');
   el.classList.add(mode);
+  el.setAttribute('data-theme', mode);
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
