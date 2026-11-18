@@ -1,8 +1,12 @@
 """Định dạng lỗi thống nhất theo OpenAPI v7: {code, message, details}."""
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 
 class ApiError(Exception):
@@ -40,3 +44,11 @@ def install_handlers(app: FastAPI) -> None:
     async def _http(_: Request, exc: StarletteHTTPException):
         code = {401: "UNAUTHORIZED", 403: "FORBIDDEN", 404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(exc.status_code, "HTTP_ERROR")
         return JSONResponse(_body(code, str(exc.detail)), status_code=exc.status_code)
+
+    @app.exception_handler(Exception)
+    async def _unhandled(_: Request, exc: Exception):
+        logger.exception("Unhandled backend exception")
+        return JSONResponse(
+            _body("INTERNAL_ERROR", f"Lỗi máy chủ nội bộ: {exc}"),
+            status_code=500,
+        )

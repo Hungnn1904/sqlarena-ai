@@ -55,3 +55,4 @@
 | `POST` | `/api/v1/admin/question-groups/{group_id}/add-items` | `{ question_ids?, draft_ids? }` | Appends picked/dragged questions (or newly approved drafts) idempotently |
 | `DELETE` | `/api/v1/admin/question-groups/{group_id}` | — | Deletes a `draft` group without deleting underlying `live.questions` |
 | `POST` | `/api/v1/admin/question-groups/{group_id}/publish` | `{ mode?: "append_active" \| "new_weekly_set", set_title? }` | Atomically publishes ALL questions in the group onto the live learner shelf at once |
+| `DELETE` | `/api/v1/admin/weekly-sets/{set_id}/items/{question_id}` | — | Removes a single question from a `draft` or `published` weekly set and re-indexes `1..N` |

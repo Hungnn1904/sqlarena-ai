@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
+from .db import ensure_runtime_schema
 from .errors import install_handlers
 from .routers import admin, auth, health, learner
 from .services import jobs
@@ -12,6 +13,10 @@ import sql_run_api
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    try:
+        ensure_runtime_schema()
+    except Exception:
+        pass
     jobs.start_background_worker_loop()
     yield
 

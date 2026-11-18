@@ -6,7 +6,9 @@ export function resolveApiBase(): string {
     return configured.replace(/\/+$/, '');
   }
   if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:8000`;
+    const host =
+      window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
+    return `${window.location.protocol}//${host}:8000`;
   }
   return '';
 }
@@ -53,12 +55,17 @@ export interface AuthResponse {
   user: UserProfile;
 }
 
-export const extractApiError = (e: any, fallback: string): string =>
-  e?.response?.data?.message ||
-  e?.response?.data?.error?.message ||
-  e?.response?.data?.detail ||
-  e?.message ||
-  fallback;
+export const extractApiError = (e: any, fallback: string): string => {
+  const serverMsg =
+    e?.response?.data?.message ||
+    e?.response?.data?.error?.message ||
+    e?.response?.data?.detail;
+  if (serverMsg) return String(serverMsg);
+  if (e?.code === 'ERR_NETWORK' || e?.message === 'Network Error') {
+    return 'Không kết nối được tới máy chủ Backend API (cổng 8000). Hãy kiểm tra tiến trình backend đang chạy.';
+  }
+  return e?.message || fallback;
+};
 
 // 1. Auth & Profile APIs
 export const loginUser = (identifier: string, password: string) =>
@@ -306,6 +313,9 @@ export const createAdminWeeklySet = (data: { title: string; week_start: string }
 
 export const updateAdminWeeklySetItems = (setId: number, question_ids: number[]) =>
   api.put(`/api/v1/admin/weekly-sets/${setId}/items`, { question_ids }).then((r) => r.data);
+
+export const removeAdminWeeklySetItem = (setId: number, questionId: number) =>
+  api.delete(`/api/v1/admin/weekly-sets/${setId}/items/${questionId}`).then((r) => r.data);
 
 export const publishAdminWeeklySet = (setId: number) =>
   api.post(`/api/v1/admin/weekly-sets/${setId}/publish`).then((r) => r.data);

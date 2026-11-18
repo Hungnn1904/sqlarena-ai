@@ -337,6 +337,59 @@ def bulk_approve(admin: dict, draft_ids: list[int], note: str | None = None) -> 
     }
 
 
+def ensure_promoted_ready_question(draft_id: int) -> int | None:
+    """Đảm bảo draft ở trạng thái approved luôn có dòng tương ứng status='ready' kèm live.test_cases chuẩn."""
+    from . import submissions
+
+    with begin() as conn:
+        lq = q1(conn, "SELECT question_id, status FROM live.questions WHERE source_draft_id=:d", d=draft_id)
+        if lq and lq["status"] == "ready":
+            has_tc = q1(conn, "SELECT 1 AS ok FROM live.test_cases WHERE question_id=:q LIMIT 1", q=lq["question_id"])
+            if has_tc:
+                return lq["question_id"]
+        d = q1(conn, "SELECT * FROM draft.question_drafts WHERE draft_id=:i", i=draft_id)
+        if not d or d["status"] != "approved":
+            return None
+        sql = d.get("reference_sql")
+        if not sql:
+            best = q1(
+                conn,
+                """SELECT model_sql FROM draft.self_solve_runs
+                   WHERE draft_id=:d AND model_sql IS NOT NULL AND (exec_status IS NULL OR exec_status = 'ok')
+                   ORDER BY is_selected DESC, review_round DESC, sample_index ASC LIMIT 1""",
+                d=draft_id,
+            )
+            sql = best["model_sql"] if best else None
+        if not sql:
+            return None
+        world = q1(conn, "SELECT dataset_version FROM core.worlds WHERE world_id=:w", w=d["world_id"])
+        ver = int(world["dataset_version"]) if world else 1
+
+    clean_sql = submissions.guard_select(sql)
+    try:
+        exec_res = submissions.execute_sandbox_sql(clean_sql)
+    except Exception as exc:
+        raise bad_request(f"Không thể kích hoạt bản nháp #{draft_id} do lỗi SQL trên enterprise_db: {exc}") from exc
+    if exec_res["row_count"] <= 0:
+        raise bad_request(f"Bản nháp #{draft_id} trả về 0 dòng dữ liệu trên enterprise_db; hãy kiểm tra lại ở mục Duyệt đề.")
+
+    mode = d.get("compare_mode") or "ordered"
+    cols = list(exec_res["columns"])
+    norm_rows = [[submissions.json_value(row.get(c)) for c in cols] for row in exec_res["rows"]]
+    tcs = [{
+        "dataset_ref": "enterprise/base",
+        "dataset_version": ver,
+        "compare_mode": mode,
+        "reference_sql": clean_sql,
+        "expected_columns": cols,
+        "expected_rows": norm_rows,
+        "row_count": exec_res["row_count"],
+        "result_hash": rv.result_hash(norm_rows, mode),
+    }]
+    with begin() as conn:
+        return promotion.promote(conn, dict(d), ver, mode, clean_sql, tcs)
+
+
 def _back_to_human(conn: Connection, draft: dict, reason: str | None = None, target_status: str = "needs_human") -> None:
     ex(conn, """UPDATE draft.question_drafts SET status=:st, locked_by=NULL, review_lease_expires_at=NULL,
                 status_reason=COALESCE(:r, status_reason), updated_at=now()

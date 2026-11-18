@@ -59,6 +59,12 @@ def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int
             p["t"] = f"%{s_clean}%"
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
     total = q1(conn, f"SELECT count(*) AS n FROM live.questions q {where}", **p)["n"]
+    has_groups_tbl = bool(conn.execute(q1.__globals__["text"]("SELECT to_regclass('live.question_group_items') IS NOT NULL")).scalar())
+    group_col_sql = (
+        "ARRAY(SELECT gi.group_id FROM live.question_group_items gi WHERE gi.question_id = q.question_id ORDER BY gi.group_id) AS group_ids"
+        if has_groups_tbl
+        else "ARRAY[]::int[] AS group_ids"
+    )
     rows = q(
         conn,
         f"""SELECT q.question_id, q.title, q.difficulty, q.skill_ids, q.tables_used, q.status,
@@ -70,7 +76,7 @@ def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int
                     JOIN live.weekly_sets ws ON ws.set_id = i.set_id
                     WHERE i.question_id = q.question_id AND ws.status = 'published'
                     ORDER BY ws.week_start DESC, ws.set_id DESC LIMIT 1) AS weekly_position,
-                   ARRAY(SELECT gi.group_id FROM live.question_group_items gi WHERE gi.question_id = q.question_id ORDER BY gi.group_id) AS group_ids
+                   {group_col_sql}
             FROM live.questions q
             LEFT JOIN draft.question_drafts d ON d.draft_id = q.source_draft_id
             LEFT JOIN draft.generation_jobs j ON j.job_id = d.job_id

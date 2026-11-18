@@ -125,3 +125,110 @@ def test_group_publish_new_weekly_set_allows_auto_published_approved_drafts(clie
     assert pub.status_code == 200, pub.text
     cur = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
     assert [(it["position"], it["question_id"]) for it in cur["items"]] == [(1, q_approved)]
+
+
+def test_unpromoted_approved_draft_adds_into_group_and_publishes_cleanly(client, admin_id, admin_h, learner_h):
+    """Bản nháp có status='approved' sẵn trong DB (như Nháp #45 chưa có dòng live.questions) khi bấm + Thêm / + Tạo nhóm phải tự động promote thành câu hỏi ready và đưa vào nhóm."""
+    with db.begin() as conn:
+        world_id = db.q1(conn, "SELECT world_id FROM core.worlds LIMIT 1")["world_id"]
+        job = db.q1(
+            conn,
+            "INSERT INTO draft.generation_jobs (world_id, triggered_by, difficulty, skill_ids, topic, requested_count, created_count, status) "
+            "VALUES (:w, :u, 1, ARRAY[1], 'Sản phẩm đang hoạt động', 2, 2, 'done') RETURNING job_id",
+            w=world_id,
+            u=admin_id,
+        )
+        d1 = db.q1(
+            conn,
+            """INSERT INTO draft.question_drafts
+               (world_id, job_id, title, question, reference_sql, compare_mode, difficulty, skill_ids, blueprint, tables_used, schema_text, validation_report, status, status_reason, gen_model, gen_prompt_version)
+               VALUES (:w, :j, 'Liệt kê tên sản phẩm đang hoạt động', 'Trả về product_id, product_name của sản phẩm is_active = true',
+                       'SELECT product_id, product_name FROM products WHERE is_active = true ORDER BY product_id ASC LIMIT 5',
+                       'ordered', 1, ARRAY[1], '{}'::jsonb, ARRAY['products'], '', '{}'::jsonb, 'approved', 'legacy_approved', 'Model A', 'v2')
+               RETURNING draft_id""",
+            w=world_id,
+            j=job["job_id"],
+        )["draft_id"]
+        d2 = db.q1(
+            conn,
+            """INSERT INTO draft.question_drafts
+               (world_id, job_id, title, question, reference_sql, compare_mode, difficulty, skill_ids, blueprint, tables_used, schema_text, validation_report, status, status_reason, gen_model, gen_prompt_version)
+               VALUES (:w, :j, 'Liệt kê khách hàng có trạng thái active', 'Trả về customer_id, full_name của khách hàng active',
+                       'SELECT customer_id, full_name FROM customers WHERE status = ''active'' ORDER BY customer_id ASC LIMIT 5',
+                       'ordered', 1, ARRAY[1], '{}'::jsonb, ARRAY['customers'], '', '{}'::jsonb, 'approved', 'legacy_approved', 'Model A', 'v2')
+               RETURNING draft_id""",
+            w=world_id,
+            j=job["job_id"],
+        )["draft_id"]
+
+    grp = client.post(
+        "/api/v1/admin/question-groups",
+        headers=admin_h,
+        json={"name": "SQL tuần 6", "draft_ids": [d1]},
+    )
+    assert grp.status_code == 201, grp.text
+    assert grp.json()["question_count"] == 1
+    gid = grp.json()["group_id"]
+
+    added = client.post(
+        f"/api/v1/admin/question-groups/{gid}/add-items",
+        headers=admin_h,
+        json={"draft_ids": [d2]},
+    )
+    assert added.status_code == 200, added.text
+    assert added.json()["question_count"] == 2
+
+    pub = client.post(
+        f"/api/v1/admin/question-groups/{gid}/publish",
+        headers=admin_h,
+        json={"mode": "new_weekly_set", "set_title": "SQL tuần 6"},
+    )
+    assert pub.status_code == 200, pub.text
+    lq = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert len(lq["items"]) == 2
+
+
+def test_runtime_schema_self_heals_missing_question_groups_and_preserves_cors_on_errors(client, admin_h):
+    """Nếu DB local chưa chạy migration 0004 (thiếu live.question_groups), ensure_runtime_schema() tự tạo bảng để không bao giờ văng Network Error."""
+    from app.db import ensure_runtime_schema
+
+    with db.begin() as conn:
+        db.ex(conn, "DROP TABLE IF EXISTS live.question_group_items, live.question_groups CASCADE")
+
+    ensure_runtime_schema()
+
+    res = client.post(
+        "/api/v1/admin/question-groups",
+        headers={**admin_h, "Origin": "http://localhost:3000"},
+        json={"name": "SQL tuần 6"},
+    )
+    assert res.status_code == 201, res.text
+    assert res.headers.get("access-control-allow-origin") in ("*", "http://localhost:3000")
+
+
+def test_remove_item_from_published_or_draft_weekly_set_reindexes_cleanly(client, admin_h, learner_h):
+    """Admin có thể gỡ trực tiếp 1 câu hỏi khỏi Bộ đề tuần đang mở (published) hoặc nháp (draft) và thứ tự SQL1..SQLN được đánh lại liên tục."""
+    q1 = make_question(1, title="Bài 1")
+    q2 = make_question(1, title="Bài 2")
+    q3 = make_question(1, title="Bài 3")
+    with db.begin() as conn:
+        ws = db.q1(
+            conn,
+            "INSERT INTO live.weekly_sets (title, week_start, status, published_at) "
+            "VALUES ('Bộ đề tuần 6', :ws, 'published', now()) RETURNING set_id",
+            ws=date.today() - timedelta(days=date.today().weekday()),
+        )
+        sid = ws["set_id"]
+        db.ex(
+            conn,
+            "INSERT INTO live.weekly_set_items (set_id, question_id, position) VALUES (:s, :q1, 1), (:s, :q2, 2), (:s, :q3, 3)",
+            s=sid,
+            q1=q1,
+            q2=q2,
+            q3=q3,
+        )
+
+    rm = client.delete(f"/api/v1/admin/weekly-sets/{sid}/items/{q2}", headers=admin_h)
+    assert rm.status_code == 200, rm.text
+    cur = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert [(it["position"], it["question_id"]) for it in cur["items"]] == [(1, q1), (2, q3)]

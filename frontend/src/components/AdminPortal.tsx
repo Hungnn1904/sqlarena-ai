@@ -52,8 +52,8 @@ import {
   publishAdminQuestionGroup,
   getAdminWeeklySets,
   getAdminWeeklySetDetail,
-  createAdminWeeklySet,
   updateAdminWeeklySetItems,
+  removeAdminWeeklySetItem,
   publishAdminWeeklySet,
   closeAdminWeeklySet,
   getAdminUsers,
@@ -197,7 +197,7 @@ export default function AdminPortal({
   const [manualTitle, setManualTitle] = useState('');
   const [manualQuestion, setManualQuestion] = useState('');
   const [manualSql, setManualSql] = useState(
-    'SELECT category_id, name\nFROM categories\nORDER BY category_id ASC;'
+    'SELECT category_id, category_name\nFROM categories\nORDER BY category_id ASC;'
   );
   const [manualDiff, setManualDiff] = useState<number>(1);
   const [manualCompareMode, setManualCompareMode] = useState<'unordered' | 'ordered'>('unordered');
@@ -246,8 +246,6 @@ export default function AdminPortal({
   const [selectedWeeklySetId, setSelectedWeeklySetId] = useState<number | null>(null);
   const [weeklySetDetail, setWeeklySetDetail] = useState<any>(null);
   const [loadingWeeklyDetail, setLoadingWeeklyDetail] = useState(false);
-  const [newWeekTitle, setNewWeekTitle] = useState('Bộ đề thực hành SQL hàng tuần');
-  const [newWeekStart, setNewWeekStart] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Tab 5 & 6: Bank & Settings
   const [allBankStatusFilter, setAllBankStatusFilter] = useState<string>('');
@@ -968,20 +966,33 @@ export default function AdminPortal({
     setErr(null);
     setMsg(null);
     try {
+      const typedName = newGroupName.trim();
+      if (typedName) {
+        const created = await createAdminQuestionGroup({
+          name: typedName,
+          question_ids,
+          draft_ids,
+        });
+        setNewGroupName('');
+        setPublishSetTitle(typedName);
+        setPickedApprovedKeys((prev) => prev.filter((k) => !keys.includes(k)));
+        await Promise.all([loadGroups(created.group_id), loadReadyQuestions(), loadDrafts(), loadWeekly()]);
+        setMsg(`Đã tạo đợt đề "${created.name}" và thêm ${created.question_count ?? 1} câu hỏi.`);
+        return;
+      }
       if (!selectedGroupId || groupDetail?.status !== 'draft') {
         const existingDraft = groups.find((g) => g.status === 'draft');
         if (!existingDraft) {
-          const autoName =
-            newGroupName.trim() || `Nhóm đề thực hành (${new Date().toLocaleDateString('vi-VN')})`;
+          const autoName = `Đợt bài tập SQL (${new Date().toLocaleDateString('vi-VN')})`;
           const created = await createAdminQuestionGroup({
             name: autoName,
             question_ids,
             draft_ids,
           });
-          setNewGroupName('');
+          setPublishSetTitle(autoName);
           setPickedApprovedKeys((prev) => prev.filter((k) => !keys.includes(k)));
-          await Promise.all([loadGroups(created.group_id), loadReadyQuestions(), loadDrafts()]);
-          setMsg(`Đã tạo nhóm "${created.name}" và thêm câu hỏi Approved.`);
+          await Promise.all([loadGroups(created.group_id), loadReadyQuestions(), loadDrafts(), loadWeekly()]);
+          setMsg(`Đã tạo "${created.name}" và thêm câu hỏi Approved.`);
           return;
         }
       }
@@ -990,8 +1001,8 @@ export default function AdminPortal({
       const updated = await addAdminQuestionGroupItems(gid, { question_ids, draft_ids });
       setGroupDetail(updated);
       setPickedApprovedKeys((prev) => prev.filter((k) => !keys.includes(k)));
-      await Promise.all([loadGroups(gid), loadReadyQuestions(), loadDrafts()]);
-      setMsg(`Đã thêm vào nhóm "${updated.name}".`);
+      await Promise.all([loadGroups(gid), loadReadyQuestions(), loadDrafts(), loadWeekly()]);
+      setMsg(`Đã thêm câu hỏi vào "${updated.name}" (${updated.question_count ?? 0} câu).`);
     } catch (e: any) {
       setErr(extractApiError(e, 'Không thể thêm câu hỏi vào nhóm'));
     } finally {
@@ -1114,34 +1125,15 @@ export default function AdminPortal({
     }
   };
 
-  const handleCreateWeeklySet = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(null);
-    setErr(null);
-    try {
-      const w = await createAdminWeeklySet({
-        title: newWeekTitle.trim() || 'Bộ đề tuần SQL',
-        week_start: newWeekStart,
-      });
-      setMsg(`Đã khởi tạo bộ đề tuần #${w.set_id} (${w.title}).`);
-      await loadWeekly();
-      inspectWeeklySet(w.set_id);
-    } catch (e: any) {
-      setErr(extractApiError(e, 'Không tạo được bộ đề tuần (kiểm tra ngày bắt đầu trùng chu kỳ)'));
-    }
-  };
-
   const handleRemoveFromWeeklySet = async (setId: number, removeQid: number) => {
-    const items = weeklySetDetail?.items || [];
-    const nextIds = items
-      .map((it: any) => Number(it?.question?.question_id ?? it?.question_id))
-      .filter((id: number) => id !== removeQid);
+    setErr(null);
+    setMsg(null);
     try {
-      await updateAdminWeeklySetItems(setId, nextIds);
-      setMsg(`Đã gỡ câu hỏi #${removeQid} khỏi bộ đề tuần nháp #${setId}.`);
-      await inspectWeeklySet(setId);
+      await removeAdminWeeklySetItem(setId, removeQid);
+      setMsg(`Đã gỡ câu hỏi #${removeQid} khỏi Bộ đề tuần #${setId} và đánh lại thứ tự SQL.`);
+      await Promise.all([inspectWeeklySet(setId), loadWeekly(), loadReadyQuestions()]);
     } catch (e: any) {
-      setErr(extractApiError(e, 'Chỉ bộ đề đang ở trạng thái Nháp mới chỉnh sửa được danh sách câu'));
+      setErr(extractApiError(e, 'Không thể gỡ câu hỏi khỏi bộ đề tuần này'));
     }
   };
 
@@ -2344,6 +2336,10 @@ export default function AdminPortal({
       ===================================================================== */}
       {activeTab === 'weekly' && (
         <div className="space-y-6">
+          <div className="p-3.5 rounded-xl bg-surface border border-line text-xs text-text2 leading-relaxed">
+            <strong className="text-ink">Cách hoạt động:</strong> Đề đạt <span className="font-semibold text-brand">Approved</span> mặc định tự lên <strong>Bộ đề đang mở</strong>. Khi cần <strong>soạn Bộ đề thủ công theo đợt</strong> (ví dụ: <em>SQL tuần 6</em>), bạn tick chọn hoặc bấm <strong>+ Thêm</strong> các câu Approved bên trái sang khung bên phải rồi bấm <strong>Đăng toàn bộ</strong> 1 lần.
+          </div>
+
           {/* SECTION A: APPROVED QUESTIONS POOL & 1-CLICK BATCH PUBLISH */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* Left: All Approved Questions (from both drafts 'approved' & live.questions 'ready') */}
@@ -2603,10 +2599,10 @@ export default function AdminPortal({
               <div className="p-4 bg-soft border-b border-line space-y-3">
                 <div>
                   <h2 className="text-base font-bold text-ink">
-                    Gom nhóm &amp; Đăng cùng lúc lên Bộ đề tuần
+                    Soạn Bộ đề thủ công theo đợt &amp; Đăng 1 lần
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
-                    Kéo thả hoặc chọn nhiều câu Approved vào nhóm rồi bấm Publish đăng toàn bộ 1 lần.
+                    Nhập tên đợt đề (VD: SQL tuần 6), thêm câu hỏi từ cột trái, sắp xếp thứ tự rồi phát hành cùng lúc.
                   </p>
                 </div>
 
@@ -2614,7 +2610,7 @@ export default function AdminPortal({
                   <input
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
-                    placeholder="Tên nhóm đề mới (VD: Đợt bài tập SQL tuần này)…"
+                    placeholder="Nhập tên bộ đề / nhóm đề (VD: SQL tuần 6)…"
                     className="flex-1 min-w-[200px] px-3.5 min-h-9 rounded-lg bg-surface border border-line text-sm text-ink"
                   />
                   <button
@@ -2624,7 +2620,7 @@ export default function AdminPortal({
                     className="btn-primary px-3.5 min-h-9 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                   >
                     <FolderPlus className="w-3.5 h-3.5" />
-                    <span>{creatingGroup ? 'Đang tạo…' : '+ Tạo nhóm'}</span>
+                    <span>{creatingGroup ? 'Đang tạo…' : '+ Tạo bộ nháp'}</span>
                   </button>
                 </form>
 
@@ -2905,40 +2901,6 @@ export default function AdminPortal({
 
           {/* SECTION B: WEEKLY SETS MANAGEMENT & INSPECTOR */}
           <div className="space-y-4">
-            <form
-              onSubmit={handleCreateWeeklySet}
-              className="bg-surface border border-line rounded-xl p-4 flex flex-wrap items-end gap-3"
-            >
-              <div className="flex-1 min-w-[220px]">
-                <label className="block text-xs font-semibold text-muted mb-1">
-                  Tiêu đề bộ đề tuần mới
-                </label>
-                <input
-                  value={newWeekTitle}
-                  onChange={(e) => setNewWeekTitle(e.target.value)}
-                  className="w-full px-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted mb-1">
-                  Ngày bắt đầu tuần
-                </label>
-                <input
-                  type="date"
-                  value={newWeekStart}
-                  onChange={(e) => setNewWeekStart(e.target.value)}
-                  className="px-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
-                />
-              </div>
-              <button
-                type="submit"
-                data-solid-btn="true"
-                className="btn-primary px-5 min-h-10 rounded-lg text-sm font-semibold whitespace-nowrap"
-              >
-                + Tạo Bộ đề tuần
-              </button>
-            </form>
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
               <div className="lg:col-span-5 bg-surface border border-line rounded-xl overflow-hidden">
                 <div className="px-4 py-3.5 bg-soft border-b border-line text-sm font-bold text-ink">
@@ -3070,7 +3032,7 @@ export default function AdminPortal({
                           <th className="py-3 px-4 w-24">Mã bài</th>
                           <th className="py-3 px-4">Câu hỏi</th>
                           <th className="py-3 px-4 w-32">Độ khó</th>
-                          {weeklySetDetail.status === 'draft' && (
+                          {weeklySetDetail.status !== 'closed' && (
                             <th className="py-3 px-4 w-24">Thao tác</th>
                           )}
                         </tr>
@@ -3095,7 +3057,7 @@ export default function AdminPortal({
                                   {diff.text}
                                 </span>
                               </td>
-                              {weeklySetDetail.status === 'draft' && (
+                              {weeklySetDetail.status !== 'closed' && (
                                 <td className="py-3 px-4">
                                   <button
                                     type="button"

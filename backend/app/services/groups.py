@@ -3,9 +3,16 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import Connection
 
-from ..db import begin, ex, q, q1
+from ..db import begin, ensure_runtime_schema, ex, q, q1, table_exists
 from ..errors import bad_request, conflict, not_found
 from . import audit, drafts, weekly
+
+
+def _ensure_tables(conn: Connection | None = None) -> None:
+    if conn is not None:
+        if table_exists(conn, "live.question_groups") and table_exists(conn, "live.question_group_items"):
+            return
+    ensure_runtime_schema()
 
 
 def _lock_group(conn: Connection, group_id: int) -> dict:
@@ -42,17 +49,17 @@ def _resolve_draft_question_ids(admin: dict, draft_ids: list[int] | None, note: 
         return []
     res = drafts.bulk_approve(admin, draft_ids, note=note)
     qids = list(res["question_ids"])
-    # Nếu có draft đã được approve từ trước, lấy luôn question_id tương ứng để idempotent
-    with begin() as conn:
-        for sk in res["skipped"]:
-            if sk["reason"] == "already_approved":
-                lq = q1(conn, "SELECT question_id FROM live.questions WHERE source_draft_id=:d AND status='ready'", d=sk["draft_id"])
-                if lq and lq["question_id"] not in qids:
-                    qids.append(lq["question_id"])
+    # Nếu draft đã ở trạng thái approved (bao gồm cả legacy draft chưa có dòng trong live.questions), tự động kích hoạt sang live.questions
+    for sk in res["skipped"]:
+        if sk["reason"] == "already_approved":
+            qid = drafts.ensure_promoted_ready_question(sk["draft_id"])
+            if qid and qid not in qids:
+                qids.append(qid)
     return qids
 
 
 def list_groups(conn: Connection) -> dict:
+    _ensure_tables(conn)
     groups = q(conn, "SELECT * FROM live.question_groups ORDER BY group_id DESC")
     if not groups:
         return {"items": [], "total": 0}
@@ -140,6 +147,7 @@ def get(conn: Connection, group_id: int) -> dict:
 
 
 def create(admin: dict, name: str, description: str | None, question_ids: list[int] | None, draft_ids: list[int] | None) -> dict:
+    _ensure_tables()
     approved_qids = _resolve_draft_question_ids(admin, draft_ids, f"Duyệt nhanh khi tạo nhóm: {name}")
     combined_ids = list(dict.fromkeys([*(question_ids or []), *approved_qids]))
     with begin() as conn:
@@ -185,6 +193,7 @@ def replace_items(conn: Connection, admin: dict, group_id: int, question_ids: li
 
 
 def add_items(admin: dict, group_id: int, question_ids: list[int] | None, draft_ids: list[int] | None) -> dict:
+    _ensure_tables()
     with begin() as conn:
         grp = q1(conn, "SELECT status, name FROM live.question_groups WHERE group_id=:g", g=group_id)
         if not grp:

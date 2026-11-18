@@ -191,6 +191,27 @@ def replace_items(conn: Connection, admin: dict, set_id: int, question_ids: list
     return _view(conn, s)
 
 
+def remove_item(conn: Connection, admin: dict, set_id: int, question_id: int) -> dict:
+    """Gỡ một câu hỏi khỏi bộ đề tuần đang ở trạng thái draft hoặc published và đánh lại position 1..N liên tục."""
+    s = _lock_set(conn, set_id)
+    if s["status"] not in ("draft", "published"):
+        raise conflict("INVALID_STATE", f"Không thể gỡ câu hỏi khỏi bộ đề đã đóng (hiện: {s['status']})", {"status": s["status"]})
+    deleted = ex(conn, "DELETE FROM live.weekly_set_items WHERE set_id=:s AND question_id=:q", s=set_id, q=question_id)
+    if deleted == 0:
+        raise not_found("Câu hỏi không thuộc bộ đề tuần này")
+    ex(conn, "UPDATE live.weekly_set_items SET position = position + 1000 WHERE set_id=:s", s=set_id)
+    ex(
+        conn,
+        """UPDATE live.weekly_set_items i
+           SET position = n.rn
+           FROM (SELECT question_id, row_number() OVER (ORDER BY position) AS rn FROM live.weekly_set_items WHERE set_id=:s) n
+           WHERE i.set_id=:s AND i.question_id = n.question_id""",
+        s=set_id,
+    )
+    audit.log(conn, admin["user_id"], "weekly_set.remove_item", "weekly_set", set_id, {"question_id": question_id})
+    return _view(conn, s)
+
+
 def publish(conn: Connection, admin: dict, set_id: int) -> dict:
     s = _lock_set(conn, set_id)
     if s["status"] != "draft":

@@ -9,7 +9,7 @@
 | **Spec & Repo Hygiene** | Root + `docs/` | `node ~/.gemini/config/skills/spec-discovery/scripts/spec-gate.mjs . --strict` | `PASS (0 FAIL, 0 WARN)` |
 | **Fable Rigor** | Claim typing & Invariants | `node ~/.gemini/config/skills/fable-idea-rigor/scripts/rigor-gate.mjs --self-check` | `PASS` |
 | **TDD Discipline** | 12 test suites across repo | `node ~/.gemini/config/skills/tdd-red-green/scripts/test-driven-development-verify.cjs .` | `PASS` |
-| **Backend Pytest** | 61 integration tests (PG17 thật) | `(cd backend && ../.venv/bin/pytest -q)` | `PASS (61 passed)` |
+| **Backend Pytest** | 64 integration tests (PG17 thật) | `(cd backend && ../.venv/bin/pytest -q)` | `PASS (64 passed)` |
 | **AI Engine Unittest** | 104 AST & solver tests | `(cd ai && AI_PROVIDER=ollama ../.venv/bin/python -m unittest discover -s . -p "test_*.py" -q)` | `PASS (104 tests OK)` |
 | **Clean Architecture** | Dependency & modularity | `node ~/.gemini/config/skills/backend-clean-arch/scripts/clean-arch-gate.cjs .` | `PASS (0 errors)` |
 | **DB & SQL Safety** | SQL/schema/code files | `node ~/.gemini/config/skills/db-sql-tuning/scripts/db-gate.mjs .` | `PASS (0 FAIL)` |

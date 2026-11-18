@@ -1,5 +1,14 @@
 # Changelog — SQLArena AI
 
+## [2.3.1] — 2026-11-18 (Vá Lỗi `Network Error` & Tinh Gọn Luồng Soạn Bộ Đề Tuần Thủ Công)
+
+### Fixed
+- **Tự hồi phục Schema (`ensure_runtime_schema`) & Giữ nguyên CORS Header trên lỗi 500**: Khi chạy `uvicorn` trực tiếp trên DB local chưa chạy migration `0004_question_groups`, FastAPI tự khởi tạo `live.question_groups` + `live.question_group_items` lúc khởi động và trả JSON qua `@app.exception_handler(Exception)` bên trong `CORSMiddleware`, triệt tiêu hoàn toàn lỗi `Network Error` khi tạo nhóm hoặc tải câu hỏi.
+- **Kích hoạt tự động bản nháp `Approved` chưa có `live.questions` (`Nháp #...`)**: Khi bấm `+ Thêm` hoặc `+ Tạo bộ nháp` với các bản nháp có `status='approved'` nhưng chưa sinh dòng trong `live.questions`, backend tự thực thi SQL trên `enterprise_db`, tạo `live.questions` + `live.test_cases` và đưa thẳng vào bộ đề nháp.
+- **Làm rõ & Hợp nhất giao diện `Bộ đề tuần`**: Loại bỏ form chọn ngày thủ công bị trùng lặp bên dưới, giữ 1 luồng trực quan duy nhất (chọn câu `Approved` bên trái -> soạn đợt đề bên phải -> gộp vào bộ đang mở hoặc mở thành bộ đề tuần mới) và bổ sung `DELETE /api/v1/admin/weekly-sets/{set_id}/items/{question_id}` để gỡ câu hỏi trực tiếp khỏi bộ đề đang mở.
+
+---
+
 ## [2.3.0] — 2026-11-18 (Gộp 1 Cổng Đăng Nhập Thống Nhất, Phân Chia Path Theo Role `RBAC` & Seed Data Thật 100%)
 
 ### Changed

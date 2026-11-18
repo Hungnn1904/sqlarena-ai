@@ -50,7 +50,7 @@ echo "⚡ [SQLArena AI] Đang kiểm tra & khởi chạy chế độ Local Nativ
 
 # 2. Start Backend on 8000 if not already listening
 if ! lsof -i :8000 >/dev/null 2>&1; then
-  (cd backend && nohup ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/sqlarena-backend.log 2>&1 &)
+  (cd backend && nohup ../.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/sqlarena-backend.log 2>&1 &)
   echo "✓ Đã bật FastAPI Backend tại http://127.0.0.1:8000"
 else
   echo "✓ FastAPI Backend đang chạy sẵn tại http://127.0.0.1:8000"

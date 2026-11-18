@@ -236,6 +236,12 @@ def put_weekly_items(set_id: int, body: WeeklyItemsBody, admin: dict = Depends(r
         return weekly.replace_items(conn, admin, set_id, body.question_ids)
 
 
+@router.delete("/weekly-sets/{set_id}/items/{question_id}", tags=["admin-weekly"])
+def delete_weekly_item(set_id: int, question_id: int, admin: dict = Depends(require_admin)):
+    with begin() as conn:
+        return weekly.remove_item(conn, admin, set_id, question_id)
+
+
 @router.post("/weekly-sets/{set_id}/publish", tags=["admin-weekly"])
 def publish_weekly_set(set_id: int, admin: dict = Depends(require_admin)):
     with begin() as conn:
