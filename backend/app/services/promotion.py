@@ -35,7 +35,10 @@ def promote(conn: Connection, draft: dict, world_dataset_version: int, mode: str
         expected = {"columns": t["expected_columns"], "rows": t["expected_rows"], "row_count": t["row_count"],
                     "result_hash": t["result_hash"], "compare_mode": t["compare_mode"], "dataset_fingerprint": t["dataset_version"]}
         ex(conn, """INSERT INTO live.test_cases (question_id, dataset_ref, dataset_version, type, expected_result, is_hidden)
-                    VALUES (:q, :ref, :ver, 'standard', CAST(:e AS jsonb), :h) ON CONFLICT DO NOTHING""",
+                    VALUES (:q, :ref, :ver, 'standard', CAST(:e AS jsonb), :h)
+                    ON CONFLICT (question_id, dataset_ref, dataset_version, type) DO UPDATE SET
+                      expected_result = EXCLUDED.expected_result,
+                      is_hidden = EXCLUDED.is_hidden""",
            q=qid, ref=t["dataset_ref"], ver=world_dataset_version, e=_j(expected), h=t["dataset_ref"] != BASE_REF)
     pub = q1(conn, "SELECT set_id FROM live.weekly_sets WHERE status='published' ORDER BY set_id DESC LIMIT 1")
     if pub:

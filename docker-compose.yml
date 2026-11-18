@@ -56,6 +56,8 @@ services:
       APITHAT_MODEL: ${APITHAT_MODEL:-gpt-5.6-sol}
     ports:
       - "${BACKEND_HOST_PORT:-8000}:8000"
+    volumes:
+      - gateway_runtime:/workspace/.runtime
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/v1/health || exit 1"]
       interval: 10s
@@ -103,6 +105,8 @@ services:
       APITHAT_API_KEY: ${APITHAT_API_KEY:-}
       APITHAT_BASE_URL: ${APITHAT_BASE_URL:-https://apithat.dev/v1}
       APITHAT_MODEL: ${APITHAT_MODEL:-gpt-5.6-sol}
+    volumes:
+      - gateway_runtime:/workspace/.runtime
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import pathlib; assert 'worker' in pathlib.Path('/proc/1/cmdline').read_text(errors='ignore')\" || exit 1"]
       interval: 15s
@@ -136,3 +140,4 @@ services:
 
 volumes:
   pgdata:
+  gateway_runtime:

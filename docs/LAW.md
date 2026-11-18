@@ -3,7 +3,7 @@
 > Binding across `backend/`, `ai/`, `frontend/`, and `postgre/` under **MyKit v3.15**.
 
 ## 1. Architectural & Dual-Surface Boundaries (`Chung vs Riêng`)
-- **Strict Portal Separation**: Port `:3000` serves the **Learner Portal** exclusively (`Làm bài`, `Tiến độ`, `Xếp hạng` — zero Admin routes or controls). Port `:4000` serves the **Admin Portal** exclusively (opening `Người dùng` by default).
+- **Role-Aware Dual-Portal Separation**: Learners (`role='learner'`) on `:3000` see only `Làm bài`, `Tiến độ`, `Xếp hạng` (zero Admin controls), and unauthenticated visitors see only the clean title + Login/Register card. Port `:4000` (and `/admin`) serves the dedicated **Admin Portal**, while Admins (`role='admin'`) logging into `:3000` also receive `Quản trị` navigation and accurate `Quản trị viên` labeling.
 - **SQLAlchemy 2.x Core + Explicit SQL**: All persistence goes through parameterized SQL helpers (`begin()`, `q()`, `q1()`, `ex()`) in `backend/app/db.py` across 3 isolated schemas (`core`, `draft`, `live`).
 - **Single API Contract**: `docs/api/OPENAPI_V1.md` is the canonical contract between `backend/` and `frontend/`. Pydantic request schemas enforce `ConfigDict(extra="forbid")`.
 

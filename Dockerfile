@@ -16,7 +16,7 @@ COPY backend ./backend
 COPY postgre ./postgre
 COPY question_create ./question_create
 
-RUN chown -R appuser:appuser /workspace
+RUN mkdir -p /workspace/.runtime && chown -R appuser:appuser /workspace
 
 USER appuser
 

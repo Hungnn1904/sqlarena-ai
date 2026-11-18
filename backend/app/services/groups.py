@@ -314,9 +314,8 @@ def publish(conn: Connection, admin: dict, group_id: int, mode: str = "append_ac
             ex(conn, "INSERT INTO live.weekly_set_items (set_id, question_id, position) VALUES (:s, :q, :p)", s=sid, q=qid, p=next_pos)
             inserted_count += 1
     elif mode == "new_weekly_set":
-        already_pub = [qid for qid, info in existing_ws.items() if info["set_status"] == "published"]
-        if already_pub:
-            raise conflict("QUESTION_ALREADY_USED", "Có câu hỏi đang nằm trong bộ đề đang mở; không thể gắn lại sang bộ tuần mới", {"question_ids": already_pub})
+        pub_set_map = {qid: info["set_id"] for qid, info in existing_ws.items() if info["set_status"] == "published"}
+        _detach_from_draft_sets(conn, pub_set_map)
         old_pub = q1(conn, "SELECT * FROM live.weekly_sets WHERE status='published' FOR UPDATE")
         if old_pub:
             for h in weekly.CLOSE_HOOKS:

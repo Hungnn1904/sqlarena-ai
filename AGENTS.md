@@ -4,9 +4,9 @@
 
 ## 1. Project Identity & Stack
 - **Project**: `SQLArena AI` — Dual-Model PostgreSQL 17 Question Synthesis, Calibrated Verification, Group Publishing & Automated SQL Grading Platform (PTIT Capstone).
-- **Dual-Portal Surfaces**:
-  - **`http://<HOST>:3000`** — Dedicated **Learner Web** (`Làm bài`, `Tiến độ`, `Xếp hạng`; zero Admin controls).
-  - **`http://<HOST>:4000`** — Dedicated **Admin Web** (`Người dùng` default first tab, `Sinh đề AI` per-skill counts, `Duyệt đề`, `Bộ đề tuần` + Approved Pool, `Ngân hàng đề`, `Cấu hình`).
+- **Dual-Portal Surfaces & Role-Contextual Access**:
+  - **`http://<HOST>:3000`** — **Learner Web** (`Làm bài`, `Tiến độ`, `Xếp hạng` with zero Admin controls for `role=learner`; when `role=admin` logs in on `:3000`, displays `Quản trị viên` + `Quản trị` tab directly).
+  - **`http://<HOST>:4000`** (and `/admin`) — Dedicated **Admin Web** (`Người dùng` default first tab, `Sinh đề AI` per-skill counts, `Duyệt đề`, `Bộ đề tuần` + Approved Pool, `Ngân hàng đề`, `Cấu hình`).
 - **AI Gateway**: `https://apithat.dev/v1` (`gpt-5.6-sol` / `gpt-6.1-terra` / `gpt-6-sol` auto-discovery & Secret-Blind Vault).
 
 ## 2. Exact Commands (Run Scoped — Never Guess)
@@ -32,8 +32,8 @@
 | `docs/DECISIONS.md` | SISF Architectural Decision Records (`ADR-001`..`ADR-004`) |
 | `docs/REVIEW.md` | Independent `Hunter != Verifier` Gate Matrix & Zero-Knowledge UX Audit Ledger |
 | `docs/api/OPENAPI_V1.md` | Single-source-of-truth REST API contract shared across `backend/` and `frontend/` |
-| `frontend/DESIGN.md` | Co-located visual design tokens (`linear.app` `dense-workspace` preset) |
+| `frontend/DESIGN.md` | Co-located visual design tokens (Editorial Sage & Warm Paper `#F5EDDC` / `#5C7F71`) |
 
 ## 4. Hard Boundaries & Project Learnings
-- **Reversible Live Approval**: Drafts reaching `approved` (via AI calibrated gate or Admin `Phê duyệt`) publish onto the active `published` weekly set immediately; reverting (`POST /admin/drafts/{id}/return-needs-human` or `/reject`) atomically detaches the question from the Learner Web and re-indexes positions.
-- **Surface Isolation & Secret-Blind Law**: Learner Web (`:3000`) never exposes Admin tabs; `/api/*` routes same-origin via Nginx on both `:3000` and `:4000`; never expose raw `APITHAT_API_KEY` or `"expected*"` test-case rows.
+- **Reversible Live Approval**: Drafts reaching `approved` (via AI calibrated gate or Admin `Phê duyệt`) publish onto the active `published` weekly set immediately and refresh `live.test_cases`; reverting (`POST /admin/drafts/{id}/return-needs-human` or `/reject`) atomically detaches the question from active/draft weekly sets and re-indexes positions.
+- **Role-Aware Isolation & Secret-Blind Law**: Learner accounts (`role=learner`) never see Admin tabs; Admin accounts (`role=admin`) retain `Quản trị` access on both `:3000` and `:4000`; `/api/*` routes same-origin via Nginx; never expose raw `APITHAT_API_KEY` or `"expected*"` test-case rows.

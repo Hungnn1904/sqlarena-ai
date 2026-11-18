@@ -342,14 +342,13 @@ def learner_questions(conn: Connection, difficulty, skill_id, solved, search, pa
         conds.append("qq.skill_ids @> ARRAY[:k]::int[]"); p["k"] = skill_id
     if search and search.strip():
         s_clean = search.strip()
-        m_code = re.match(r"^(?:sql|q|câu|cau|bài|bai)?[\s#\-_:]*(\d+)$", s_clean, flags=re.IGNORECASE)
-        qnum = int(m_code.group(1)) if (m_code and int(m_code.group(1)) <= 2_147_483_647) else None
-        conds.append(
-            "(qq.title ILIKE :t OR qq.question ILIKE :t "
-            "OR (CAST(:qnum AS int) IS NOT NULL AND (i.position = CAST(:qnum AS int) OR qq.question_id = CAST(:qnum AS int))))"
-        )
-        p["t"] = f"%{s_clean}%"
-        p["qnum"] = qnum
+        m_code = re.match(r"^(?:sql|q|câu|cau|bài|bai|#)?[\s#\-_:]*0*(\d+)$", s_clean, flags=re.IGNORECASE)
+        if m_code and int(m_code.group(1)) <= 2_147_483_647:
+            conds.append("i.position = :qnum")
+            p["qnum"] = int(m_code.group(1))
+        else:
+            conds.append("(qq.title ILIKE :t OR qq.question ILIKE :t)")
+            p["t"] = f"%{s_clean}%"
     if solved is True:
         conds.append("EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed')")
     elif solved is False:

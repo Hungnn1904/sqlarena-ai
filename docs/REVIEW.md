@@ -9,7 +9,7 @@
 | **Spec & Repo Hygiene** | Root + `docs/` | `node ~/.gemini/config/skills/spec-discovery/scripts/spec-gate.mjs . --strict` | `PASS (0 FAIL, 0 WARN)` |
 | **Fable Rigor** | Claim typing & Invariants | `node ~/.gemini/config/skills/fable-idea-rigor/scripts/rigor-gate.mjs --self-check` | `PASS` |
 | **TDD Discipline** | 12 test suites across repo | `node ~/.gemini/config/skills/tdd-red-green/scripts/test-driven-development-verify.cjs .` | `PASS` |
-| **Backend Pytest** | 57 integration tests (PG17 thật) | `(cd backend && ../.venv/bin/pytest -q)` | `PASS (57 passed)` |
+| **Backend Pytest** | 60 integration tests (PG17 thật) | `(cd backend && ../.venv/bin/pytest -q)` | `PASS (60 passed)` |
 | **AI Engine Unittest** | 104 AST & solver tests | `(cd ai && AI_PROVIDER=ollama ../.venv/bin/python -m unittest discover -s . -p "test_*.py" -q)` | `PASS (104 tests OK)` |
 | **Clean Architecture** | Dependency & modularity | `node ~/.gemini/config/skills/backend-clean-arch/scripts/clean-arch-gate.cjs .` | `PASS (0 errors)` |
 | **DB & SQL Safety** | SQL/schema/code files | `node ~/.gemini/config/skills/db-sql-tuning/scripts/db-gate.mjs .` | `PASS (0 FAIL)` |
@@ -26,8 +26,8 @@
 
 | # | Màn hình / Khu vực | Yêu cầu chuẩn hoá | Trạng thái nghiệm thu |
 | :---: | :--- | :--- | :---: |
-| **1** | **Tách Cổng Web (`:3000` & `:4000`)** | `localhost:3000` dành riêng Học viên (ẩn hoàn toàn nút/thông báo Quản trị); `localhost:4000` dành riêng Quản trị. | `PASS` |
-| **2** | **Làm bài — Thanh Tìm kiếm** | Mặc định chỉ hiện Ô tìm kiếm (hoạt động tức thì theo mã bài `SQL1`/`Q-9` & tiêu đề) + nút `Mở rộng thêm` mới bung bộ lọc. | `PASS` |
+| **1** | **Tách Cổng Web & RBAC (`:3000` & `:4000`)** | Học viên (`role=learner`) trên `:3000` ẩn 100% nút Quản trị; màn chưa đăng nhập chỉ có tiêu đề + Đăng nhập/Đăng ký; Admin (`role=admin`) hiện đúng nhãn `Quản trị viên` và vào được `Quản trị` trên cả `:3000` lẫn `:4000`. | `PASS` |
+| **2** | **Làm bài — Tìm kiếm Chính xác & Bảng màu Gốc** | Khôi phục bảng màu Warm Paper `#F5EDDC` & Editorial Sage; gõ `SQL1`/`SQL2` khớp chính xác tuyệt đối vị trí bài (`position`), không lọt `SQL20`/`SQL22` hay ID nội bộ. | `PASS` |
 | **3** | **Tiến độ — Lịch sử nộp bài** | Xoá cột `Điểm` (`0/100`), hiển thị rõ 3 trạng thái: `Làm được`, `Không làm được`, hoặc `RTE`; xoá chân trang & badge `N`. | `PASS` |
 | **4** | **Bảng Xếp Hạng & Bục Top 3** | Xoá cả cột `Điểm` lẫn `Tốc độ`; xếp Hạng #1 cao nhất ở giữa, Hạng #2 bên trái, Hạng #3 bên phải; đồng bộ 1 tông màu duy nhất. | `PASS` |
 | **5** | **Quản trị (`:4000`) — Thứ tự Tab** | Xoá khối 3 thẻ giới thiệu đầu trang; đưa tab **`Người dùng`** lên đầu tiên bên trái và mở mặc định. | `PASS` |

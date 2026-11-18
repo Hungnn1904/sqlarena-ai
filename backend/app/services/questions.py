@@ -42,8 +42,21 @@ def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int
         conds.append("q.difficulty=:d"); p["d"] = difficulty
     if skill_id:
         conds.append("q.skill_ids @> ARRAY[:s]::int[]"); p["s"] = skill_id
-    if search:
-        conds.append("q.title ILIKE :t"); p["t"] = f"%{search}%"
+    if search and search.strip():
+        s_clean = search.strip()
+        import re
+        m_code = re.match(r"^(?:sql|q|#)\s*-?\s*0*(\d+)$|^0*(\d+)$", s_clean, flags=re.IGNORECASE)
+        if m_code:
+            qnum = int(m_code.group(1) or m_code.group(2))
+            conds.append(
+                "(q.question_id = :qnum OR EXISTS ("
+                "SELECT 1 FROM live.weekly_set_items wsi JOIN live.weekly_sets ws USING (set_id) "
+                "WHERE wsi.question_id = q.question_id AND ws.status = 'published' AND wsi.position = :qnum))"
+            )
+            p["qnum"] = qnum
+        else:
+            conds.append("q.title ILIKE :t")
+            p["t"] = f"%{s_clean}%"
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
     total = q1(conn, f"SELECT count(*) AS n FROM live.questions q {where}", **p)["n"]
     rows = q(

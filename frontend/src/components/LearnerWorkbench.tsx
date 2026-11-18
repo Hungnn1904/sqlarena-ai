@@ -132,27 +132,18 @@ function matchesQuestionSearch(q: any, rawQuery: string): boolean {
   const kw = normalizeVnSearch(trimmed);
   if (!kw) return true;
 
-  const pos = Number(q.position || q.question_id || 0);
-  const qid = Number(q.question_id || 0);
+  const displayPos = Number(q.position || q.question_id || 0);
 
-  const codeMatch = kw.match(/^(?:sql|q|#)\s*-?\s*(\d+)$/i);
+  const codeMatch = kw.match(/^(?:sql|q|cau|bai|#)?\s*[-_:#]?\s*0*(\d+)$/i);
   if (codeMatch) {
-    const digits = codeMatch[1];
-    const targetNum = Number(digits);
-    return (
-      pos === targetNum ||
-      qid === targetNum ||
-      String(pos).startsWith(digits) ||
-      String(qid).startsWith(digits)
-    );
+    const targetNum = Number(codeMatch[1]);
+    return displayPos === targetNum;
   }
 
   const tablesStr = Array.isArray(q.tables_used) ? q.tables_used.join(' ') : '';
   const skillsStr = Array.isArray(q.skills) ? q.skills.join(' ') : '';
   const searchable = normalizeVnSearch(
-    `sql${pos} sql-${pos} q-${pos} q${pos} #${pos} ${pos} sql${qid} q-${qid} #${qid} ${qid} ${
-      q.title || ''
-    } ${getDomainCategory(q)} ${tablesStr} ${skillsStr}`
+    `${q.title || ''} ${getDomainCategory(q)} ${tablesStr} ${skillsStr}`
   );
 
   return searchable.includes(kw);
@@ -198,7 +189,7 @@ export default function LearnerWorkbench({
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
   const [sourceFilter, setSourceFilter] = useState<'ALL' | 'AI' | 'SEED'>('ALL');
   const [domainFilter, setDomainFilter] = useState<string>('ALL');
-  const [sortOrder, setSortOrder] = useState<'difficulty_asc' | 'position_asc' | 'newest_first'>('difficulty_asc');
+  const [sortOrder, setSortOrder] = useState<'difficulty_asc' | 'position_asc' | 'newest_first'>('position_asc');
   const [diffFilter, setDiffFilter] = useState<number | undefined>(undefined);
   const [skillFilter, setSkillFilter] = useState<number | undefined>(undefined);
   const [solvedFilter, setSolvedFilter] = useState<boolean | undefined>(undefined);
@@ -452,7 +443,7 @@ export default function LearnerWorkbench({
     (domainFilter !== 'ALL' ? 1 : 0) +
     (skillFilter !== undefined ? 1 : 0) +
     (solvedFilter !== undefined ? 1 : 0) +
-    (sortOrder !== 'difficulty_asc' ? 1 : 0);
+    (sortOrder !== 'position_asc' ? 1 : 0);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -477,9 +468,22 @@ export default function LearnerWorkbench({
                   setSearchQ(e.target.value);
                   setAppliedSearchQ(e.target.value);
                 }}
-                placeholder="Tìm mã bài hoặc tiêu đề…"
-                className="w-full pl-9 pr-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink placeholder:text-muted"
+                placeholder="Tìm chính xác mã bài (ví dụ: SQL2) hoặc tiêu đề…"
+                className="w-full pl-9 pr-9 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink placeholder:text-muted"
               />
+              {searchQ && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQ('');
+                    setAppliedSearchQ('');
+                  }}
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  className="absolute right-2.5 top-2 px-1.5 py-0.5 rounded text-xs font-semibold text-muted hover:text-ink"
+                >
+                  ×
+                </button>
+              )}
             </div>
 
             <button
@@ -656,7 +660,7 @@ export default function LearnerWorkbench({
                 {loadingList ? (
                   <tr>
                     <td colSpan={5} className="py-12 text-center text-sm text-muted">
-                      Đang tải danh sách câu hỏi...
+                      Đang tải danh sách câu hỏi…
                     </td>
                   </tr>
                 ) : filteredQuestions.length > 0 ? (
@@ -685,7 +689,7 @@ export default function LearnerWorkbench({
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>Đã giải</span>
                             </span>
-                          ) : q.attempted || Number(q.submission_count || 0) > 0 ? (
+                          ) : q.attempted || Number(q.attempt_count ?? q.submission_count ?? 0) > 0 ? (
                             <span className="inline-block px-2.5 py-1 rounded-md badge-medium text-xs font-semibold">
                               Đang thử
                             </span>

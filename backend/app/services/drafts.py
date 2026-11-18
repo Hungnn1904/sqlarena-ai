@@ -88,9 +88,19 @@ def _unpublish_live_question_for_draft(conn: Connection, draft_id: int, retire_r
     if not lq:
         return None
     qid = lq["question_id"]
-    affected = [r["set_id"] for r in q(conn, "SELECT set_id FROM live.weekly_set_items WHERE question_id=:q", q=qid)]
+    affected = [
+        r["set_id"]
+        for r in q(
+            conn,
+            """SELECT i.set_id
+               FROM live.weekly_set_items i
+               JOIN live.weekly_sets ws USING (set_id)
+               WHERE i.question_id=:q AND ws.status IN ('draft', 'published')""",
+            q=qid,
+        )
+    ]
     if affected:
-        ex(conn, "DELETE FROM live.weekly_set_items WHERE question_id=:q", q=qid)
+        ex(conn, "DELETE FROM live.weekly_set_items WHERE question_id=:q AND set_id = ANY(:sids)", q=qid, sids=affected)
         for sid in sorted(set(affected)):
             ex(conn, "UPDATE live.weekly_set_items SET position = position + 1000 WHERE set_id=:s", s=sid)
             ex(
@@ -357,7 +367,10 @@ def _admin_resolve(res: dict, datasets: list, draft: dict | None = None, sql: st
     if draft and (draft.get("reference_sql") or custom_sql_used) and sql and "required_order_by_missing" not in reasons and "order_by_contract_mismatch" not in reasons:
         from . import submissions
         clean_sql = submissions.guard_select(sql)
-        exec_res = submissions.execute_sandbox_sql(clean_sql)
+        try:
+            exec_res = submissions.execute_sandbox_sql(clean_sql)
+        except Exception as exc:
+            raise bad_request(f"SQL không thực thi được trên enterprise_db: {exc}") from exc
         if exec_res["row_count"] > 0:
             mode = draft.get("compare_mode") or "ordered"
             norm_r = [[submissions.json_value(row.get(c)) for c in exec_res["columns"]] for row in exec_res["rows"]]

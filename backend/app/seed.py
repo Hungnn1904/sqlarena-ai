@@ -51,6 +51,7 @@ def seed_demo_live(conn: Connection) -> dict:
 
     demo_users = [
         (admin_role, "admin@sqlarena.local", "admin", "admin123", "Nguyễn Quản Trị (Admin)", "Project Lead & AI Pipeline Reviewer"),
+        (learner_role, "hocvien@sqlarena.local", "hocvien", "hocvien123", "Học Viên PTIT", "Tài khoản học viên thực hành SQL"),
         (learner_role, "learner@sqlarena.local", "nguyen_ptit", "demo123", "Bình Nguyên (PTIT)", "Sinh viên CNTT PTIT — Data & Backend Engineering"),
         (learner_role, "tuanle@sqlarena.local", "tuan_le", "demo123", "Lê Minh Tuấn", "Data Analyst — SQL Specialist"),
         (learner_role, "hanguyen@sqlarena.local", "ha_nguyen", "demo123", "Nguyễn Thu Hà", "BI Developer"),

@@ -61,6 +61,7 @@ def _mask_secret(secret: str | None) -> str | None:
 
 def _merged_env() -> dict:
     vault_file = Path.home() / ".mykit" / "vault.env"
+    shared_runtime_env = REPO_ROOT / ".runtime" / "gateway.env"
     merged = {
         **dotenv_values(AI_DIR / ".env.example"),
         **(dotenv_values(vault_file) if vault_file.is_file() else {}),
@@ -68,6 +69,8 @@ def _merged_env() -> dict:
         **dotenv_values(BACKEND_DIR / ".env"),
     }
     merged.update({k: v for k, v in os.environ.items() if k.startswith(_PASSTHROUGH_PREFIXES) and v != ""})
+    if shared_runtime_env.is_file():
+        merged.update({k: v for k, v in dotenv_values(shared_runtime_env).items() if v})
     merged.update({k: v for k, v in _runtime_gateway_override.items() if v})
     res = {k: v for k, v in merged.items() if v is not None}
     if not res.get("CATALOG_DB_USER") and res.get("ENTERPRISE_DB_USER"):
@@ -144,6 +147,16 @@ def set_runtime_gateway_key(
             "APITHAT_BASE_URL": norm_base,
             "APITHAT_MODEL": chosen_model,
         })
+        runtime_dir = REPO_ROOT / ".runtime"
+        try:
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            _upsert_env_secret(runtime_dir / "gateway.env", {
+                "APITHAT_API_KEY": api_key.strip(),
+                "APITHAT_BASE_URL": norm_base,
+                "APITHAT_MODEL": chosen_model,
+            })
+        except OSError:
+            pass
     return {
         "configured": True,
         "valid": True,
@@ -191,7 +204,7 @@ def get_gateway_status() -> dict:
         return {
             "configured": False,
             "valid": False,
-            "provider": "local-ollama",
+            "provider": "local-pipeline",
             "masked_key": None,
             "base_url": base_url,
             "preferred_model": pref_model,

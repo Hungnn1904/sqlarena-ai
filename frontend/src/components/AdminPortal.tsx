@@ -819,8 +819,23 @@ export default function AdminPortal({
     const seenQuestionIds = new Set<number>();
     const seenDraftIds = new Set<number>();
 
+    const kwApproved = approvedSearch.trim().toLowerCase();
+    const codeNumMatch = kwApproved.match(/^(?:sql|q|#)?\s*-?\s*0*(\d+)$/i);
+    const targetCodeNum = codeNumMatch ? Number(codeNumMatch[1]) : null;
+
     readyQuestions.forEach((q: any) => {
       const qid = Number(q.question_id);
+      const wpos = Number(q.weekly_position || 0);
+      if (approvedDiffFilter !== undefined && Number(q.difficulty) !== approvedDiffFilter) {
+        return;
+      }
+      if (kwApproved) {
+        if (targetCodeNum !== null) {
+          if (qid !== targetCodeNum && wpos !== targetCodeNum) return;
+        } else if (!String(q.title || '').toLowerCase().includes(kwApproved)) {
+          return;
+        }
+      }
       seenQuestionIds.add(qid);
       if (q.source_draft_id) seenDraftIds.add(Number(q.source_draft_id));
       items.push({
