@@ -4,9 +4,9 @@
 
 ## 1. Project Identity & Stack
 - **Project**: `SQLArena AI` — Dual-Model PostgreSQL 17 Question Synthesis, Calibrated Verification, Group Publishing & Automated SQL Grading Platform (PTIT Capstone).
-- **Dual-Portal Surfaces & Role-Contextual Access**:
-  - **`http://<HOST>:3000`** — **Learner Web** (`Làm bài`, `Tiến độ`, `Xếp hạng` with zero Admin controls for `role=learner`; when `role=admin` logs in on `:3000`, displays `Quản trị viên` + `Quản trị` tab directly).
-  - **`http://<HOST>:4000`** (and `/admin`) — Dedicated **Admin Web** (`Người dùng` default first tab, `Sinh đề AI` per-skill counts, `Duyệt đề`, `Bộ đề tuần` + Approved Pool, `Ngân hàng đề`, `Cấu hình`).
+- **Unified Entry & Path-Based RBAC Routing (`http://<HOST>:3000`)**:
+  - **Single Login/Register Surface**: All users sign in or register from one unified view without needing `/admin` first; passwords verify strictly via `PBKDF2-HMAC-SHA256` in PostgreSQL.
+  - **Role-Scoped Paths**: `role=learner` accesses `/` (`Làm bài`), `/progress` (`Tiến độ`), `/leaderboard` (`Xếp hạng`) and is redirected away from `/admin`; `role=admin` retains `/`, `/progress`, `/leaderboard` **plus** `/admin` (`Quản trị`).
 - **AI Gateway**: `https://apithat.dev/v1` (`gpt-5.6-sol` / `gpt-6.1-terra` / `gpt-6-sol` auto-discovery & Secret-Blind Vault).
 
 ## 2. Exact Commands (Run Scoped — Never Guess)

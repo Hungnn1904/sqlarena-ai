@@ -46,7 +46,7 @@ const PITCH_STEPS = [
       { label: 'Bảo mật dữ liệu', val: 'READ ONLY Transaction' },
       { label: 'Lưu nháp tự động', val: 'Theo từng câu hỏi' },
       { label: 'Hỗ trợ người mới', val: 'AI Coach + EXPLAIN' },
-      { label: 'Tài khoản mẫu', val: 'nguyen_ptit' },
+      { label: 'Phân quyền xác thực', val: 'JWT + PBKDF2-SHA256' },
     ],
     actionLabel: 'Thử chạy SQL ngay',
     targetTab: 'workbench',

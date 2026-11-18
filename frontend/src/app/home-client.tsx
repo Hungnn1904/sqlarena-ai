@@ -1,40 +1,43 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, Database } from 'lucide-react';
-import AuthBar from '../components/AuthBar';
+import { Database } from 'lucide-react';
+import AuthBar, { AppSection } from '../components/AuthBar';
 import LearnerWorkbench from '../components/LearnerWorkbench';
 import { LearnerProgressView, LeaderboardView } from '../components/ProgressAndLeaderboard';
 import AdminPortal from '../components/AdminPortal';
 import { UserProfile, getMe, loginUser, registerUser, extractApiError } from '../lib/api';
 
-const LEARNER_TABS = new Set(['workbench', 'progress', 'leaderboard']);
-const ADMIN_ALLOWED_TABS = new Set(['workbench', 'progress', 'leaderboard', 'admin']);
+const SECTION_PATHS: Record<AppSection, string> = {
+  workbench: '/',
+  progress: '/progress',
+  leaderboard: '/leaderboard',
+  admin: '/admin',
+};
 
-function detectWebSurface(forceSurface?: 'learner' | 'admin'): 'learner' | 'admin' {
-  if (forceSurface) return forceSurface;
-  if (typeof window !== 'undefined') {
-    const port = window.location.port;
-    const pathname = window.location.pathname || '';
-    if (port === '4000' || port === '4005' || pathname.startsWith('/admin')) {
-      return 'admin';
-    }
-  }
-  return 'learner';
+function resolveSectionFromPath(pathname: string | null, fallback: AppSection): AppSection {
+  if (!pathname) return fallback;
+  if (pathname.startsWith('/admin')) return 'admin';
+  if (pathname.startsWith('/progress')) return 'progress';
+  if (pathname.startsWith('/leaderboard')) return 'leaderboard';
+  return 'workbench';
 }
 
 export default function HomeClient({
-  forceSurface,
+  routeSection = 'workbench',
 }: {
-  forceSurface?: 'learner' | 'admin';
+  routeSection?: AppSection;
 }) {
-  const [surface, setSurface] = useState<'learner' | 'admin'>(forceSurface || 'learner');
+  const router = useRouter();
+  const pathname = usePathname();
+  const activeSection = resolveSectionFromPath(pathname, routeSection);
+
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTabState] = useState<string>('workbench');
   const [booting, setBooting] = useState(true);
 
-  // Clean Guest Auth Card State (Login / Register only — zero marketing clutter)
+  // Single Unified Login / Register Card State
   const [guestMode, setGuestMode] = useState<'login' | 'register'>('login');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -44,48 +47,15 @@ export default function HomeClient({
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Dedicated Admin Surface Login State
-  const [adminIdentifier, setAdminIdentifier] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminLoginBusy, setAdminLoginBusy] = useState(false);
-  const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
-
-  const setActiveTab = (nextTab: string, roleOverride?: 'learner' | 'admin') => {
-    const effectiveRole = roleOverride ?? user?.role;
-    const allowed = effectiveRole === 'admin' ? ADMIN_ALLOWED_TABS : LEARNER_TABS;
-    const safeTab = allowed.has(nextTab) ? nextTab : 'workbench';
-    setActiveTabState(safeTab);
-    if (typeof window !== 'undefined' && surface === 'learner') {
-      window.sessionStorage.setItem('sqlarena_active_tab', safeTab);
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', safeTab);
-      window.history.replaceState(null, '', `${url.pathname}${url.search}`);
-    }
-  };
-
   useEffect(() => {
-    const detected = detectWebSurface(forceSurface);
-    setSurface(detected);
-
     const initAuth = async () => {
       try {
         const token = window.localStorage.getItem('sqlarena_token');
         if (token) {
           const me = await getMe();
           setUser(me);
-          if (typeof window !== 'undefined' && detected === 'learner') {
-            const params = new URLSearchParams(window.location.search);
-            const fromUrl = params.get('tab');
-            const fromSession = window.sessionStorage.getItem('sqlarena_active_tab');
-            const allowed = me.role === 'admin' ? ADMIN_ALLOWED_TABS : LEARNER_TABS;
-            const defaultTab = me.role === 'admin' ? 'admin' : 'workbench';
-            const candidate =
-              fromUrl && allowed.has(fromUrl)
-                ? fromUrl
-                : fromSession && allowed.has(fromSession)
-                ? fromSession
-                : defaultTab;
-            setActiveTabState(candidate);
+          if (me.role !== 'admin' && resolveSectionFromPath(window.location.pathname, routeSection) === 'admin') {
+            router.replace('/');
           }
         }
       } catch {
@@ -96,16 +66,44 @@ export default function HomeClient({
       }
     };
     initAuth();
-  }, [forceSurface]);
+  }, [routeSection, router]);
 
-  const handleAuthSuccess = (token: string, u: UserProfile, targetTab?: string) => {
+  // Enforce RBAC path guard whenever route or user changes
+  useEffect(() => {
+    if (!booting && user && user.role !== 'admin' && activeSection === 'admin') {
+      router.replace('/');
+    }
+  }, [booting, user, activeSection, router]);
+
+  const navigateSection = (section: AppSection) => {
+    if (section === 'admin' && user?.role !== 'admin') {
+      router.push('/');
+      return;
+    }
+    const targetPath = SECTION_PATHS[section] || '/';
+    if (pathname !== targetPath) {
+      router.push(targetPath);
+    }
+  };
+
+  const handleAuthSuccess = (token: string, u: UserProfile) => {
     window.localStorage.setItem('sqlarena_token', token);
     setUser(u);
     setAuthError(null);
-    setAdminLoginError(null);
-    if (surface === 'learner') {
-      const next = targetTab || (u.role === 'admin' ? 'admin' : 'workbench');
-      setActiveTab(next, u.role);
+
+    if (u.role === 'admin') {
+      // Admin retains all learner paths (/, /progress, /leaderboard) plus /admin
+      const dest =
+        activeSection === 'progress' || activeSection === 'leaderboard'
+          ? SECTION_PATHS[activeSection]
+          : '/admin';
+      router.push(dest);
+    } else {
+      const dest =
+        activeSection === 'progress' || activeSection === 'leaderboard'
+          ? SECTION_PATHS[activeSection]
+          : '/';
+      router.push(dest);
     }
   };
 
@@ -113,23 +111,18 @@ export default function HomeClient({
     window.localStorage.removeItem('sqlarena_token');
     setUser(null);
     setPassword('');
-    setAdminPassword('');
-    if (surface === 'learner') {
-      setActiveTab('workbench', 'learner');
+    if (pathname !== '/') {
+      router.replace('/');
     }
   };
 
-  const handleGuestLogin = async (e: React.FormEvent) => {
+  const handleUnifiedLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthBusy(true);
     setAuthError(null);
     try {
       const res = await loginUser(identifier.trim(), password);
-      handleAuthSuccess(
-        res.access_token,
-        res.user,
-        res.user.role === 'admin' ? 'admin' : 'workbench'
-      );
+      handleAuthSuccess(res.access_token, res.user);
     } catch (e: any) {
       setAuthError(extractApiError(e, 'Tài khoản hoặc mật khẩu chưa chính xác.'));
     } finally {
@@ -137,7 +130,7 @@ export default function HomeClient({
     }
   };
 
-  const handleGuestRegister = async (e: React.FormEvent) => {
+  const handleUnifiedRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthBusy(true);
     setAuthError(null);
@@ -148,7 +141,7 @@ export default function HomeClient({
         password,
         display_name: (regDisplayName || regUsername).trim(),
       });
-      handleAuthSuccess(res.access_token, res.user, 'workbench');
+      handleAuthSuccess(res.access_token, res.user);
     } catch (e: any) {
       setAuthError(
         extractApiError(e, 'Đăng ký không thành công. Tên đăng nhập hoặc email có thể đã tồn tại.')
@@ -158,34 +151,15 @@ export default function HomeClient({
     }
   };
 
-  const handleAdminFormLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAdminLoginBusy(true);
-    setAdminLoginError(null);
-    try {
-      const res = await loginUser(adminIdentifier.trim(), adminPassword);
-      if (res.user.role !== 'admin') {
-        setAdminLoginError(
-          'Tài khoản này không có quyền Quản trị viên. Vui lòng đăng nhập bằng tài khoản Admin.'
-        );
-        return;
-      }
-      handleAuthSuccess(res.access_token, res.user, 'admin');
-    } catch (e: any) {
-      setAdminLoginError(extractApiError(e, 'Thông tin đăng nhập Quản trị chưa chính xác.'));
-    } finally {
-      setAdminLoginBusy(false);
-    }
-  };
+  const effectiveSection: AppSection =
+    activeSection === 'admin' && user?.role !== 'admin' ? 'workbench' : activeSection;
 
   return (
     <div className="min-h-screen bg-canvas text-ink flex flex-col relative z-10">
       <AuthBar
-        surface={surface}
         user={user}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onAuthSuccess={handleAuthSuccess}
+        activeSection={effectiveSection}
+        onNavigateSection={navigateSection}
         onLogout={handleLogout}
         onUserUpdated={setUser}
         guestMode={guestMode}
@@ -200,79 +174,9 @@ export default function HomeClient({
           <div className="p-12 rounded-xl bg-surface border border-line text-center text-sm text-muted">
             Đang kết nối hệ thống PostgreSQL 17…
           </div>
-        ) : surface === 'admin' ? (
-          /* ================================================================
-             DEDICATED ADMIN WEB (:4000 / /admin)
-          ================================================================ */
-          !user || user.role !== 'admin' ? (
-            <div className="max-w-md mx-auto my-12 bg-surface border border-line rounded-2xl p-6 sm:p-7 space-y-5">
-              <div className="flex items-center gap-3">
-                <div
-                  data-solid-btn="true"
-                  className="w-10 h-10 rounded-xl btn-primary flex items-center justify-center shrink-0"
-                >
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold text-ink">Đăng nhập Quản trị</h1>
-                  <p className="text-xs text-muted">
-                    Cổng Quản trị hệ thống &amp; Ngân hàng đề SQL
-                  </p>
-                </div>
-              </div>
-
-              {user && user.role !== 'admin' && (
-                <div className="p-3 rounded-lg badge-medium text-xs leading-relaxed">
-                  Phiên hiện tại (<strong>@{user.username}</strong>) là tài khoản Học viên. Vui lòng đăng nhập tài khoản Quản trị viên bên dưới.
-                </div>
-              )}
-
-              {adminLoginError && (
-                <div className="p-3 rounded-lg badge-hard text-sm">{adminLoginError}</div>
-              )}
-
-              <form onSubmit={handleAdminFormLogin} className="space-y-3.5">
-                <div>
-                  <label className="block text-sm font-medium text-text2 mb-1">
-                    Tài khoản Quản trị
-                  </label>
-                  <input
-                    value={adminIdentifier}
-                    onChange={(e) => setAdminIdentifier(e.target.value)}
-                    placeholder="Nhập tài khoản hoặc email Admin…"
-                    required
-                    className="w-full px-3.5 min-h-11 rounded-lg bg-canvas border border-line text-ink text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text2 mb-1">
-                    Mật khẩu
-                  </label>
-                  <input
-                    type="password"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Nhập mật khẩu…"
-                    required
-                    className="w-full px-3.5 min-h-11 rounded-lg bg-canvas border border-line text-ink text-sm"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  data-solid-btn="true"
-                  disabled={adminLoginBusy}
-                  className="btn-primary w-full min-h-11 rounded-xl text-sm font-semibold disabled:opacity-50 whitespace-nowrap"
-                >
-                  {adminLoginBusy ? 'Đang xác thực…' : 'Đăng nhập Quản trị'}
-                </button>
-              </form>
-            </div>
-          ) : (
-            <AdminPortal isAdmin={true} />
-          )
         ) : !user ? (
           /* ================================================================
-             UNAUTHENTICATED VIEW — MINIMAL TITLE + LOGIN / REGISTER CARD ONLY
+             SINGLE UNIFIED LOGIN / REGISTER CARD (ALL ROLES, ZERO CLUTTER)
           ================================================================ */
           <div className="max-w-md mx-auto my-12 bg-surface border border-line rounded-2xl p-6 sm:p-7 space-y-5">
             <div className="flex items-center gap-3">
@@ -326,7 +230,7 @@ export default function HomeClient({
             )}
 
             {guestMode === 'login' ? (
-              <form onSubmit={handleGuestLogin} className="space-y-3.5">
+              <form onSubmit={handleUnifiedLogin} className="space-y-3.5">
                 <div>
                   <label className="block text-sm font-medium text-text2 mb-1">
                     Tên đăng nhập hoặc Email
@@ -362,7 +266,7 @@ export default function HomeClient({
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleGuestRegister} className="space-y-3.5">
+              <form onSubmit={handleUnifiedRegister} className="space-y-3.5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-text2 mb-1">
@@ -371,7 +275,7 @@ export default function HomeClient({
                     <input
                       value={regUsername}
                       onChange={(e) => setRegUsername(e.target.value)}
-                      placeholder="hocvien_ptit"
+                      placeholder="sv_ptit"
                       required
                       className="w-full px-3.5 min-h-11 rounded-lg bg-canvas border border-line text-ink text-sm"
                     />
@@ -428,16 +332,18 @@ export default function HomeClient({
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeTab}
+              key={effectiveSection}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
             >
-              {activeTab === 'workbench' && <LearnerWorkbench />}
-              {activeTab === 'progress' && <LearnerProgressView />}
-              {activeTab === 'leaderboard' && <LeaderboardView />}
-              {activeTab === 'admin' && user.role === 'admin' && <AdminPortal isAdmin={true} />}
+              {effectiveSection === 'workbench' && <LearnerWorkbench />}
+              {effectiveSection === 'progress' && <LearnerProgressView />}
+              {effectiveSection === 'leaderboard' && <LeaderboardView />}
+              {effectiveSection === 'admin' && user.role === 'admin' && (
+                <AdminPortal isAdmin={true} />
+              )}
             </motion.div>
           </AnimatePresence>
         )}

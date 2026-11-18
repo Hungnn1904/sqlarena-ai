@@ -38,9 +38,8 @@ if [ "$MODE" = "--docker" ]; then
     sleep 2
   done
   echo "✅ Đã bật Docker Compose thành công!"
-  echo "   🌐 Web Học viên:  http://127.0.0.1:${FRONTEND_PORT}"
-  echo "   🛠️ Web Quản trị:  http://127.0.0.1:${ADMIN_PORT}"
-  echo "   🔌 Backend FastAPI: http://127.0.0.1:${BACKEND_HOST_PORT:-8000}/api/docs"
+  echo "   🌐 Giao diện Web thống nhất: http://127.0.0.1:${FRONTEND_PORT} (/ , /progress , /leaderboard , /admin)"
+  echo "   🔌 Backend FastAPI:          http://127.0.0.1:${BACKEND_HOST_PORT:-8000}/api/docs"
   exit 0
 fi
 

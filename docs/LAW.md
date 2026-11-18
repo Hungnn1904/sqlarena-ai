@@ -3,7 +3,7 @@
 > Binding across `backend/`, `ai/`, `frontend/`, and `postgre/` under **MyKit v3.15**.
 
 ## 1. Architectural & Dual-Surface Boundaries (`Chung vs Riêng`)
-- **Role-Aware Dual-Portal Separation**: Learners (`role='learner'`) on `:3000` see only `Làm bài`, `Tiến độ`, `Xếp hạng` (zero Admin controls), and unauthenticated visitors see only the clean title + Login/Register card. Port `:4000` (and `/admin`) serves the dedicated **Admin Portal**, while Admins (`role='admin'`) logging into `:3000` also receive `Quản trị` navigation and accurate `Quản trị viên` labeling.
+- **Unified Login & Path-Based RBAC (`/` · `/progress` · `/leaderboard` · `/admin`)**: Authentication uses one unified Login/Register screen backed strictly by `PBKDF2-HMAC-SHA256` hashes and `live.roles` in PostgreSQL (zero hardcoded password fallbacks). Learners (`role='learner'`) access `/`, `/progress`, `/leaderboard` (blocked from `/admin` on both UI and `403` API); Admins (`role='admin'`) retain all learner routes plus `/admin`.
 - **SQLAlchemy 2.x Core + Explicit SQL**: All persistence goes through parameterized SQL helpers (`begin()`, `q()`, `q1()`, `ex()`) in `backend/app/db.py` across 3 isolated schemas (`core`, `draft`, `live`).
 - **Single API Contract**: `docs/api/OPENAPI_V1.md` is the canonical contract between `backend/` and `frontend/`. Pydantic request schemas enforce `ConfigDict(extra="forbid")`.
 

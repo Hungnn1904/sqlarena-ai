@@ -1,5 +1,13 @@
 # Changelog — SQLArena AI
 
+## [2.3.0] — 2026-11-18 (Gộp 1 Cổng Đăng Nhập Thống Nhất, Phân Chia Path Theo Role `RBAC` & Seed Data Thật 100%)
+
+### Changed
+- **Gộp 1 Khung Đăng Nhập/Đăng Ký Duy Nhất & Chia Đường Dẫn Theo Role (`/` · `/progress` · `/leaderboard` · `/admin`)**: Không còn tách rời form đăng nhập Học viên và Quản trị viên; người dùng không cần truy cập `/admin` trước để đăng nhập Admin. Sau khi xác thực, tài khoản `learner` được định tuyến vào `/`, `/progress`, `/leaderboard` (tự chuyển hướng khỏi `/admin`), còn tài khoản `admin` có đầy đủ cả 3 đường dẫn làm bài của người dùng cộng thêm `/admin`.
+- **Xóa Bỏ Mật Khẩu Mặc Định Cứng & Chuẩn Hóa Seed Data Thực Tế (`auth.py`, `seed.py`, `README.md`)**: Gỡ bỏ hoàn toàn nhánh fallback mật khẩu chuỗi cứng trong `auth.verify_password()` (bắt buộc băm `PBKDF2-HMAC-SHA256`); toàn bộ câu hỏi, bản nháp và lịch sử nộp bài trong `seed.py` đều thực thi trực tiếp trên `enterprise_db` thật của PostgreSQL 17; cập nhật `README.md` rõ ràng cho người mới `git clone`.
+
+---
+
 ## [2.2.0] — 2026-11-18 (Vá Phản Hồi Đồng Đội Đạt & Hưng: Bảng Màu Gốc, Tìm Kiếm Chính Xác Mã Bài & Phân Quyền Admin)
 
 ### Fixed

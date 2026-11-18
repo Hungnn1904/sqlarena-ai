@@ -455,7 +455,8 @@ def test_seed_demo_live_creates_sample_draft_question_group():
     assert all(it["status"] == "ready" and not it["in_ws"] for it in items)
     with db.begin() as conn:
         db.ex(conn, "DELETE FROM live.submissions")
-        db.ex(conn, "DELETE FROM live.users WHERE email LIKE '%@sqlarena.local'")
+        db.ex(conn, "DELETE FROM live.question_groups")
+        db.ex(conn, "DELETE FROM live.users WHERE email NOT LIKE '%@test.io'")
 
 
 def test_normalize_candidate_fills_fk_and_table_roles_only_for_valid_skeleton():
@@ -609,7 +610,8 @@ def test_generation_jobs_skill_quantities_learner_code_search_and_clean_llm_labe
                UNION ALL SELECT review_model AS m FROM draft.review_logs""",
         )
         db.ex(conn, "DELETE FROM live.submissions")
-        db.ex(conn, "DELETE FROM live.users WHERE email LIKE '%@sqlarena.local'")
+        db.ex(conn, "DELETE FROM live.question_groups")
+        db.ex(conn, "DELETE FROM live.users WHERE email NOT LIKE '%@test.io'")
     for row in seeded_models:
         m_low = (row["m"] or "").lower()
         assert m_low in ("model a", "model b")

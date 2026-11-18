@@ -1,25 +1,23 @@
-# Kiến Trúc Hệ Thống, Tách Cổng `:3000`/`:4000` & Tích Hợp `apithat.dev` (`docs/ARCHITECTURE.md`)
+# Kiến Trúc Hệ Thống, Đăng Nhập Tập Trung `RBAC` & Tích Hợp `apithat.dev` (`docs/ARCHITECTURE.md`)
 
 > Chuẩn hoá theo **MyKit v3.15** — Kết hợp sơ đồ vector SVG xuất bản từ `tech-diagramming` và sơ đồ Mermaid an toàn tuyệt đối trên Dark Mode (`0` khối nền sáng `rect rgb(2xx,...)`).
 
-## 1. Kiến Trúc Tách Cổng Độc Lập (`:3000` Học Viên · `:4000` Quản Trị) Trên VPS
+## 1. Kiến Trúc Cổng Web Thống Nhất, Phân Quyền Đường Dẫn (`RBAC`) & Dữ Liệu Thật
 
-![Sơ đồ kiến trúc Dual-Port SQLArena AI](diagrams/system-architecture.svg)
+![Sơ đồ kiến trúc SQLArena AI](diagrams/system-architecture.svg)
 
 ```mermaid
 flowchart TD
-    Learner["Trình duyệt Học viên<br/>http://VPS_IP:3000"]
-    Admin["Trình duyệt Quản trị<br/>http://VPS_IP:4000"]
-    Nginx["Container sqlarena-frontend<br/>Nginx Dual-Server (:3000 & :4000)"]
-    FastAPI["Container sqlarena-backend<br/>FastAPI :8000 (Non-root UID 10001)"]
+    Browser["Trình duyệt Người dùng (Đăng nhập tập trung)<br/>http://VPS_IP:3000 (/, /progress, /leaderboard, /admin)"]
+    Nginx["Container sqlarena-frontend<br/>Nginx Reverse Proxy & Static SPA"]
+    FastAPI["Container sqlarena-backend<br/>FastAPI :8000 (JWT + PBKDF2 RBAC)"]
     Worker["Container sqlarena-worker<br/>Fenced Lease Daemon (SKIP LOCKED)"]
-    PG["Container sqlarena-postgres<br/>PostgreSQL 17 (127.0.0.1 nội bộ)"]
+    PG["Container sqlarena-postgres<br/>PostgreSQL 17 (sqlarena_app + enterprise_db)"]
     Gateway["API Thật Gateway (https://apithat.dev/v1)<br/>Model A Synthesis + Blind Solver B (k=3)"]
 
-    Learner -->|"Giao diện Làm bài / Tiến độ / BXH"| Nginx
-    Admin -->|"Giao diện Người dùng / Sinh đề / Duyệt đề"| Nginx
+    Browser -->|"SPA Routes (/, /progress, /leaderboard, /admin)"| Nginx
     Nginx -->|"Same-Origin proxy_pass http://backend:8000/api/v1/*"| FastAPI
-    FastAPI -->|"SQLAlchemy Core (sqlarena_app: core, draft, live)"| PG
+    FastAPI -->|"SQLAlchemy Core (core, draft, live)"| PG
     FastAPI -->|"Read-Only Sandbox (sqlarena_ai_ro -> enterprise_db)"| PG
     Worker -->|"Per-Skill Claim & Lease Fencing"| PG
     Worker -->|"SSE JSON Schema"| Gateway
@@ -27,7 +25,7 @@ flowchart TD
 ```
 
 ### Giải thích Đời thực → Vận hành Kỹ thuật (`Real-Life Analogy -> Tech Operation`)
-- **Hai Cổng Ra Vào Tách Biệt Trong Cùng Tòa Nhà (`:3000` & `:4000`)**: Học viên đi cổng `:3000` chỉ thấy phòng thi, bảng tiến độ (`Làm được` / `Không làm được` / `RTE`) và bục xếp hạng Olympic; Giảng viên đi cổng riêng `:4000` vào thẳng bàn quản lý **Người dùng**, ra đề theo từng kỹ năng `S1–S6` và duyệt đề. Cả hai cổng đều đi qua Nginx nội bộ gọi `/api/v1/*` cùng nguồn, không cần domain và không bao giờ dính lỗi CORS trên VPS.
+- **Một Sảnh Lễ Tân Duy Nhất, Phân Tầng Bằng Thẻ Từ (`Unified Login + Path RBAC`)**: Sinh viên và Giảng viên đều bước vào cùng 1 sảnh đăng nhập (`http://<HOST>:3000/`). Hệ thống kiểm tra băm mật khẩu `PBKDF2-HMAC-SHA256` và vai trò trong `live.roles`: thẻ Học viên (`learner`) mở các tầng `/`, `/progress`, `/leaderboard` (tự động chặn `/admin`); thẻ Quản trị viên (`admin`) mở được toàn bộ các tầng luyện tập của học viên **cộng thêm** tầng điều hành `/admin` mà không cần cổng đăng nhập riêng.
 - **Công Tắc Hai Chiều An Toàn (`Approved <-> Needs_Human`)**: Đề vừa đạt `approved` (tự động hoặc bấm `Phê duyệt`) lập tức hiện lên cổng `:3000` cho sinh viên làm; nếu phát hiện cần chỉnh lại, Admin bấm `Chuyển về Cần duyệt` ở cổng `:4000` là đề được rút khỏi cổng `:3000` ngay trong tích tắc và đánh lại thứ tự liền mạch.
 
 ---

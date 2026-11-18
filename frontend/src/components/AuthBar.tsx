@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   Database,
-  ShieldCheck,
   Sun,
   Moon,
   LogOut,
@@ -17,12 +17,12 @@ import {
   extractApiError,
 } from '../lib/api';
 
+export type AppSection = 'workbench' | 'progress' | 'leaderboard' | 'admin';
+
 interface AuthBarProps {
-  surface: 'learner' | 'admin';
   user: UserProfile | null;
-  activeTab: string;
-  setActiveTab: (t: string) => void;
-  onAuthSuccess: (token: string, user: UserProfile, targetTab?: string) => void;
+  activeSection: AppSection;
+  onNavigateSection: (section: AppSection) => void;
   onLogout: () => void;
   onUserUpdated: (user: UserProfile) => void;
   guestMode?: 'login' | 'register';
@@ -30,10 +30,9 @@ interface AuthBarProps {
 }
 
 export default function AuthBar({
-  surface,
   user,
-  activeTab,
-  setActiveTab,
+  activeSection,
+  onNavigateSection,
   onLogout,
   onUserUpdated,
   guestMode = 'login',
@@ -82,23 +81,21 @@ export default function AuthBar({
     }
   };
 
-  const navTabs =
-    surface === 'learner' && user
-      ? user.role === 'admin'
-        ? [
-            { id: 'workbench', label: 'Làm bài' },
-            { id: 'progress', label: 'Tiến độ' },
-            { id: 'leaderboard', label: 'Xếp hạng' },
-            { id: 'admin', label: 'Quản trị' },
-          ]
-        : [
-            { id: 'workbench', label: 'Làm bài' },
-            { id: 'progress', label: 'Tiến độ' },
-            { id: 'leaderboard', label: 'Xếp hạng' },
-          ]
-      : [];
+  const navItems: { id: AppSection; href: string; label: string }[] = user
+    ? user.role === 'admin'
+      ? [
+          { id: 'workbench', href: '/', label: 'Làm bài' },
+          { id: 'progress', href: '/progress', label: 'Tiến độ' },
+          { id: 'leaderboard', href: '/leaderboard', label: 'Xếp hạng' },
+          { id: 'admin', href: '/admin', label: 'Quản trị' },
+        ]
+      : [
+          { id: 'workbench', href: '/', label: 'Làm bài' },
+          { id: 'progress', href: '/progress', label: 'Tiến độ' },
+          { id: 'leaderboard', href: '/leaderboard', label: 'Xếp hạng' },
+        ]
+    : [];
 
-  const isAdminSession = surface === 'admin' && user?.role === 'admin';
   const roleLabel = user?.role === 'admin' ? 'Quản trị viên' : 'Học viên';
 
   return (
@@ -106,58 +103,45 @@ export default function AuthBar({
       <header className="sticky top-0 z-40 bg-surface border-b border-line">
         <div className="max-w-[1520px] mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-5">
-            {surface === 'admin' ? (
-              <div className="flex items-center gap-2.5 min-h-10 whitespace-nowrap">
-                <div
-                  data-solid-btn="true"
-                  className="w-9 h-9 rounded-lg btn-primary flex items-center justify-center shrink-0"
-                >
-                  <ShieldCheck className="w-4 h-4" />
+            <Link
+              href="/"
+              onClick={(e) => {
+                e.preventDefault();
+                if (user) onNavigateSection('workbench');
+              }}
+              className="flex items-center gap-2.5 text-left min-h-10 whitespace-nowrap"
+            >
+              <div
+                data-solid-btn="true"
+                className="w-9 h-9 rounded-lg btn-primary flex items-center justify-center shrink-0"
+              >
+                <Database className="w-4 h-4" />
+              </div>
+              <div className="leading-tight whitespace-nowrap">
+                <div className="font-bold text-ink text-base tracking-tight">
+                  SQLArena
                 </div>
-                <div className="leading-tight whitespace-nowrap">
-                  <div className="font-bold text-ink text-base tracking-tight">
-                    SQLArena · Quản trị
-                  </div>
-                  <div className="text-xs text-muted">
-                    Quản trị hệ thống &amp; Ngân hàng đề
-                  </div>
+                <div className="text-xs text-muted">
+                  Thực hành PostgreSQL 17
                 </div>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => user && setActiveTab(user.role === 'admin' ? activeTab : 'workbench')}
-                className="flex items-center gap-2.5 text-left min-h-10 whitespace-nowrap"
-              >
-                <div
-                  data-solid-btn="true"
-                  className="w-9 h-9 rounded-lg btn-primary flex items-center justify-center shrink-0"
-                >
-                  <Database className="w-4 h-4" />
-                </div>
-                <div className="leading-tight whitespace-nowrap">
-                  <div className="font-bold text-ink text-base tracking-tight">
-                    SQLArena
-                  </div>
-                  <div className="text-xs text-muted">
-                    Thực hành PostgreSQL 17
-                  </div>
-                </div>
-              </button>
-            )}
+            </Link>
 
-            {navTabs.length > 0 && (
+            {navItems.length > 0 && (
               <nav
-                aria-label="Điều hướng chính"
+                aria-label="Điều hướng theo vai trò"
                 className="flex items-center gap-1 overflow-x-auto scrollbar-hide"
               >
-                {navTabs.map((t) => {
-                  const active = activeTab === t.id;
+                {navItems.map((item) => {
+                  const active = activeSection === item.id;
                   return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setActiveTab(t.id)}
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onNavigateSection(item.id);
+                      }}
                       data-solid-btn={active ? 'true' : undefined}
                       className={`relative flex items-center px-3.5 min-h-10 rounded-lg text-sm font-semibold whitespace-nowrap ${
                         active
@@ -167,13 +151,13 @@ export default function AuthBar({
                     >
                       {active && (
                         <motion.span
-                          layoutId="activePrimaryNavTab"
+                          layoutId="activeRoleRouteTab"
                           transition={{ type: 'spring', stiffness: 400, damping: 32 }}
                           className="absolute inset-0 rounded-lg bg-brand -z-10"
                         />
                       )}
-                      <span>{t.label}</span>
-                    </button>
+                      <span>{item.label}</span>
+                    </Link>
                   );
                 })}
               </nav>
@@ -201,40 +185,7 @@ export default function AuthBar({
               )}
             </button>
 
-            {surface === 'admin' ? (
-              isAdminSession && user ? (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={openProfile}
-                    className="btn-secondary flex items-center gap-2 px-3 min-h-10 rounded-lg text-left whitespace-nowrap"
-                  >
-                    <div
-                      data-solid-btn="true"
-                      className="w-7 h-7 rounded-full btn-primary flex items-center justify-center text-xs font-bold"
-                    >
-                      {(user.display_name || user.username).slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="hidden sm:block leading-tight whitespace-nowrap">
-                      <div className="text-sm font-semibold text-ink">
-                        {user.display_name || user.username}
-                      </div>
-                      <div className="text-xs text-muted">Quản trị viên</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    title="Đăng xuất"
-                    aria-label="Đăng xuất"
-                    className="btn-secondary flex items-center gap-1.5 px-3 min-h-10 rounded-lg text-sm font-medium whitespace-nowrap"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span className="hidden sm:inline">Đăng xuất</span>
-                  </button>
-                </div>
-              ) : null
-            ) : user ? (
+            {user ? (
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"

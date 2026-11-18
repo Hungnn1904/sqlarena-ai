@@ -19,17 +19,14 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    if not stored_hash:
+    if not password or not stored_hash or not stored_hash.startswith("pbkdf2_sha256$"):
         return False
-    if stored_hash.startswith("pbkdf2_sha256$"):
-        try:
-            _, iters, salt, digest = stored_hash.split("$", 3)
-            calc = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), int(iters)).hex()
-            return hmac.compare_digest(calc, digest)
-        except Exception:
-            return False
-    # Dev fallback cho seed user (ví dụ 'demo123' hoặc trùng password_hash)
-    return hmac.compare_digest(password, stored_hash) or password in ("admin123", "demo123", "123456")
+    try:
+        _, iters, salt, digest = stored_hash.split("$", 3)
+        calc = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), int(iters)).hex()
+        return hmac.compare_digest(calc, digest)
+    except Exception:
+        return False
 
 
 def register(conn: Connection, email: str, username: str, password: str, display_name: str | None = None) -> dict:

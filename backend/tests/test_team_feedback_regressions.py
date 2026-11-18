@@ -6,6 +6,17 @@ from fakes import FakeOllama
 
 from app import db
 from app.pipeline import engine as eng
+from app.services import auth
+
+
+def test_auth_verify_password_never_accepts_hardcoded_plaintext_fallbacks():
+    """Xác thực mật khẩu bắt buộc qua băm PBKDF2-HMAC-SHA256 thật trong DB, tuyệt đối không có mật khẩu mặc định cứng."""
+    real_hash = auth.hash_password("mat_khau_that_2026")
+    assert auth.verify_password("mat_khau_that_2026", real_hash) is True
+    assert auth.verify_password("admin123", real_hash) is False
+    assert auth.verify_password("admin123", "legacy_non_pbkdf2_value") is False
+    assert auth.verify_password("demo123", "x") is False
+    assert auth.verify_password("123456", "x") is False
 
 
 def test_learner_code_search_exact_position_never_matches_internal_question_id_or_prefix(client, learner_h):
