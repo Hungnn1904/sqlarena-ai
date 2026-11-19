@@ -68,15 +68,6 @@ import { matchesVisibleRecord } from '../lib/search';
 
 type AdminTabId = 'users' | 'generate' | 'drafts' | 'weekly' | 'bank' | 'settings';
 
-const TOPIC_PRESETS = [
-  'Phân tích hiệu suất nhân sự & lương thưởng theo phòng ban (HR)',
-  'Rà soát tồn kho, sức chứa kho vận & điều chuyển hàng hóa (Inventory)',
-  'Phân tích hành vi mua sắm & phân khúc khách hàng hoạt động (CRM)',
-  'Đối soát đơn hàng giao trễ, hoàn tiền & cổng thanh toán (Orders & Payments)',
-  'Đánh giá biên lợi nhuận sản phẩm & nhà cung cấp chủ lực (Catalog)',
-  'Kiểm soát chi phí vận hành & ngân sách phê duyệt theo quý (Finance)',
-];
-
 const SKILL_OPTIONS = [
   { id: 1, code: 'S1', name: 'SELECT / WHERE' },
   { id: 2, code: 'S2', name: 'JOIN nhiều bảng' },
@@ -182,7 +173,6 @@ export default function AdminPortal({
   const [savingGatewayKey, setSavingGatewayKey] = useState(false);
   const [showGatewayForm, setShowGatewayForm] = useState(false);
   const [jobDiff, setJobDiff] = useState(1);
-  const [jobTopic, setJobTopic] = useState('');
   const [jobSkills, setJobSkills] = useState<number[]>([1, 2]);
   const [skillQuantities, setSkillQuantities] = useState<Record<number, number>>({
     1: 1,
@@ -621,8 +611,6 @@ export default function AdminPortal({
     setMsg(null);
     setErr(null);
     setSubmittingJob(true);
-    const chosenTopic =
-      jobTopic.trim() || TOPIC_PRESETS[Math.floor(Math.random() * TOPIC_PRESETS.length)];
     try {
       const job = await createGenerationJob({
         difficulty: jobDiff,
@@ -630,7 +618,6 @@ export default function AdminPortal({
         skill_quantities: skillQuantitiesPayload,
         requested_count: totalRequestedCount,
         quantity: totalRequestedCount,
-        topic: chosenTopic,
         auto_run: true,
       });
       setMsg(
@@ -1752,36 +1739,6 @@ export default function AdminPortal({
                   <span className="text-xs font-semibold text-brand tabular-nums">
                     Tổng: {totalRequestedCount} câu
                   </span>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-ink mb-1.5">
-                    Chủ đề nghiệp vụ
-                  </label>
-                  <input
-                    value={jobTopic}
-                    onChange={(e) => setJobTopic(e.target.value)}
-                    placeholder="Nhập chủ đề hoặc chọn nhanh bên dưới…"
-                    className="w-full px-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink placeholder:text-muted"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {TOPIC_PRESETS.map((preset) => {
-                      const selected = jobTopic === preset;
-                      return (
-                        <button
-                          type="button"
-                          key={preset}
-                          data-solid-btn={selected ? 'true' : undefined}
-                          onClick={() => setJobTopic(preset)}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs text-left font-medium ${
-                            selected ? 'btn-primary' : 'btn-secondary'
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
                 <div>
