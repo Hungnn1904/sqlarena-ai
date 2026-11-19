@@ -300,11 +300,30 @@ def _resolve_question_id(conn: Connection, question_id: int | str) -> int:
     raise not_found("Không tìm thấy câu hỏi")
 
 
-def explain_query(conn: Connection, question_id: int | str, raw_sql: str) -> dict:
-    question_id = _resolve_question_id(conn, question_id)
-    q_row = q1(conn, "SELECT question_id FROM live.questions WHERE question_id=:q", q=question_id)
+def _require_published_question(conn: Connection, question_id: int) -> dict:
+    q_row = q1(
+        conn,
+        """SELECT q.question_id, q.title, q.question, q.difficulty, q.skill_ids,
+                  q.tables_used, q.compare_mode, i.set_id AS active_set_id
+           FROM live.questions q
+           JOIN live.weekly_set_items i ON i.question_id = q.question_id
+           JOIN live.weekly_sets s ON s.set_id = i.set_id
+           WHERE q.question_id = :q
+             AND s.status = 'published'
+             AND NOT i.is_voided
+             AND q.status = 'ready'
+           ORDER BY s.week_start DESC, s.set_id DESC
+           LIMIT 1""",
+        q=question_id,
+    )
     if not q_row:
         raise not_found("Không tìm thấy câu hỏi")
+    return q_row
+
+
+def explain_query(conn: Connection, question_id: int | str, raw_sql: str) -> dict:
+    question_id = _resolve_question_id(conn, question_id)
+    _require_published_question(conn, question_id)
     try:
         clean_sql = guard_select(raw_sql)
     except ValueError as exc:
@@ -339,6 +358,7 @@ def explain_query(conn: Connection, question_id: int | str, raw_sql: str) -> dic
 
 
 def question_submissions(conn: Connection, user_id: int | None, question_id: int) -> dict:
+    _require_published_question(conn, question_id)
     if not user_id:
         return {"items": []}
     rows = q(
@@ -363,14 +383,7 @@ def ai_coach_assist(
     prompt: str | None = None,
     error_context: str | None = None,
 ) -> dict:
-    q_row = q1(
-        conn,
-        """SELECT question_id, title, question, difficulty, skill_ids, tables_used, compare_mode
-           FROM live.questions WHERE question_id=:q""",
-        q=question_id,
-    )
-    if not q_row:
-        raise not_found("Không tìm thấy câu hỏi")
+    q_row = _require_published_question(conn, question_id)
 
     tables = q_row.get("tables_used") or ["employees"]
     primary_tbl = tables[0] if tables else "employees"
@@ -498,9 +511,7 @@ def ai_coach_assist(
 
 def run_query(conn: Connection, user_id: int, question_id: int | str, raw_sql: str) -> dict:
     question_id = _resolve_question_id(conn, question_id)
-    q_row = q1(conn, "SELECT question_id FROM live.questions WHERE question_id=:q", q=question_id)
-    if not q_row:
-        raise not_found("Không tìm thấy câu hỏi")
+    _require_published_question(conn, question_id)
     try:
         clean_sql = guard_select(raw_sql)
         started = time.perf_counter()
@@ -514,17 +525,7 @@ def run_query(conn: Connection, user_id: int, question_id: int | str, raw_sql: s
 
 def submit_query(conn: Connection, user_id: int, question_id: int | str, raw_sql: str) -> dict:
     question_id = _resolve_question_id(conn, question_id)
-    q_row = q1(
-        conn,
-        """SELECT q.question_id, q.compare_mode,
-                  (SELECT i.set_id FROM live.weekly_set_items i JOIN live.weekly_sets s USING (set_id)
-                   WHERE i.question_id=q.question_id AND s.status='published' LIMIT 1) AS active_set_id
-           FROM live.questions q
-           WHERE q.question_id=:q""",
-        q=question_id,
-    )
-    if not q_row:
-        raise not_found("Không tìm thấy câu hỏi")
+    q_row = _require_published_question(conn, question_id)
     tcs = q(
         conn,
         "SELECT test_id, dataset_ref, type, expected_result, is_hidden FROM live.test_cases WHERE question_id=:q ORDER BY test_id",
@@ -541,43 +542,168 @@ def submit_query(conn: Connection, user_id: int, question_id: int | str, raw_sql
     error = None
     passed = False
     test_details = []
+    is_ordered_mode = q_row["compare_mode"] == "ordered"
+    tc3_title = (
+        "Kiểm tra số lượng bản ghi & thứ tự sắp xếp chuẩn"
+        if is_ordered_mode
+        else "Kiểm tra số lượng bản ghi & tính toàn vẹn tập kết quả"
+    )
     started = time.perf_counter()
     try:
         result = execute_sandbox_sql(clean_sql)
-        all_ok = True
-        for tc in tcs:
-            exp = tc["expected_result"] if isinstance(tc["expected_result"], dict) else json.loads(tc["expected_result"])
-            tc_ok = compare_result(result, exp, q_row["compare_mode"])
-            diag = (
-                {"reason_code": "PASSED", "hint": "Khớp hoàn toàn với đáp án chuẩn."}
-                if tc_ok
+        if len(tcs) >= 3:
+            for idx, tc in enumerate(tcs, start=1):
+                exp = tc["expected_result"] if isinstance(tc["expected_result"], dict) else json.loads(tc["expected_result"])
+                tc_ok = compare_result(result, exp, q_row["compare_mode"])
+                diag = (
+                    {"reason_code": "PASSED", "hint": "Khớp hoàn toàn với đáp án chuẩn."}
+                    if tc_ok
+                    else diagnose_mismatch(result, exp, q_row["compare_mode"])
+                )
+                test_details.append({
+                    "test_id": tc["test_id"],
+                    "test_number": idx,
+                    "label": f"Test case {idx}",
+                    "title": f"Bộ dữ liệu kiểm thử #{idx} ({tc['dataset_ref']})",
+                    "dataset_ref": tc["dataset_ref"],
+                    "type": tc["type"],
+                    "passed": tc_ok,
+                    "target_rows": exp.get("row_count"),
+                    "actual_rows": result["row_count"],
+                    "reason_code": diag["reason_code"],
+                    "diagnostic_hint": diag["hint"],
+                    "actual_columns": result["columns"],
+                })
+        else:
+            primary_tc = tcs[0]
+            exp = primary_tc["expected_result"] if isinstance(primary_tc["expected_result"], dict) else json.loads(primary_tc["expected_result"])
+            exp_cols = exp.get("columns") or []
+
+            # Test case 1: Thực thi hợp lệ & đúng danh sách tên cột kết quả
+            tc1_ok = result["columns"] == exp_cols
+            tc1_hint = (
+                f"Thực thi hợp lệ và khớp {len(exp_cols)} cột kết quả ({', '.join(exp_cols)})."
+                if tc1_ok
+                else f"Sai tên hoặc thứ tự cột: cần {exp_cols}, nhưng truy vấn trả về {result['columns']}."
+            )
+            test_details.append({
+                "test_id": primary_tc["test_id"],
+                "test_number": 1,
+                "label": "Test case 1",
+                "title": "Thực thi truy vấn & kiểm tra tên cột kết quả",
+                "dataset_ref": primary_tc["dataset_ref"],
+                "type": "schema_columns",
+                "passed": tc1_ok,
+                "target_rows": exp.get("row_count"),
+                "actual_rows": result["row_count"],
+                "reason_code": "PASSED" if tc1_ok else "COLUMN_MISMATCH",
+                "diagnostic_hint": tc1_hint,
+                "actual_columns": result["columns"],
+            })
+
+            # Test case 2: Đối chiếu tập giá trị bản ghi trên Enterprise DB (không xét thứ tự dòng)
+            tc2_ok = compare_result(result, exp, "unordered")
+            tc2_diag = (
+                {"reason_code": "PASSED", "hint": "Tập giá trị các bản ghi khớp với dữ liệu chuẩn."}
+                if tc2_ok
+                else diagnose_mismatch(result, exp, "unordered")
+            )
+            test_details.append({
+                "test_id": primary_tc["test_id"],
+                "test_number": 2,
+                "label": "Test case 2",
+                "title": "Đối chiếu giá trị bản ghi trên cơ sở dữ liệu",
+                "dataset_ref": primary_tc["dataset_ref"],
+                "type": "dataset_values",
+                "passed": tc2_ok,
+                "target_rows": exp.get("row_count"),
+                "actual_rows": result["row_count"],
+                "reason_code": tc2_diag["reason_code"],
+                "diagnostic_hint": tc2_diag["hint"],
+                "actual_columns": result["columns"],
+            })
+
+            # Test case 3: Kiểm tra số lượng bản ghi & thứ tự sắp xếp (hoặc toàn vẹn tập kết quả nếu unordered)
+            tc3_ok = compare_result(result, exp, q_row["compare_mode"])
+            tc3_pass_hint = (
+                "Số dòng và thứ tự sắp xếp khớp 100% với bộ kiểm thử chuẩn."
+                if is_ordered_mode
+                else "Số lượng bản ghi và tính toàn vẹn tập kết quả khớp 100% với bộ kiểm thử chuẩn."
+            )
+            tc3_diag = (
+                {"reason_code": "PASSED", "hint": tc3_pass_hint}
+                if tc3_ok
                 else diagnose_mismatch(result, exp, q_row["compare_mode"])
             )
-            exp_norm_rows = _normalize_expected_rows(exp)
             test_details.append({
-                "test_id": tc["test_id"],
-                "dataset_ref": tc["dataset_ref"],
-                "type": tc["type"],
-                "passed": tc_ok,
-                "expected_rows": exp.get("row_count"),
+                "test_id": primary_tc["test_id"],
+                "test_number": 3,
+                "label": "Test case 3",
+                "title": tc3_title,
+                "dataset_ref": primary_tc["dataset_ref"],
+                "type": "ordering_and_count" if is_ordered_mode else "cardinality_and_integrity",
+                "passed": tc3_ok,
+                "target_rows": exp.get("row_count"),
                 "actual_rows": result["row_count"],
-                "reason_code": diag["reason_code"],
-                "diagnostic_hint": diag["hint"],
-                "expected_columns": exp.get("columns") or [],
+                "reason_code": tc3_diag["reason_code"],
+                "diagnostic_hint": tc3_diag["hint"],
                 "actual_columns": result["columns"],
-                "expected_preview": exp_norm_rows[:5] if not tc.get("is_hidden") else [],
             })
-            if not tc_ok:
-                all_ok = False
-        passed = all_ok
+
+            for extra_idx, extra_tc in enumerate(tcs[1:], start=4):
+                extra_exp = extra_tc["expected_result"] if isinstance(extra_tc["expected_result"], dict) else json.loads(extra_tc["expected_result"])
+                extra_ok = compare_result(result, extra_exp, q_row["compare_mode"])
+                extra_diag = (
+                    {"reason_code": "PASSED", "hint": "Khớp hoàn toàn với bộ dữ liệu mở rộng."}
+                    if extra_ok
+                    else diagnose_mismatch(result, extra_exp, q_row["compare_mode"])
+                )
+                test_details.append({
+                    "test_id": extra_tc["test_id"],
+                    "test_number": extra_idx,
+                    "label": f"Test case {extra_idx}",
+                    "title": f"Bộ dữ liệu kiểm thử #{extra_idx} ({extra_tc['dataset_ref']})",
+                    "dataset_ref": extra_tc["dataset_ref"],
+                    "type": extra_tc["type"],
+                    "passed": extra_ok,
+                    "target_rows": extra_exp.get("row_count"),
+                    "actual_rows": result["row_count"],
+                    "reason_code": extra_diag["reason_code"],
+                    "diagnostic_hint": extra_diag["hint"],
+                    "actual_columns": result["columns"],
+                })
+
+        passed = bool(test_details) and all(td["passed"] for td in test_details)
         if not passed:
-            error = "Kết quả truy vấn chưa khớp với expected_result của bộ test case"
+            first_fail = next((td for td in test_details if not td["passed"]), None)
+            error = first_fail["diagnostic_hint"] if first_fail else "Kết quả truy vấn chưa khớp với bộ kiểm thử"
     except Exception as exc:
         error = str(exc)
+        primary_tc = tcs[0]
+        exp = primary_tc["expected_result"] if isinstance(primary_tc["expected_result"], dict) else json.loads(primary_tc["expected_result"])
+        for idx, title in (
+            (1, "Thực thi truy vấn & kiểm tra tên cột kết quả"),
+            (2, "Đối chiếu giá trị bản ghi trên cơ sở dữ liệu"),
+            (3, tc3_title),
+        ):
+            test_details.append({
+                "test_id": primary_tc["test_id"],
+                "test_number": idx,
+                "label": f"Test case {idx}",
+                "title": title,
+                "dataset_ref": primary_tc["dataset_ref"],
+                "type": "execution_error",
+                "passed": False,
+                "target_rows": exp.get("row_count"),
+                "actual_rows": None,
+                "reason_code": "EXECUTION_ERROR",
+                "diagnostic_hint": error if idx == 1 else "Chưa thể đối chiếu do câu lệnh SQL gặp lỗi khi thực thi.",
+                "actual_columns": [],
+            })
 
     runtime_ms = round((time.perf_counter() - started) * 1000)
     sub_status = "passed" if passed else ("error" if result is None else "failed")
-    exec_status = "passed" if result is not None and error is None else "error"
+    exec_status = "passed" if result is not None else "error"
     sub_row = q1(
         conn,
         """INSERT INTO live.submissions
@@ -607,7 +733,7 @@ def submit_query(conn: Connection, user_id: int, question_id: int | str, raw_sql
         q=question_id,
     )
     passed_tests = sum(1 for td in test_details if td.get("passed"))
-    total_tests = len(tcs)
+    total_tests = len(test_details)
     verdict = "AC" if passed else ("ERR" if result is None else "WA")
     return {
         "submission_id": sub_row["submission_id"],

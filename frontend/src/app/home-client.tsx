@@ -169,7 +169,7 @@ export default function HomeClient({
         }}
       />
 
-      <main className="flex-1 max-w-[1520px] w-full mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 max-w-[95rem] w-full mx-auto px-4 sm:px-6 py-6">
         {booting ? (
           <div className="p-12 rounded-xl bg-surface border border-line text-center text-sm text-muted">
             Đang kết nối hệ thống PostgreSQL 17…

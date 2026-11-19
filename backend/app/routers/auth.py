@@ -51,6 +51,12 @@ def admin_users(
         return auth_svc.admin_list_users(conn, role, status, q, page, page_size)
 
 
+@router.get("/admin/users/{target_user_id}", tags=["admin-users"], dependencies=[Depends(require_admin)])
+def admin_user_detail(target_user_id: int):
+    with begin() as conn:
+        return auth_svc.admin_get_user_detail(conn, target_user_id)
+
+
 @router.patch("/admin/users/{target_user_id}", tags=["admin-users"])
 def admin_patch_user(target_user_id: int, body: AdminUserUpdateBody, admin: dict = Depends(require_admin)):
     with begin() as conn:

@@ -95,3 +95,61 @@ def ensure_runtime_schema() -> None:
                        ADD CONSTRAINT admin_overrides_action_check
                        CHECK (action IN ('approve', 'reject', 'retire', 'restore', 'return_needs_human'))"""
                 )
+        # Đồng bộ idempotent yêu cầu sắp xếp (ORDER BY) cho các câu hỏi hiện có trong DB
+        from .services.order_spec import sync_question_order_contract
+
+        q_rows = q(
+            conn,
+            """SELECT qq.question_id, qq.question, qq.reference_sql, qq.compare_mode,
+                      (SELECT tc.expected_result->'columns'
+                       FROM live.test_cases tc
+                       WHERE tc.question_id = qq.question_id
+                       ORDER BY tc.test_id ASC LIMIT 1) AS cols
+               FROM live.questions qq
+               WHERE qq.reference_sql IS NOT NULL""",
+        )
+        for qr in q_rows:
+            out_cols = list(qr["cols"]) if isinstance(qr.get("cols"), list) else []
+            new_q, new_mode = sync_question_order_contract(
+                qr["question"] or "",
+                qr["reference_sql"],
+                qr["compare_mode"],
+                out_cols,
+            )
+            if new_q != qr["question"] or new_mode != qr["compare_mode"]:
+                ex(
+                    conn,
+                    "UPDATE live.questions SET question=:qt, compare_mode=:cm WHERE question_id=:qid",
+                    qt=new_q,
+                    cm=new_mode,
+                    qid=qr["question_id"],
+                )
+                ex(
+                    conn,
+                    """UPDATE live.test_cases
+                       SET expected_result = jsonb_set(expected_result, '{compare_mode}', to_jsonb(CAST(:cm AS text)), true)
+                       WHERE question_id=:qid""",
+                    cm=new_mode,
+                    qid=qr["question_id"],
+                )
+        if table_exists(conn, "draft.question_drafts"):
+            d_rows = q(
+                conn,
+                """SELECT draft_id, question, reference_sql, compare_mode
+                   FROM draft.question_drafts
+                   WHERE reference_sql IS NOT NULL AND status <> 'reviewing'""",
+            )
+            for dr in d_rows:
+                new_dq, new_dmode = sync_question_order_contract(
+                    dr["question"] or "",
+                    dr["reference_sql"],
+                    dr["compare_mode"],
+                )
+                if new_dq != dr["question"] or new_dmode != dr["compare_mode"]:
+                    ex(
+                        conn,
+                        "UPDATE draft.question_drafts SET question=:qt, compare_mode=:cm WHERE draft_id=:did AND status <> 'reviewing'",
+                        qt=new_dq,
+                        cm=new_dmode,
+                        did=dr["draft_id"],
+                    )

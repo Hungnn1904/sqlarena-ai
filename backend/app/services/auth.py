@@ -172,6 +172,8 @@ def admin_update_user(conn: Connection, admin: dict, target_user_id: int, role: 
     if role is not None:
         if role not in ("learner", "admin"):
             raise bad_request("Role chỉ nhận 'learner' hoặc 'admin'")
+        if target_user_id == admin["user_id"] and role == "learner":
+            raise bad_request("Admin không thể tự hạ quyền chính mình")
         r_row = q1(conn, "SELECT role_id FROM live.roles WHERE name=:r", r=role)
         ex(conn, "UPDATE live.users SET role_id=:rid WHERE user_id=:i", rid=r_row["role_id"], i=target_user_id)
     if status is not None:
@@ -182,3 +184,53 @@ def admin_update_user(conn: Connection, admin: dict, target_user_id: int, role: 
         ex(conn, "UPDATE live.users SET status=:st WHERE user_id=:i", st=status, i=target_user_id)
     audit.log(conn, admin["user_id"], "user.update", "user", target_user_id, {"role": role, "status": status})
     return get_profile(conn, target_user_id)
+
+
+def admin_get_user_detail(conn: Connection, target_user_id: int) -> dict:
+    u = q1(
+        conn,
+        """SELECT u.user_id, u.email, u.username, COALESCE(u.display_name, u.username) AS display_name,
+                  u.bio, u.avatar_url, u.status, u.created_at, u.last_login_at, r.name AS role
+           FROM live.users u
+           JOIN live.roles r USING (role_id)
+           WHERE u.user_id=:i""",
+        i=target_user_id,
+    )
+    if not u:
+        raise not_found("Không tìm thấy người dùng")
+    st = q1(
+        conn,
+        """SELECT COUNT(*) AS total_submissions,
+                  COUNT(*) FILTER (WHERE submission_status='passed') AS passed_submissions,
+                  COUNT(DISTINCT question_id) FILTER (WHERE submission_status='passed') AS solved_questions
+           FROM live.submissions
+           WHERE user_id=:i""",
+        i=target_user_id,
+    ) or {}
+    total_sub = int(st.get("total_submissions") or 0)
+    passed_sub = int(st.get("passed_submissions") or 0)
+    failed_sub = max(0, total_sub - passed_sub)
+    recent = q(
+        conn,
+        """SELECT s.submission_id, s.question_id, q.title AS question_title, q.difficulty,
+                  ws.title AS set_title, s.submission_status, s.execution_status,
+                  s.score, s.runtime_ms, s.error_message, s.submitted_at
+           FROM live.submissions s
+           LEFT JOIN live.questions q ON q.question_id = s.question_id
+           LEFT JOIN live.weekly_sets ws ON ws.set_id = s.set_id
+           WHERE s.user_id=:i
+           ORDER BY s.submitted_at DESC, s.submission_id DESC
+           LIMIT 20""",
+        i=target_user_id,
+    )
+    return {
+        **u,
+        "stats": {
+            "total_submissions": total_sub,
+            "passed_submissions": passed_sub,
+            "failed_submissions": failed_sub,
+            "solved_questions": int(st.get("solved_questions") or 0),
+            "accuracy_percent": round(passed_sub * 100 / total_sub) if total_sub else 0,
+        },
+        "recent_submissions": recent,
+    }

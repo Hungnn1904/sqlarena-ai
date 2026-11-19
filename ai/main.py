@@ -381,7 +381,7 @@ def build_prompt(context, feedback):
         "QUALITY: Create a genuinely new business analysis goal, not a paraphrase, changed threshold/date/Top N, "
         "or mechanical merge of references. References are abstract inspiration; never implement a "
         "business_goal_to_avoid. Judge difficulty by the simplest reasonable solution. "
-        "The question must specify output columns, NULL handling, ordering/ties and VND money semantics when relevant. "
+        "The question must ALWAYS explicitly specify output columns, deterministic row sorting ('Sắp xếp kết quả theo ... tăng dần / giảm dần' with a unique tie-breaker column so test-case order is 100% unambiguous), NULL handling, and VND money semantics when relevant. "
         "For no aggregation/filter use the string 'none' in logic_signature. Do not invent policies or assume data "
         "values. Business-rule headings are summaries, not full policies. user_request.extra is a required "
         "constraint. Do not output source_question_ids; code assigns the five actual parents.",

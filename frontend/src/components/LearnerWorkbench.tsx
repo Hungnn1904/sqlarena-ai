@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   ArrowLeft,
@@ -10,9 +10,6 @@ import {
   Play,
   Send,
   RotateCcw,
-  Lightbulb,
-  Wrench,
-  Gauge,
   Table2,
   CheckCircle2,
   AlertCircle,
@@ -27,8 +24,6 @@ import {
   getQuestionSubmissions,
   getDatasetSchema,
   runSandboxSql,
-  explainSandboxSql,
-  askAiSqlCoach,
   submitGradingSql,
   extractApiError,
 } from '../lib/api';
@@ -163,7 +158,7 @@ function getSubmissionVerdictBadge(sub: any): { label: string; cls: string } {
   ) {
     return { label: 'RTE', cls: 'badge-medium' };
   }
-  return { label: 'Không làm được', cls: 'badge-hard' };
+  return { label: 'Chưa làm được', cls: 'badge-hard' };
 }
 
 function getDraftStorageKey(qId: number): string {
@@ -201,15 +196,12 @@ export default function LearnerWorkbench({
   const [draftSavedHint, setDraftSavedHint] = useState<boolean>(false);
   const [running, setRunning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [coachLoading, setCoachLoading] = useState(false);
-  const [explainLoading, setExplainLoading] = useState(false);
 
   const [output, setOutput] = useState<any>(null);
-  const [coachData, setCoachData] = useState<any>(null);
-  const [explainData, setExplainData] = useState<any>(null);
   const [qSubs, setQSubs] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [consoleTab, setConsoleTab] = useState<'results' | 'tests' | 'coach' | 'explain' | 'history'>('results');
+  const [consoleTab, setConsoleTab] = useState<'results' | 'tests' | 'history'>('results');
+  const submissionResultRef = useRef<HTMLDivElement | null>(null);
 
   const updateSqlWithAutosave = (nextValue: string, qIdOverride?: number | null) => {
     setSql(nextValue);
@@ -262,8 +254,6 @@ export default function LearnerWorkbench({
   useEffect(() => {
     if (!selectedId) return;
     setOutput(null);
-    setCoachData(null);
-    setExplainData(null);
     setErrorMsg(null);
     setDraftSavedHint(false);
 
@@ -332,39 +322,11 @@ export default function LearnerWorkbench({
     }
   };
 
-  const handleAskCoach = async (mode: 'review' | 'autofix') => {
-    if (!selectedId) return;
-    setCoachLoading(true);
-    setConsoleTab('coach');
-    try {
-      const errCtx = errorMsg || output?.error || undefined;
-      const res = await askAiSqlCoach({
-        question_id: selectedId,
-        sql,
-        mode,
-        error_context: mode === 'autofix' ? errCtx : undefined,
-      });
-      setCoachData(res);
-    } catch (e: any) {
-      setErrorMsg(extractApiError(e, 'Chưa lấy được gợi ý từ Trợ lý SQL'));
-    } finally {
-      setCoachLoading(false);
-    }
-  };
-
-  const handleExplainSql = async () => {
-    if (!selectedId) return;
-    setExplainLoading(true);
-    setErrorMsg(null);
-    setConsoleTab('explain');
-    try {
-      const res = await explainSandboxSql(selectedId, sql);
-      setExplainData(res);
-    } catch (e: any) {
-      setErrorMsg(extractApiError(e, 'Không thể chạy EXPLAIN trên câu lệnh hiện tại'));
-    } finally {
-      setExplainLoading(false);
-    }
+  const scrollToSubmissionResult = () => {
+    if (typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      submissionResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
   };
 
   const handleSubmitGrade = async () => {
@@ -376,6 +338,7 @@ export default function LearnerWorkbench({
       const res = await submitGradingSql(selectedId, sql);
       setOutput({ mode: 'submit', ...res });
       setConsoleTab('results');
+      scrollToSubmissionResult();
       await loadQuestions();
       const [updatedDetail, subsRes] = await Promise.all([
         getQuestionDetail(selectedId),
@@ -385,7 +348,9 @@ export default function LearnerWorkbench({
       setQSubs(subsRes?.items || []);
       if (onSubmissionComplete) onSubmissionComplete();
     } catch (e: any) {
+      setConsoleTab('results');
       setErrorMsg(extractApiError(e, 'Chấm bài không thành công. Hãy kiểm tra lại cú pháp SQL.'));
+      scrollToSubmissionResult();
     } finally {
       setSubmitting(false);
     }
@@ -690,8 +655,8 @@ export default function LearnerWorkbench({
                               <span>Đã giải</span>
                             </span>
                           ) : q.attempted || Number(q.attempt_count ?? q.submission_count ?? 0) > 0 ? (
-                            <span className="inline-block px-2.5 py-1 rounded-md badge-medium text-xs font-semibold">
-                              Đang thử
+                            <span className="inline-block px-2.5 py-1 rounded-md badge-hard text-xs font-semibold">
+                              Chưa làm được
                             </span>
                           ) : (
                             <span className="inline-block px-2.5 py-1 rounded-md badge-neutral text-xs font-medium">
@@ -765,14 +730,6 @@ export default function LearnerWorkbench({
   const detailDomain = getDomainCategory(mergedQ);
   const outputColumns: string[] =
     questionDetail?.output_columns || questionDetail?.expected_columns || [];
-  const hasSqlError = Boolean(errorMsg || output?.error);
-
-  const insertOutputColumnsToSelect = () => {
-    if (!outputColumns.length) return;
-    const firstTable = usedTableNames[0] || 'categories';
-    const template = `SELECT ${outputColumns.join(', ')}\nFROM ${firstTable}\nLIMIT 20;`;
-    updateSqlWithAutosave(template);
-  };
 
   return (
     <div className="space-y-4">
@@ -828,8 +785,8 @@ export default function LearnerWorkbench({
 
       {/* Main 2-Column Dense Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Problem Prose (16px) + Output Columns + PK/FK Schema Explorer */}
-        <div className="lg:col-span-5 space-y-4">
+        {/* Left Column: Problem Statement + Output Columns + Inline PK/FK Schema */}
+        <div className="lg:col-span-5">
           <div className="p-5 rounded-xl bg-surface border border-line space-y-4">
             <h1 className="text-xl font-bold text-ink leading-snug">
               {questionDetail?.title || 'Đang tải nội dung bài tập...'}
@@ -841,17 +798,8 @@ export default function LearnerWorkbench({
 
             {outputColumns.length > 0 && (
               <div className="p-3.5 rounded-xl bg-soft border border-line space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-ink">
-                    Cột kết quả cần trả về theo thứ tự:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={insertOutputColumnsToSelect}
-                    className="btn-secondary px-2.5 min-h-8 rounded-md text-xs font-medium"
-                  >
-                    Chèn tên cột vào SELECT
-                  </button>
+                <div className="text-sm font-semibold text-ink">
+                  Cột kết quả cần trả về theo thứ tự:
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {outputColumns.map((col: string, idx: number) => (
@@ -866,124 +814,107 @@ export default function LearnerWorkbench({
               </div>
             )}
 
-            {usedTableNames.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted">
-                <span>Bảng dữ liệu liên quan:</span>
-                {usedTableNames.map((tb) => (
+            {/* Inline Schema Explorer right inside the Problem Statement Card */}
+            <div className="pt-3 border-t border-line space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Table2 className="w-4 h-4 text-brand" />
+                  <span className="text-sm font-bold text-ink">
+                    Sơ đồ bảng dữ liệu ({displayedTables.length})
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
-                    key={tb}
                     type="button"
-                    onClick={() => handlePreviewTable(tb)}
-                    className="btn-secondary px-2.5 min-h-8 rounded-md font-mono text-xs"
-                    title="Bấm để xem 5 dòng mẫu của bảng này"
+                    data-solid-btn={!showAllSchemaTables ? 'true' : undefined}
+                    onClick={() => setShowAllSchemaTables(false)}
+                    className={`px-2.5 min-h-8 rounded-md text-xs font-medium ${
+                      !showAllSchemaTables ? 'btn-primary' : 'btn-secondary'
+                    }`}
                   >
-                    {tb}
+                    Bảng của bài ({relevantTables.length})
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Schema Explorer with PK & FK */}
-          <div className="p-4 rounded-xl bg-surface border border-line space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
-              <div className="flex items-center gap-2">
-                <Table2 className="w-4 h-4 text-brand" />
-                <span className="text-sm font-bold text-ink">
-                  Sơ đồ bảng dữ liệu ({displayedTables.length})
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  data-solid-btn={!showAllSchemaTables ? 'true' : undefined}
-                  onClick={() => setShowAllSchemaTables(false)}
-                  className={`px-2.5 min-h-8 rounded-md text-xs font-medium ${
-                    !showAllSchemaTables ? 'btn-primary' : 'btn-secondary'
-                  }`}
-                >
-                  Bảng của bài ({relevantTables.length})
-                </button>
-                <button
-                  type="button"
-                  data-solid-btn={showAllSchemaTables ? 'true' : undefined}
-                  onClick={() => setShowAllSchemaTables(true)}
-                  className={`px-2.5 min-h-8 rounded-md text-xs font-medium ${
-                    showAllSchemaTables ? 'btn-primary' : 'btn-secondary'
-                  }`}
-                >
-                  Tất cả ({allTables.length})
-                </button>
-              </div>
-            </div>
-
-            <p className="text-xs text-muted">
-              Bấm vào tên bảng bất kỳ để chạy nhanh <code className="text-ink">SELECT * LIMIT 5</code> xem dữ liệu thật.
-            </p>
-
-            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-              {displayedTables.map((tb: any) => {
-                const tableName = tb.name || tb.table || 'table';
-                const cols = tb.columns || [];
-                return (
-                  <div
-                    key={tableName}
-                    className="rounded-lg border border-line bg-canvas overflow-hidden"
+                  <button
+                    type="button"
+                    data-solid-btn={showAllSchemaTables ? 'true' : undefined}
+                    onClick={() => setShowAllSchemaTables(true)}
+                    className={`px-2.5 min-h-8 rounded-md text-xs font-medium ${
+                      showAllSchemaTables ? 'btn-primary' : 'btn-secondary'
+                    }`}
                   >
-                    <div className="px-3.5 py-2.5 bg-soft border-b border-line flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handlePreviewTable(tableName)}
-                        className="text-left flex items-center gap-2 hover:text-brand font-semibold text-sm text-ink min-h-8"
-                        title={`Xem 5 dòng mẫu của bảng ${tableName}`}
-                      >
-                        <code className="font-bold">{tableName}</code>
-                        {tb.row_count !== undefined && (
-                          <span className="text-xs text-muted font-normal tabular-nums">
-                            ({tb.row_count} dòng)
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handlePreviewTable(tableName)}
-                        className="btn-secondary px-2.5 min-h-8 rounded-md text-xs font-medium"
-                      >
-                        Xem 5 dòng mẫu
-                      </button>
-                    </div>
-                    <div className="p-2.5 space-y-1.5">
-                      {cols.map((c: any) => {
-                        const isPk = Boolean(c.pk || c.is_primary_key);
-                        const fkTarget = c.references || c.fk || null;
-                        return (
-                          <div
-                            key={c.name}
-                            className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-surface border border-line text-sm"
-                          >
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <code className="font-medium text-ink text-sm">{c.name}</code>
-                              {isPk && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded badge-medium text-xs font-semibold">
-                                  <KeyRound className="w-3 h-3" />
-                                  <span>PK</span>
-                                </span>
-                              )}
-                              {fkTarget && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded badge-info text-xs font-medium">
-                                  <Link2 className="w-3 h-3" />
-                                  <span>FK -&gt; {fkTarget}</span>
-                                </span>
-                              )}
+                    Tất cả ({allTables.length})
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted">
+                Các bảng dữ liệu sử dụng trong đề bài. Bấm vào tên bảng để xem nhanh 5 dòng dữ liệu mẫu.
+              </p>
+
+              <div className="space-y-2.5">
+                {displayedTables.map((tb: any) => {
+                  const tableName = tb.name || tb.table || 'table';
+                  const cols = tb.columns || [];
+                  return (
+                    <div
+                      key={tableName}
+                      className="rounded-lg border border-line bg-canvas overflow-hidden"
+                    >
+                      <div className="px-3.5 py-2 bg-soft border-b border-line flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewTable(tableName)}
+                          className="text-left flex items-center gap-2 hover:text-brand font-semibold text-sm text-ink min-h-8"
+                          title={`Xem 5 dòng mẫu của bảng ${tableName}`}
+                        >
+                          <code className="font-bold">{tableName}</code>
+                          {tb.row_count !== undefined && (
+                            <span className="text-xs text-muted font-normal tabular-nums">
+                              ({tb.row_count} dòng)
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewTable(tableName)}
+                          className="btn-secondary px-2.5 min-h-8 rounded-md text-xs font-medium"
+                        >
+                          Xem 5 dòng mẫu
+                        </button>
+                      </div>
+                      <div className="p-2.5 space-y-1.5">
+                        {cols.map((c: any) => {
+                          const isPk = Boolean(c.pk || c.is_primary_key);
+                          const fkTarget = c.references || c.fk || null;
+                          return (
+                            <div
+                              key={c.name}
+                              className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-surface border border-line text-sm"
+                            >
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <code className="font-medium text-ink text-sm">{c.name}</code>
+                                {isPk && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded badge-medium text-xs font-semibold">
+                                    <KeyRound className="w-3 h-3" />
+                                    <span>PK</span>
+                                  </span>
+                                )}
+                                {fkTarget && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded badge-info text-xs font-medium">
+                                    <Link2 className="w-3 h-3" />
+                                    <span>FK -&gt; {fkTarget}</span>
+                                  </span>
+                                )}
+                              </div>
+                              <code className="text-xs text-muted">{c.type}</code>
                             </div>
-                            <code className="text-xs text-muted">{c.type}</code>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -1033,7 +964,7 @@ export default function LearnerWorkbench({
             </div>
 
             {/* Monaco SQL Editor */}
-            <div className="h-[300px] border-b border-line">
+            <div className="h-[340px] border-b border-line">
               <MonacoEditor
                 height="100%"
                 defaultLanguage="sql"
@@ -1041,67 +972,27 @@ export default function LearnerWorkbench({
                 value={sql}
                 onChange={(v) => updateSqlWithAutosave(v || '')}
                 options={{
+                  automaticLayout: true,
                   minimap: { enabled: false },
-                  fontSize: 14,
+                  fontSize: 13,
+                  lineHeight: 20,
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   wordWrap: 'on',
-                  padding: { top: 14, bottom: 14 },
+                  padding: { top: 12, bottom: 12 },
                 }}
               />
             </div>
 
-            {/* Learning Assistant Toolbar (AI Coach & EXPLAIN) */}
-            <div className="px-4 py-2.5 bg-canvas border-b border-line flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-semibold text-text2">
-                Trợ lý học tập:
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={coachLoading}
-                  onClick={() => handleAskCoach('review')}
-                  className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-                >
-                  <Lightbulb className="w-3.5 h-3.5 text-copper" />
-                  <span>{coachLoading ? 'Đang phân tích...' : 'Gợi ý hướng giải'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={coachLoading}
-                  data-solid-btn={hasSqlError ? 'true' : undefined}
-                  onClick={() => handleAskCoach('autofix')}
-                  className={`px-3 min-h-9 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
-                    hasSqlError ? 'btn-danger' : 'btn-secondary'
-                  }`}
-                >
-                  <Wrench className="w-3.5 h-3.5" />
-                  <span>Giải thích lỗi SQL</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={explainLoading}
-                  onClick={handleExplainSql}
-                  className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-                >
-                  <Gauge className="w-3.5 h-3.5 text-brand" />
-                  <span>
-                    {explainLoading ? 'Đang đo EXPLAIN...' : 'Phân tích hiệu năng (EXPLAIN)'}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Console Tabs */}
-            <div className="px-4 py-2 bg-soft border-b border-line flex flex-wrap items-center justify-between gap-2">
+            {/* Console Tabs (Pure SQL Execution, Test Cases & Submission History) */}
+            <div
+              ref={submissionResultRef}
+              className="px-4 py-2 bg-soft border-b border-line flex flex-wrap items-center justify-between gap-2 scroll-mt-4"
+            >
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
-                  { id: 'results', label: 'Kết quả chạy' },
+                  { id: 'results', label: 'Kết quả chạy & Nộp bài' },
                   { id: 'tests', label: 'Chi tiết Test Cases' },
-                  { id: 'coach', label: 'Gợi ý Trợ lý AI' },
-                  { id: 'explain', label: 'Kế hoạch EXPLAIN' },
                   { id: 'history', label: `Lịch sử nộp (${qSubs.length})` },
                 ].map((t) => {
                   const active = consoleTab === t.id;
@@ -1128,25 +1019,15 @@ export default function LearnerWorkbench({
             </div>
 
             {/* Console Body */}
-            <div className="p-4 max-h-[420px] overflow-y-auto space-y-3">
+            <div className="p-4 space-y-3">
               {errorMsg && (
-                <div className="p-3.5 rounded-xl badge-hard text-sm flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                    <span>{errorMsg}</span>
-                  </div>
-                  <button
-                    type="button"
-                    data-solid-btn="true"
-                    onClick={() => handleAskCoach('autofix')}
-                    className="btn-danger px-3 min-h-9 rounded-lg text-xs font-semibold shrink-0"
-                  >
-                    Nhờ AI giải thích lỗi này
-                  </button>
+                <div className="p-3.5 rounded-xl badge-hard text-sm flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{errorMsg}</span>
                 </div>
               )}
 
-              {/* TAB: RESULTS */}
+              {/* TAB: RESULTS & SUBMISSION VERDICT */}
               {consoleTab === 'results' && (
                 <div className="space-y-3 text-sm">
                   {output?.mode === 'submit' && (() => {
@@ -1155,21 +1036,72 @@ export default function LearnerWorkbench({
                       passed: output.passed,
                       error_message: output.error,
                     });
+                    const submitCases: any[] = Array.isArray(output.test_cases)
+                      ? output.test_cases
+                      : [];
                     return (
-                      <div
-                        className={`p-4 rounded-xl flex flex-wrap items-center justify-between gap-2 ${submitVerdict.cls}`}
-                      >
-                        <div className="font-bold">
-                          {submitVerdict.label === 'Làm được'
-                            ? 'Làm được — Câu truy vấn đã vượt qua toàn bộ bộ kiểm thử.'
-                            : submitVerdict.label === 'RTE'
-                            ? 'RTE — Câu lệnh SQL gặp lỗi thực thi trên PostgreSQL 17.'
-                            : 'Không làm được — Kết quả truy vấn chưa khớp với bộ kiểm thử.'}
+                      <div className="space-y-3">
+                        <div
+                          className={`p-4 rounded-xl flex flex-wrap items-center justify-between gap-2 ${submitVerdict.cls}`}
+                        >
+                          <div className="font-bold">
+                            {submitVerdict.label === 'Làm được'
+                              ? 'Thông báo kết quả nộp bài: Làm được — Vượt qua toàn bộ bộ kiểm thử!'
+                              : submitVerdict.label === 'RTE'
+                              ? 'Thông báo kết quả nộp bài: Chưa làm được (Lỗi thực thi SQL trên PostgreSQL 17).'
+                              : 'Thông báo kết quả nộp bài: Chưa làm được — Kết quả chưa khớp với toàn bộ test case.'}
+                          </div>
+                          <div className="font-semibold tabular-nums">
+                            Đạt {output.passed_AutoTests ?? output.passed_tests ?? 0}/
+                            {output.total_AutoTests ?? output.total_tests ?? submitCases.length} test case
+                          </div>
                         </div>
-                        <div className="font-semibold tabular-nums">
-                          {output.passed_AutoTests ?? output.passed_tests ?? 0}/
-                          {output.total_AutoTests ?? output.total_tests ?? 1} bộ kiểm thử
-                        </div>
+
+                        {submitCases.length > 0 && (
+                          <div className="p-3.5 rounded-xl bg-canvas border border-line space-y-2">
+                            <div className="text-sm font-bold text-ink">
+                              Kết quả chấm từng Test Case
+                            </div>
+                            <div className="space-y-2">
+                              {submitCases.map((tc: any, idx: number) => {
+                                const caseLabel = tc.label || `Test case ${tc.test_number || idx + 1}`;
+                                return (
+                                  <div
+                                    key={`${tc.test_id || 'tc'}-${tc.test_number || idx}`}
+                                    className="p-2.5 rounded-lg bg-surface border border-line flex flex-wrap items-center justify-between gap-2"
+                                  >
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                                          tc.passed ? 'badge-easy' : 'badge-hard'
+                                        }`}
+                                      >
+                                        {tc.passed ? (
+                                          <CheckCircle2 className="w-3.5 h-3.5" />
+                                        ) : (
+                                          <AlertCircle className="w-3.5 h-3.5" />
+                                        )}
+                                        <span>
+                                          {caseLabel}: {tc.passed ? 'Đúng' : 'Sai'}
+                                        </span>
+                                      </span>
+                                      {tc.title && (
+                                        <span className="text-xs font-medium text-ink">
+                                          {tc.title}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {tc.diagnostic_hint && (
+                                      <span className="text-xs text-text2">
+                                        {tc.diagnostic_hint}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -1180,17 +1112,9 @@ export default function LearnerWorkbench({
                     </div>
                   )}
 
-                  {output?.error && (
-                    <div className="p-3.5 rounded-xl badge-hard text-sm flex flex-wrap items-center justify-between gap-3">
+                  {output?.error && output?.mode !== 'submit' && (
+                    <div className="p-3.5 rounded-xl badge-hard text-sm">
                       <span>{output.error}</span>
-                      <button
-                        type="button"
-                        data-solid-btn="true"
-                        onClick={() => handleAskCoach('autofix')}
-                        className="btn-danger px-3 min-h-9 rounded-lg text-xs font-semibold"
-                      >
-                        Giải thích lỗi SQL
-                      </button>
                     </div>
                   )}
 
@@ -1263,171 +1187,39 @@ export default function LearnerWorkbench({
               {consoleTab === 'tests' && (
                 <div className="space-y-3 text-sm">
                   {output?.test_cases?.length > 0 ? (
-                    output.test_cases.map((tc: any) => (
-                      <div
-                        key={tc.test_id}
-                        className="p-3.5 rounded-xl bg-canvas border border-line space-y-2"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
-                              tc.passed ? 'badge-easy' : 'badge-hard'
-                            }`}
-                          >
-                            {tc.passed ? 'Đạt' : 'Chưa đạt'} ({tc.dataset_ref || tc.type})
-                          </span>
-                          <span className="text-xs text-text2 tabular-nums">
-                            Số dòng chuẩn: <strong>{tc.expected_rows}</strong> | Thực tế:{' '}
-                            <strong>{tc.actual_rows}</strong>
-                          </span>
-                        </div>
-                        {tc.diagnostic_hint && (
-                          <div className="p-2.5 rounded-lg bg-surface border border-line text-sm text-text2">
-                            Gợi ý kiểm tra: {tc.diagnostic_hint}
+                    output.test_cases.map((tc: any, idx: number) => {
+                      const caseLabel = tc.label || `Test case ${tc.test_number || idx + 1}`;
+                      return (
+                        <div
+                          key={`${tc.test_id || 'tc'}-${tc.test_number || idx}`}
+                          className="p-3.5 rounded-xl bg-canvas border border-line space-y-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                                tc.passed ? 'badge-easy' : 'badge-hard'
+                              }`}
+                            >
+                              {caseLabel}: {tc.passed ? 'Đúng' : 'Sai'}
+                              {tc.title ? ` · ${tc.title}` : ''}
+                            </span>
+                            <span className="text-xs text-text2 tabular-nums">
+                              Số dòng chuẩn:{' '}
+                              <strong>{tc.target_rows ?? tc.expected_rows ?? '—'}</strong> | Thực
+                              tế: <strong>{tc.actual_rows ?? '—'}</strong>
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    ))
+                          {tc.diagnostic_hint && (
+                            <div className="p-2.5 rounded-lg bg-surface border border-line text-sm text-text2">
+                              Chi tiết: {tc.diagnostic_hint}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
                   ) : (
                     <div className="py-8 text-center text-sm text-muted">
                       Bấm <strong>Nộp bài</strong> để xem kết quả đối chiếu từng bộ kiểm thử.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB: AI COACH */}
-              {consoleTab === 'coach' && (
-                <div className="space-y-3 text-sm">
-                  {coachLoading ? (
-                    <div className="py-8 text-center text-sm text-muted">
-                      Trợ lý AI đang phân tích câu lệnh SQL và yêu cầu đề bài...
-                    </div>
-                  ) : coachData ? (
-                    <div className="p-4 rounded-xl bg-canvas border border-line space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
-                        <div className="font-bold text-ink">
-                          {stripLeadingEmoji(coachData.headline) || 'Phân tích & Gợi ý truy vấn SQL'}
-                        </div>
-                        {coachData.clean_score !== undefined && (
-                          <span className="badge-easy px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums">
-                            Điểm cấu trúc: {coachData.clean_score}/100
-                          </span>
-                        )}
-                      </div>
-
-                      {Array.isArray(coachData.insights) && coachData.insights.length > 0 && (
-                        <ul className="space-y-2 text-sm text-text2 list-disc pl-5">
-                          {coachData.insights.map((ins: string, idx: number) => (
-                            <li key={idx} className="leading-relaxed">
-                              {stripLeadingEmoji(ins)}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      {coachData.suggested_sql && (
-                        <div className="pt-2 space-y-2">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-xs font-semibold text-muted">
-                              Khung truy vấn gợi ý:
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => updateSqlWithAutosave(coachData.suggested_sql)}
-                              className="btn-secondary px-3 min-h-8 rounded-md text-xs font-semibold"
-                            >
-                              Đưa khung gợi ý vào trình soạn thảo
-                            </button>
-                          </div>
-                          <pre className="p-3 rounded-lg bg-surface border border-line text-xs text-ink overflow-x-auto">
-                            {coachData.suggested_sql}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-sm text-muted">
-                      Bấm <strong>Gợi ý hướng giải</strong> hoặc <strong>Giải thích lỗi SQL</strong> ở thanh công cụ phía trên để nhận hướng dẫn từng bước.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB: EXPLAIN PLAN */}
-              {consoleTab === 'explain' && (
-                <div className="space-y-3 text-sm">
-                  {explainLoading ? (
-                    <div className="py-8 text-center text-sm text-muted">
-                      Đang thu thập kế hoạch thực thi EXPLAIN ANALYZE từ PostgreSQL 17...
-                    </div>
-                  ) : explainData ? (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 tabular-nums">
-                        <div className="p-3 rounded-lg bg-canvas border border-line">
-                          <div className="text-xs text-muted">Thời gian lập kế hoạch</div>
-                          <div className="text-base font-bold text-ink mt-0.5">
-                            {Number(explainData.planning_time_ms || 0).toFixed(2)} ms
-                          </div>
-                        </div>
-                        <div className="p-3 rounded-lg bg-canvas border border-line">
-                          <div className="text-xs text-muted">Thời gian thực thi</div>
-                          <div className="text-base font-bold text-brand mt-0.5">
-                            {Number(explainData.execution_time_ms || 0).toFixed(2)} ms
-                          </div>
-                        </div>
-                        <div className="p-3 rounded-lg bg-canvas border border-line">
-                          <div className="text-xs text-muted">Tổng chi phí ước tính (Cost)</div>
-                          <div className="text-base font-bold text-ink mt-0.5">
-                            {Number(explainData.total_cost || 0).toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-
-                      {Array.isArray(explainData.warnings) && explainData.warnings.length > 0 && (
-                        <div className="p-3 rounded-lg badge-medium text-xs space-y-1">
-                          {explainData.warnings.map((w: string, i: number) => (
-                            <div key={i}>{w}</div>
-                          ))}
-                        </div>
-                      )}
-
-                      {Array.isArray(explainData.plan_nodes) && explainData.plan_nodes.length > 0 && (
-                        <div className="overflow-x-auto border border-line rounded-lg">
-                          <table className="w-full text-left border-collapse text-xs tabular-nums">
-                            <thead>
-                              <tr className="bg-soft border-b border-line text-ink font-semibold">
-                                <th className="py-2 px-3">Bước thực thi (Node)</th>
-                                <th className="py-2 px-3">Bảng / Đối tượng</th>
-                                <th className="py-2 px-3">Dòng thực tế</th>
-                                <th className="py-2 px-3">Chi phí (Cost)</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-line">
-                              {explainData.plan_nodes.map((nd: any, idx: number) => (
-                                <tr key={idx} className="bg-surface">
-                                  <td className="py-2 px-3 font-mono font-medium text-ink">
-                                    {nd.node_type || nd.type || 'Plan Node'}
-                                  </td>
-                                  <td className="py-2 px-3 font-mono text-text2">
-                                    {nd.relation || nd.relation_name || '-'}
-                                  </td>
-                                  <td className="py-2 px-3 text-ink">
-                                    {nd.actual_rows ?? nd.rows ?? 0}
-                                  </td>
-                                  <td className="py-2 px-3 text-muted">
-                                    {nd.total_cost ?? nd.cost ?? 0}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-sm text-muted">
-                      Bấm <strong>Phân tích hiệu năng (EXPLAIN)</strong> để xem PostgreSQL 17 quét bảng và sử dụng chỉ mục như thế nào.
                     </div>
                   )}
                 </div>

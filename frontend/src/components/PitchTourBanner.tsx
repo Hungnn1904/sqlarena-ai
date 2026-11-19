@@ -41,11 +41,11 @@ const PITCH_STEPS = [
     step: 2,
     code: 'Bước 2: Làm bài',
     title: 'Thực hành & Chấm điểm Thời gian thực',
-    summary: 'Tra cứu sơ đồ PK/FK 13 bảng, viết truy vấn trên Monaco Editor và nhận gợi ý từ AI Coach.',
+    summary: 'Tra cứu sơ đồ PK/FK ngay cạnh đề bài, viết truy vấn trên Monaco Editor và chấm đa Test Case trực tiếp.',
     metrics: [
       { label: 'Bảo mật dữ liệu', val: 'READ ONLY Transaction' },
       { label: 'Lưu nháp tự động', val: 'Theo từng câu hỏi' },
-      { label: 'Hỗ trợ người mới', val: 'AI Coach + EXPLAIN' },
+      { label: 'Chấm điểm chi tiết', val: 'Test case 1..3' },
       { label: 'Phân quyền xác thực', val: 'JWT + PBKDF2-SHA256' },
     ],
     actionLabel: 'Thử chạy SQL ngay',
@@ -106,7 +106,7 @@ export default function PitchTourBanner({
           transition={{ duration: 0.2, ease: 'easeOut' }}
           className="border-b border-line bg-soft"
         >
-          <div className="max-w-[1520px] mx-auto px-5 py-4 space-y-3">
+          <div className="max-w-[95rem] mx-auto px-5 py-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-line">
               <div className="flex items-center gap-2">
                 <Presentation className="w-4 h-4 text-brand" />

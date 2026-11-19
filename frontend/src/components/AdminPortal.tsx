@@ -9,8 +9,6 @@ import {
   GripVertical,
   Plus,
   Trash2,
-  ArrowUp,
-  ArrowDown,
   ArrowRight,
   FolderPlus,
   Send,
@@ -22,6 +20,7 @@ import {
   Settings,
   Database,
   RotateCcw,
+  X,
 } from 'lucide-react';
 import {
   getGenerationJobs,
@@ -57,6 +56,7 @@ import {
   publishAdminWeeklySet,
   closeAdminWeeklySet,
   getAdminUsers,
+  getAdminUserDetail,
   updateAdminUser,
   getAdminSettings,
   getAdminSkills,
@@ -170,6 +170,9 @@ export default function AdminPortal({
   // Tab 1: Users
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
+  const [selectedUserDetail, setSelectedUserDetail] = useState<any | null>(null);
+  const [loadingUserDetail, setLoadingUserDetail] = useState(false);
+  const userDetailReqRef = React.useRef(0);
 
   // Tab 2: AI Generation + Per-Skill Quantities + Secret-Blind Gateway Vault
   const [jobs, setJobs] = useState<any[]>([]);
@@ -219,7 +222,7 @@ export default function AdminPortal({
   const [customSqlText, setCustomSqlText] = useState('');
 
   // Tab 4: Weekly Sets + Approved Questions Pool + Batch Group Publish
-  const [approvedOnlyUnassigned, setApprovedOnlyUnassigned] = useState<boolean>(false);
+  const [approvedShelfTab, setApprovedShelfTab] = useState<'unassigned' | 'on_shelf'>('unassigned');
   const [approvedDiffFilter, setApprovedDiffFilter] = useState<number | undefined>(undefined);
   const [approvedSearch, setApprovedSearch] = useState<string>('');
   const [readyQuestions, setReadyQuestions] = useState<any[]>([]);
@@ -365,9 +368,6 @@ export default function AdminPortal({
     try {
       const res = await getAdminQuestions({
         status: 'ready',
-        difficulty: approvedDiffFilter,
-        q: approvedSearch.trim() || undefined,
-        unassigned_only: approvedOnlyUnassigned ? true : undefined,
         page_size: 100,
       });
       setReadyQuestions(res?.items || []);
@@ -402,11 +402,14 @@ export default function AdminPortal({
       const res = await getAdminQuestionGroups();
       const list = res?.items || [];
       setGroups(list);
+      const draftList = list.filter((g: any) => g.status === 'draft');
       const targetId =
-        preferGroupId ??
-        (selectedGroupId && list.some((g: any) => g.group_id === selectedGroupId)
+        (preferGroupId && draftList.some((g: any) => g.group_id === preferGroupId)
+          ? preferGroupId
+          : null) ??
+        (selectedGroupId && draftList.some((g: any) => g.group_id === selectedGroupId)
           ? selectedGroupId
-          : list.find((g: any) => g.status === 'draft')?.group_id ?? list[0]?.group_id ?? null);
+          : draftList[0]?.group_id ?? null);
       if (targetId) {
         await loadGroupDetail(targetId);
       } else {
@@ -451,6 +454,39 @@ export default function AdminPortal({
     } catch {}
   };
 
+  const inspectUser = async (userId: number) => {
+    const reqId = ++userDetailReqRef.current;
+    setLoadingUserDetail(true);
+    setErr(null);
+    try {
+      const d = await getAdminUserDetail(userId);
+      if (reqId === userDetailReqRef.current) {
+        setSelectedUserDetail(d);
+      }
+    } catch (e: any) {
+      if (reqId === userDetailReqRef.current) {
+        setErr(extractApiError(e, 'Không tải được thông tin chi tiết người dùng'));
+      }
+    } finally {
+      if (reqId === userDetailReqRef.current) {
+        setLoadingUserDetail(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedUserDetail && !loadingUserDetail) return;
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        userDetailReqRef.current += 1;
+        setLoadingUserDetail(false);
+        setSelectedUserDetail(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedUserDetail, loadingUserDetail]);
+
   useEffect(() => {
     if (!isAdmin) return;
     loadUsers();
@@ -461,11 +497,6 @@ export default function AdminPortal({
     loadGroups();
     loadReadyQuestions();
   }, [isAdmin]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    loadReadyQuestions();
-  }, [approvedOnlyUnassigned, approvedDiffFilter]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -811,29 +842,15 @@ export default function AdminPortal({
     }
   };
 
-  // Build Unified Approved Pool (both live.questions 'ready' AND drafts 'approved')
-  const unifiedApprovedPool: UnifiedApprovedItem[] = (() => {
-    const items: UnifiedApprovedItem[] = [];
+  // Build Unfiltered Approved Pool first so KPI cards never zero out under difficulty/search filters
+  const rawApprovedPool: (UnifiedApprovedItem & { weekly_position: number })[] = (() => {
+    const items: (UnifiedApprovedItem & { weekly_position: number })[] = [];
     const seenQuestionIds = new Set<number>();
     const seenDraftIds = new Set<number>();
-
-    const kwApproved = approvedSearch.trim().toLowerCase();
-    const codeNumMatch = kwApproved.match(/^(?:sql|q|#)?\s*-?\s*0*(\d+)$/i);
-    const targetCodeNum = codeNumMatch ? Number(codeNumMatch[1]) : null;
 
     readyQuestions.forEach((q: any) => {
       const qid = Number(q.question_id);
       const wpos = Number(q.weekly_position || 0);
-      if (approvedDiffFilter !== undefined && Number(q.difficulty) !== approvedDiffFilter) {
-        return;
-      }
-      if (kwApproved) {
-        if (targetCodeNum !== null) {
-          if (qid !== targetCodeNum && wpos !== targetCodeNum) return;
-        } else if (!String(q.title || '').toLowerCase().includes(kwApproved)) {
-          return;
-        }
-      }
       seenQuestionIds.add(qid);
       if (q.source_draft_id) seenDraftIds.add(Number(q.source_draft_id));
       items.push({
@@ -844,6 +861,7 @@ export default function AdminPortal({
         difficulty: Number(q.difficulty || 1),
         tables_used: Array.isArray(q.tables_used) ? q.tables_used : [],
         in_published_set: Boolean(q.in_published_set),
+        weekly_position: wpos,
       });
     });
 
@@ -852,35 +870,64 @@ export default function AdminPortal({
       .forEach((d: any) => {
         const did = Number(d.draft_id);
         const promotedQid = Number(
-          d.promoted_question_id ?? d.promoted_question?.question_id ?? 0
+          d.live_question_id ?? d.promoted_question_id ?? d.promoted_question?.question_id ?? 0
         );
         if (seenDraftIds.has(did) || (promotedQid && seenQuestionIds.has(promotedQid))) {
           return;
         }
-        if (approvedDiffFilter !== undefined && Number(d.difficulty) !== approvedDiffFilter) {
-          return;
-        }
-        if (
-          approvedSearch.trim() &&
-          !String(d.title || '')
-            .toLowerCase()
-            .includes(approvedSearch.trim().toLowerCase())
-        ) {
+        // If already promoted to a live question that isn't in readyQuestions (e.g. retired), skip
+        if (promotedQid) {
           return;
         }
         items.push({
-          key: promotedQid ? `q-${promotedQid}` : `d-${did}`,
-          question_id: promotedQid || null,
+          key: `d-${did}`,
+          question_id: null,
           draft_id: did,
           title: d.title || `Bản nháp #${did}`,
           difficulty: Number(d.difficulty || 1),
           tables_used: Array.isArray(d.tables_used) ? d.tables_used : [],
-          in_published_set: false,
+          in_published_set: Boolean(d.weekly_position),
+          weekly_position: Number(d.weekly_position || 0),
         });
       });
 
     return items;
   })();
+
+  const rawUnassignedPool = rawApprovedPool.filter((it) => !it.in_published_set);
+  const rawOnShelfPool = rawApprovedPool.filter((it) => it.in_published_set);
+
+  const filterPoolItems = (list: typeof rawApprovedPool): UnifiedApprovedItem[] => {
+    const kwApproved = approvedSearch.trim().toLowerCase();
+    const codeNumMatch = kwApproved.match(/^(?:sql|q|#)?\s*-?\s*0*(\d+)$/i);
+    const targetCodeNum = codeNumMatch ? Number(codeNumMatch[1]) : null;
+    return list.filter((it) => {
+      if (approvedDiffFilter !== undefined && it.difficulty !== approvedDiffFilter) {
+        return false;
+      }
+      if (kwApproved) {
+        if (targetCodeNum !== null) {
+          if (
+            it.question_id !== targetCodeNum &&
+            it.draft_id !== targetCodeNum &&
+            it.weekly_position !== targetCodeNum
+          ) {
+            return false;
+          }
+        } else if (!String(it.title || '').toLowerCase().includes(kwApproved)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  };
+
+  const allApprovedPool = rawApprovedPool;
+  const unassignedApprovedPool = filterPoolItems(rawUnassignedPool);
+  const onShelfApprovedPool = filterPoolItems(rawOnShelfPool);
+  const unifiedApprovedPool =
+    approvedShelfTab === 'on_shelf' ? onShelfApprovedPool : unassignedApprovedPool;
+  const draftGroups = groups.filter((g: any) => g.status === 'draft');
 
   const groupItems = (groupDetail?.items || []).map(normalizeGroupItem);
   const groupItemIdSet = new Set(groupItems.map((it: any) => it.question_id));
@@ -890,7 +937,7 @@ export default function AdminPortal({
     const question_ids: number[] = [];
     const draft_ids: number[] = [];
     keys.forEach((k) => {
-      const found = unifiedApprovedPool.find((x) => x.key === k);
+      const found = allApprovedPool.find((x) => x.key === k);
       if (found) {
         if (found.question_id) question_ids.push(found.question_id);
         else if (found.draft_id) draft_ids.push(found.draft_id);
@@ -1052,17 +1099,6 @@ export default function AdminPortal({
     }
   };
 
-  const moveGroupItem = (idx: number, direction: -1 | 1) => {
-    const targetIdx = idx + direction;
-    if (targetIdx < 0 || targetIdx >= groupItems.length) return;
-    const ids = groupItems.map((it: any) => it.question_id);
-    const swapped = [...ids];
-    const tmp = swapped[idx];
-    swapped[idx] = swapped[targetIdx];
-    swapped[targetIdx] = tmp;
-    handleReorderGroupItems(swapped);
-  };
-
   const removeGroupItem = (qid: number) => {
     const nextIds = groupItems
       .map((it: any) => it.question_id)
@@ -1101,9 +1137,15 @@ export default function AdminPortal({
       setMsg(
         `Đã đăng toàn bộ ${res.published_count ?? groupItems.length} câu hỏi lên kệ "${
           res.set_title || 'Bộ đề hiện hành'
-        }".`
+        }". Bộ đề đã chuyển xuống Danh sách Bộ đề tuần bên dưới.`
       );
-      await Promise.all([loadGroups(selectedGroupId), loadReadyQuestions(), loadWeekly()]);
+      setSelectedGroupId(null);
+      setGroupDetail(null);
+      setPublishSetTitle('');
+      await Promise.all([loadGroups(), loadReadyQuestions(), loadWeekly()]);
+      if (res?.set_id) {
+        await inspectWeeklySet(Number(res.set_id));
+      }
     } catch (e: any) {
       setErr(extractApiError(e, 'Đăng nhóm đề lên kệ không thành công'));
     } finally {
@@ -1164,7 +1206,10 @@ export default function AdminPortal({
           : { status: (u.status === 'active' ? 'locked' : 'active') as 'active' | 'locked' };
       await updateAdminUser(u.user_id, payload);
       setMsg(`Đã cập nhật tài khoản @${u.username}.`);
-      loadUsers();
+      await loadUsers();
+      if (selectedUserDetail && selectedUserDetail.user_id === u.user_id) {
+        await inspectUser(u.user_id);
+      }
     } catch (e: any) {
       setErr(extractApiError(e, 'Không thể cập nhật tài khoản'));
     }
@@ -1199,7 +1244,7 @@ export default function AdminPortal({
       id: 'weekly',
       label: 'Bộ đề tuần',
       icon: CalendarRange,
-      badge: unifiedApprovedPool.length > 0 ? String(unifiedApprovedPool.length) : null,
+      badge: unassignedApprovedPool.length > 0 ? String(unassignedApprovedPool.length) : null,
     },
     { id: 'bank', label: 'Ngân hàng đề', icon: Database },
     { id: 'settings', label: 'Cấu hình', icon: Settings },
@@ -1319,12 +1364,18 @@ export default function AdminPortal({
                   </tr>
                 ) : (
                   users.map((u) => (
-                    <tr key={u.user_id} className="hover:bg-soft">
+                    <tr
+                      key={u.user_id}
+                      onClick={() => inspectUser(u.user_id)}
+                      className="hover:bg-soft cursor-pointer transition-colors"
+                    >
                       <td className="py-3 px-4 text-muted">
                         <code>#{u.user_id}</code>
                       </td>
                       <td className="py-3 px-4 font-semibold text-ink">
-                        {u.display_name || u.username}{' '}
+                        <span className="underline decoration-dotted underline-offset-4 hover:text-brand">
+                          {u.display_name || u.username}
+                        </span>{' '}
                         <span className="text-muted font-normal">(@{u.username})</span>
                       </td>
                       <td className="py-3 px-4 text-text2">{u.email}</td>
@@ -1346,7 +1397,17 @@ export default function AdminPortal({
                           {u.status === 'active' ? 'Hoạt động' : 'Đã khóa'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 flex flex-wrap gap-2">
+                      <td
+                        className="py-3 px-4 flex flex-wrap gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => inspectUser(u.user_id)}
+                          className="btn-secondary px-3 min-h-9 rounded-lg text-xs font-semibold whitespace-nowrap"
+                        >
+                          Chi tiết
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleToggleUser(u, 'role')}
@@ -1368,6 +1429,204 @@ export default function AdminPortal({
               </tbody>
             </table>
           </div>
+
+          {(loadingUserDetail || selectedUserDetail) && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Thông tin chi tiết tài khoản"
+              onClick={() => !loadingUserDetail && setSelectedUserDetail(null)}
+              className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-3xl max-h-[88vh] overflow-y-auto bg-surface border border-line rounded-2xl"
+              >
+                <div className="px-5 py-4 bg-soft border-b border-line flex items-center justify-between gap-3 sticky top-0 z-10">
+                  <div>
+                    <h3 className="text-base font-bold text-ink">
+                      {loadingUserDetail && !selectedUserDetail
+                        ? 'Đang tải thông tin tài khoản…'
+                        : `Hồ sơ tài khoản #${selectedUserDetail?.user_id} · ${
+                            selectedUserDetail?.display_name || selectedUserDetail?.username
+                          }`}
+                    </h3>
+                    {selectedUserDetail && (
+                      <p className="text-xs text-muted">
+                        @{selectedUserDetail.username} · {selectedUserDetail.email}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUserDetail(null)}
+                    aria-label="Đóng thông tin tài khoản"
+                    className="btn-secondary min-w-9 min-h-9 rounded-lg flex items-center justify-center"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {selectedUserDetail && (
+                  <div className="p-5 space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="p-3 rounded-xl bg-canvas border border-line space-y-1">
+                        <div className="text-xs text-muted">Tên hiển thị &amp; Định danh</div>
+                        <div className="font-semibold text-ink">
+                          {selectedUserDetail.display_name || selectedUserDetail.username}{' '}
+                          <span className="text-muted font-normal">
+                            (@{selectedUserDetail.username})
+                          </span>
+                        </div>
+                        <div className="text-xs text-text2">{selectedUserDetail.email}</div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-canvas border border-line space-y-1.5">
+                        <div className="text-xs text-muted">Phân quyền &amp; Trạng thái</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                              selectedUserDetail.role === 'admin' ? 'badge-medium' : 'badge-info'
+                            }`}
+                          >
+                            {selectedUserDetail.role === 'admin' ? 'Quản trị viên (Admin)' : 'Học viên'}
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                              selectedUserDetail.status === 'active' ? 'badge-easy' : 'badge-hard'
+                            }`}
+                          >
+                            {selectedUserDetail.status === 'active' ? 'Đang hoạt động' : 'Đã khóa'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted tabular-nums">
+                          Tạo ngày:{' '}
+                          {selectedUserDetail.created_at
+                            ? new Date(selectedUserDetail.created_at).toLocaleString('vi-VN')
+                            : '—'}
+                          {' · '}Đăng nhập gần nhất:{' '}
+                          {selectedUserDetail.last_login_at
+                            ? new Date(selectedUserDetail.last_login_at).toLocaleString('vi-VN')
+                            : 'Chưa ghi nhận'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedUserDetail.bio && (
+                      <div className="p-3 rounded-xl bg-canvas border border-line text-sm text-text2">
+                        <span className="font-semibold text-ink">Giới thiệu: </span>
+                        {selectedUserDetail.bio}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 tabular-nums">
+                      <div className="p-3 rounded-xl bg-soft border border-line">
+                        <div className="text-xs text-muted">Câu đã giải đúng</div>
+                        <div className="text-lg font-bold text-brand mt-0.5">
+                          {selectedUserDetail.stats?.solved_questions ?? 0}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-soft border border-line">
+                        <div className="text-xs text-muted">Tổng lượt nộp</div>
+                        <div className="text-lg font-bold text-ink mt-0.5">
+                          {selectedUserDetail.stats?.total_submissions ?? 0}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-soft border border-line">
+                        <div className="text-xs text-muted">Lượt nộp Đạt / Chưa đạt</div>
+                        <div className="text-lg font-bold text-ink mt-0.5">
+                          {selectedUserDetail.stats?.passed_submissions ?? 0} /{' '}
+                          {selectedUserDetail.stats?.failed_submissions ?? 0}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-soft border border-line">
+                        <div className="text-xs text-muted">Tỷ lệ chính xác</div>
+                        <div className="text-lg font-bold text-ink mt-0.5">
+                          {selectedUserDetail.stats?.accuracy_percent ?? 0}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <h4 className="text-sm font-bold text-ink">
+                        Lịch sử nộp bài gần đây ({selectedUserDetail.recent_submissions?.length ?? 0})
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleUser(selectedUserDetail, 'role')}
+                          className="btn-secondary px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap"
+                        >
+                          Đổi sang {selectedUserDetail.role === 'admin' ? 'Học viên' : 'Admin'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleUser(selectedUserDetail, 'status')}
+                          className="btn-secondary px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap"
+                        >
+                          {selectedUserDetail.status === 'active' ? 'Khóa tài khoản' : 'Mở khóa'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {!selectedUserDetail.recent_submissions ||
+                    selectedUserDetail.recent_submissions.length === 0 ? (
+                      <div className="p-6 rounded-xl bg-canvas border border-line text-center text-sm text-muted">
+                        Tài khoản này chưa có lượt nộp bài nào.
+                      </div>
+                    ) : (
+                      <div className="border border-line rounded-xl overflow-hidden overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs tabular-nums">
+                          <thead>
+                            <tr className="bg-canvas border-b border-line text-text2 font-semibold">
+                              <th className="py-2.5 px-3">Mã nộp</th>
+                              <th className="py-2.5 px-3">Câu hỏi</th>
+                              <th className="py-2.5 px-3">Kết quả</th>
+                              <th className="py-2.5 px-3">Thời gian chạy</th>
+                              <th className="py-2.5 px-3">Thời điểm</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-line">
+                            {selectedUserDetail.recent_submissions.map((sub: any) => (
+                              <tr key={sub.submission_id} className="hover:bg-canvas">
+                                <td className="py-2 px-3 text-muted">
+                                  <code>#{sub.submission_id}</code>
+                                </td>
+                                <td className="py-2 px-3 font-medium text-ink">
+                                  #{sub.question_id} · {sub.question_title || 'Câu hỏi SQL'}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span
+                                    className={`px-2 py-0.5 rounded font-semibold ${
+                                      sub.submission_status === 'passed'
+                                        ? 'badge-easy'
+                                        : 'badge-hard'
+                                    }`}
+                                  >
+                                    {sub.submission_status === 'passed'
+                                      ? 'Làm được'
+                                      : 'Chưa làm được'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-text2">
+                                  {sub.runtime_ms != null ? `${sub.runtime_ms} ms` : '—'}
+                                </td>
+                                <td className="py-2 px-3 text-muted">
+                                  {sub.submitted_at
+                                    ? new Date(sub.submitted_at).toLocaleString('vi-VN')
+                                    : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1403,6 +1662,32 @@ export default function AdminPortal({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {createMode === 'ai' && (
+                <div className="flex items-center gap-1 bg-soft p-1 rounded-lg border border-line">
+                  <button
+                    type="button"
+                    disabled={savingApprovalMode}
+                    data-solid-btn={approvalMode === 'calibrated' ? 'true' : undefined}
+                    onClick={() => handleSwitchApprovalMode('calibrated')}
+                    className={`px-2.5 min-h-7 rounded-md text-xs font-semibold whitespace-nowrap ${
+                      approvalMode === 'calibrated' ? 'btn-primary' : 'text-text2 hover:text-ink'
+                    }`}
+                  >
+                    AI duyệt: Thông minh
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingApprovalMode}
+                    data-solid-btn={approvalMode === 'strict' ? 'true' : undefined}
+                    onClick={() => handleSwitchApprovalMode('strict')}
+                    className={`px-2.5 min-h-7 rounded-md text-xs font-semibold whitespace-nowrap ${
+                      approvalMode === 'strict' ? 'btn-primary' : 'text-text2 hover:text-ink'
+                    }`}
+                  >
+                    Khắt khe
+                  </button>
+                </div>
+              )}
               {gatewayStatus?.valid ? (
                 <span className="badge-easy px-2.5 py-1 rounded-full text-xs font-semibold">
                   API Thật (apithat.dev): {gatewayStatus.masked_key}
@@ -1958,40 +2243,10 @@ export default function AdminPortal({
       )}
 
       {/* =====================================================================
-          TAB 3: DUYỆT ĐỀ (NO JOB TOPIC BOX, NO MODEL-A CAPTION, NO REQUEUE, EXACT STATUS BUTTONS)
+          TAB 3: DUYỆT ĐỀ (THUẦN ADMIN KIỂM CHỨNG — KHÔNG CÓ AI CAN THIỆP)
       ===================================================================== */}
       {activeTab === 'drafts' && (
         <div className="space-y-4">
-          <div className="p-3.5 rounded-xl bg-surface border border-line flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm font-bold text-ink">
-              Chế độ tự động kiểm duyệt (review.approval_mode)
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 bg-soft p-1 rounded-lg border border-line">
-              <button
-                type="button"
-                disabled={savingApprovalMode}
-                data-solid-btn={approvalMode === 'calibrated' ? 'true' : undefined}
-                onClick={() => handleSwitchApprovalMode('calibrated')}
-                className={`px-3.5 min-h-8 rounded-md text-xs font-semibold whitespace-nowrap ${
-                  approvalMode === 'calibrated' ? 'btn-primary' : 'text-text2 hover:text-ink'
-                }`}
-              >
-                Thông minh (Khuyên dùng)
-              </button>
-              <button
-                type="button"
-                disabled={savingApprovalMode}
-                data-solid-btn={approvalMode === 'strict' ? 'true' : undefined}
-                onClick={() => handleSwitchApprovalMode('strict')}
-                className={`px-3.5 min-h-8 rounded-md text-xs font-semibold whitespace-nowrap ${
-                  approvalMode === 'strict' ? 'btn-primary' : 'text-text2 hover:text-ink'
-                }`}
-              >
-                Khắt khe
-              </button>
-            </div>
-          </div>
-
           {checkedDraftIds.length > 0 && (
             <div className="p-3.5 rounded-xl bg-surface border-2 border-brand flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm font-bold text-ink tabular-nums">
@@ -2348,10 +2603,14 @@ export default function AdminPortal({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="text-base font-bold text-ink">
-                      Danh sách câu hỏi ở trạng thái Approved ({unifiedApprovedPool.length})
+                      {approvedShelfTab === 'on_shelf'
+                        ? `Thống kê câu hỏi đã có trên kệ (${onShelfApprovedPool.length})`
+                        : `Câu hỏi Approved chưa có trên kệ (${unassignedApprovedPool.length})`}
                     </h2>
                     <p className="text-xs text-muted mt-0.5">
-                      Tick chọn hoặc nắm kéo nhiều câu Approved sang khung bên phải để đăng cùng lúc.
+                      {approvedShelfTab === 'on_shelf'
+                        ? 'Tổng hợp các câu hỏi đang mở trực tiếp cho học viên làm bài trên kệ hiện hành.'
+                        : 'Tick chọn hoặc nắm kéo câu hỏi chưa lên kệ sang khung bên phải để soạn bộ đề tuần.'}
                     </p>
                   </div>
                 </div>
@@ -2359,23 +2618,29 @@ export default function AdminPortal({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
-                    data-solid-btn={!approvedOnlyUnassigned ? 'true' : undefined}
-                    onClick={() => setApprovedOnlyUnassigned(false)}
+                    data-solid-btn={approvedShelfTab === 'unassigned' ? 'true' : undefined}
+                    onClick={() => {
+                      setApprovedShelfTab('unassigned');
+                      setPickedApprovedKeys([]);
+                    }}
                     className={`px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap ${
-                      !approvedOnlyUnassigned ? 'btn-primary' : 'btn-secondary'
+                      approvedShelfTab === 'unassigned' ? 'btn-primary' : 'btn-secondary'
                     }`}
                   >
-                    Tất cả Approved
+                    Chưa có trên kệ ({rawUnassignedPool.length})
                   </button>
                   <button
                     type="button"
-                    data-solid-btn={approvedOnlyUnassigned ? 'true' : undefined}
-                    onClick={() => setApprovedOnlyUnassigned(true)}
+                    data-solid-btn={approvedShelfTab === 'on_shelf' ? 'true' : undefined}
+                    onClick={() => {
+                      setApprovedShelfTab('on_shelf');
+                      setPickedApprovedKeys([]);
+                    }}
                     className={`px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap ${
-                      approvedOnlyUnassigned ? 'btn-primary' : 'btn-secondary'
+                      approvedShelfTab === 'on_shelf' ? 'btn-primary' : 'btn-secondary'
                     }`}
                   >
-                    Chưa có trên kệ
+                    Đã có trên kệ ({rawOnShelfPool.length})
                   </button>
 
                   {[
@@ -2401,6 +2666,35 @@ export default function AdminPortal({
                   })}
                 </div>
 
+                {approvedShelfTab === 'on_shelf' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 tabular-nums">
+                    <div className="p-2.5 rounded-xl bg-surface border border-line">
+                      <div className="text-xs text-muted">Tổng trên kệ</div>
+                      <div className="text-base font-bold text-ink">
+                        {rawOnShelfPool.length} câu
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-surface border border-line">
+                      <div className="text-xs text-muted">Mức Dễ</div>
+                      <div className="text-base font-bold text-brand">
+                        {rawOnShelfPool.filter((x) => x.difficulty === 1).length} câu
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-surface border border-line">
+                      <div className="text-xs text-muted">Trung bình</div>
+                      <div className="text-base font-bold text-ink">
+                        {rawOnShelfPool.filter((x) => x.difficulty === 2).length} câu
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-surface border border-line">
+                      <div className="text-xs text-muted">Mức Khó</div>
+                      <div className="text-base font-bold text-danger">
+                        {rawOnShelfPool.filter((x) => x.difficulty === 3).length} câu
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative flex-1 min-w-[180px]">
                     <Search className="w-4 h-4 text-muted absolute left-3 top-2.5" />
@@ -2421,52 +2715,56 @@ export default function AdminPortal({
                   </button>
                 </div>
 
-                <div className="pt-2 border-t border-line flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const allKeys = unifiedApprovedPool.map((item) => item.key);
-                      const allSelected =
-                        allKeys.length > 0 &&
-                        allKeys.every((k) => pickedApprovedKeys.includes(k));
-                      setPickedApprovedKeys(allSelected ? [] : allKeys);
-                    }}
-                    className="btn-secondary px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap"
-                  >
-                    Chọn tất cả ({unifiedApprovedPool.length})
-                  </button>
+                {approvedShelfTab === 'unassigned' && (
+                  <div className="pt-2 border-t border-line flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allKeys = unifiedApprovedPool.map((item) => item.key);
+                        const allSelected =
+                          allKeys.length > 0 &&
+                          allKeys.every((k) => pickedApprovedKeys.includes(k));
+                        setPickedApprovedKeys(allSelected ? [] : allKeys);
+                      }}
+                      className="btn-secondary px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap"
+                    >
+                      Chọn tất cả ({unifiedApprovedPool.length})
+                    </button>
 
-                  {pickedApprovedKeys.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <button
-                        type="button"
-                        data-solid-btn="true"
-                        disabled={groupBusy}
-                        onClick={() => handleAddApprovedKeysToGroup(pickedApprovedKeys)}
-                        className="btn-primary px-3.5 min-h-8 rounded-lg text-xs font-semibold flex items-center gap-1 disabled:opacity-50 whitespace-nowrap"
-                      >
-                        <span>Gom {pickedApprovedKeys.length} câu vào Nhóm</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                      {weeklySetDetail?.status === 'draft' && (
+                    {pickedApprovedKeys.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
+                          data-solid-btn="true"
                           disabled={groupBusy}
-                          onClick={handleAddPickedToDraftWeeklySet}
-                          className="btn-secondary px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap"
+                          onClick={() => handleAddApprovedKeysToGroup(pickedApprovedKeys)}
+                          className="btn-primary px-3.5 min-h-8 rounded-lg text-xs font-semibold flex items-center gap-1 disabled:opacity-50 whitespace-nowrap"
                         >
-                          + Thêm vào Bộ đề #{weeklySetDetail.set_id}
+                          <span>Gom {pickedApprovedKeys.length} câu vào Nhóm</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                        {weeklySetDetail?.status === 'draft' && (
+                          <button
+                            type="button"
+                            disabled={groupBusy}
+                            onClick={handleAddPickedToDraftWeeklySet}
+                            className="btn-secondary px-3 min-h-8 rounded-lg text-xs font-semibold whitespace-nowrap"
+                          >
+                            + Thêm vào Bộ đề #{weeklySetDetail.set_id}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="divide-y divide-line max-h-[520px] overflow-y-auto">
                 {unifiedApprovedPool.length === 0 ? (
                   <div className="p-8 text-center text-sm text-muted">
-                    Hiện chưa có câu hỏi nào ở trạng thái Approved khớp bộ lọc.
+                    {approvedShelfTab === 'on_shelf'
+                      ? 'Hiện chưa có câu hỏi nào trên kệ Bộ đề đang mở.'
+                      : 'Tất cả câu hỏi Approved hiện đã nằm trên kệ hoặc chưa có câu mới chờ gom nhóm.'}
                   </div>
                 ) : (
                   unifiedApprovedPool.map((item) => {
@@ -2478,8 +2776,9 @@ export default function AdminPortal({
                     return (
                       <div
                         key={item.key}
-                        draggable
+                        draggable={approvedShelfTab === 'unassigned'}
                         onDragStart={(e) => {
+                          if (approvedShelfTab !== 'unassigned') return;
                           e.dataTransfer.setData('text/plain', item.key);
                           e.dataTransfer.effectAllowed = 'copy';
                           setDraggingApprovedKey(item.key);
@@ -2493,25 +2792,29 @@ export default function AdminPortal({
                         }`}
                       >
                         <div className="flex items-start gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              setPickedApprovedKeys((prev) =>
-                                prev.includes(item.key)
-                                  ? prev.filter((k) => k !== item.key)
-                                  : [...prev, item.key]
-                              )
-                            }
-                            aria-label={`Chọn câu hỏi ${item.key}`}
-                            className="mt-1 w-4 h-4 accent-[var(--green)] cursor-pointer shrink-0"
-                          />
-                          <div
-                            className="mt-0.5 text-muted cursor-grab active:cursor-grabbing shrink-0"
-                            title="Kéo thả sang khung Nhóm đề bên phải"
-                          >
-                            <GripVertical className="w-4 h-4" />
-                          </div>
+                          {approvedShelfTab === 'unassigned' && (
+                            <>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  setPickedApprovedKeys((prev) =>
+                                    prev.includes(item.key)
+                                      ? prev.filter((k) => k !== item.key)
+                                      : [...prev, item.key]
+                                  )
+                                }
+                                aria-label={`Chọn câu hỏi ${item.key}`}
+                                className="mt-1 w-4 h-4 accent-[var(--green)] cursor-pointer shrink-0"
+                              />
+                              <div
+                                className="mt-0.5 text-muted cursor-grab active:cursor-grabbing shrink-0"
+                                title="Kéo thả sang khung Nhóm đề bên phải"
+                              >
+                                <GripVertical className="w-4 h-4" />
+                              </div>
+                            </>
+                          )}
 
                           <div className="flex-1 min-w-0 space-y-1">
                             <div className="text-sm font-semibold text-ink leading-snug">
@@ -2556,22 +2859,23 @@ export default function AdminPortal({
                               </button>
                             )}
 
-                            {alreadyInGroup ? (
-                              <span className="px-2.5 py-1 rounded-lg badge-easy text-xs font-semibold whitespace-nowrap">
-                                Đã gom
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                data-solid-btn="true"
-                                disabled={groupBusy}
-                                onClick={() => handleAddApprovedKeysToGroup([item.key])}
-                                className="btn-primary px-3 min-h-8 rounded-lg text-xs font-semibold flex items-center gap-1 disabled:opacity-50 whitespace-nowrap"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>Thêm</span>
-                              </button>
-                            )}
+                            {approvedShelfTab === 'unassigned' &&
+                              (alreadyInGroup ? (
+                                <span className="px-2.5 py-1 rounded-lg badge-easy text-xs font-semibold whitespace-nowrap">
+                                  Đã gom
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  data-solid-btn="true"
+                                  disabled={groupBusy}
+                                  onClick={() => handleAddApprovedKeysToGroup([item.key])}
+                                  className="btn-primary px-3 min-h-8 rounded-lg text-xs font-semibold flex items-center gap-1 disabled:opacity-50 whitespace-nowrap"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Thêm</span>
+                                </button>
+                              ))}
                           </div>
                         </div>
 
@@ -2624,11 +2928,10 @@ export default function AdminPortal({
                   </button>
                 </form>
 
-                {groups.length > 0 && (
+                {draftGroups.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    {groups.map((g) => {
+                    {draftGroups.map((g) => {
                       const active = selectedGroupId === g.group_id;
-                      const isPub = g.status === 'published';
                       return (
                         <button
                           key={g.group_id}
@@ -2645,11 +2948,7 @@ export default function AdminPortal({
                           <span>{g.name}</span>
                           <span
                             className={`px-1.5 py-0.5 rounded text-xs tabular-nums ${
-                              active
-                                ? 'bg-surface text-ink'
-                                : isPub
-                                ? 'badge-easy'
-                                : 'badge-medium'
+                              active ? 'bg-surface text-ink' : 'badge-medium'
                             }`}
                           >
                             {g.question_count} câu
@@ -2788,27 +3087,9 @@ export default function AdminPortal({
                                 <div className="flex items-center gap-1 shrink-0">
                                   <button
                                     type="button"
-                                    disabled={idx === 0 || groupBusy}
-                                    onClick={() => moveGroupItem(idx, -1)}
-                                    aria-label="Đưa câu này lên trên"
-                                    className="btn-secondary min-w-8 min-h-8 rounded-md flex items-center justify-center disabled:opacity-30"
-                                  >
-                                    <ArrowUp className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={idx === groupItems.length - 1 || groupBusy}
-                                    onClick={() => moveGroupItem(idx, 1)}
-                                    aria-label="Đưa câu này xuống dưới"
-                                    className="btn-secondary min-w-8 min-h-8 rounded-md flex items-center justify-center disabled:opacity-30"
-                                  >
-                                    <ArrowDown className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
                                     disabled={groupBusy}
                                     onClick={() => removeGroupItem(it.question_id)}
-                                    className="btn-secondary px-2 min-h-8 rounded-md text-xs font-semibold text-danger whitespace-nowrap"
+                                    className="btn-secondary px-2.5 min-h-8 rounded-md text-xs font-semibold text-danger whitespace-nowrap"
                                   >
                                     Gỡ
                                   </button>

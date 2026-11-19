@@ -17,7 +17,7 @@ import {
 } from '../lib/api';
 
 function resolveSubmissionOutcome(s: any): {
-  label: 'Làm được' | 'RTE' | 'Không làm được';
+  label: 'Làm được' | 'RTE' | 'Chưa làm được';
   badgeClass: string;
   Icon: typeof CheckCircle2;
 } {
@@ -44,7 +44,7 @@ function resolveSubmissionOutcome(s: any): {
     };
   }
   return {
-    label: 'Không làm được',
+    label: 'Chưa làm được',
     badgeClass: 'badge-hard',
     Icon: XCircle,
   };

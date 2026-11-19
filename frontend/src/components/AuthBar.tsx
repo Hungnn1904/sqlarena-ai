@@ -101,7 +101,7 @@ export default function AuthBar({
   return (
     <>
       <header className="sticky top-0 z-40 bg-surface border-b border-line">
-        <div className="max-w-[1520px] mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-[95rem] mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-5">
             <Link
               href="/"

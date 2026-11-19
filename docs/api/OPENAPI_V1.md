@@ -22,7 +22,7 @@
 | `POST` | `/api/v1/sql/run` | Bearer | `{ question_id, sql }` | Read-only sandbox execution (`columns`, `rows`, `row_count`, `runtime_ms`; strips `--` & `/* */` comments safely) |
 | `POST` | `/api/v1/sql/explain` | Bearer | `{ question_id, sql }` | `EXPLAIN` plan analysis (`plan_nodes`, `estimated_cost`) |
 | `POST` | `/api/v1/sql/ai-coach` | Bearer | `{ question_id, sql, mode: "review"\|"nl2sql"\|"interview"\|"autofix", prompt?, error_context? }` | Step-by-step SQL guidance & root-cause hints |
-| `POST` | `/api/v1/submissions` | Bearer | `{ question_id, sql }` | Deterministic grading (`submission_status: "passed"\|"failed"`, `score`, `runtime_ms`) |
+| `POST` | `/api/v1/submissions` | Bearer | `{ question_id, sql }` | Deterministic multi-case grading (`submission_status: "passed"\|"failed"\|"error"`, `score`, `runtime_ms`, `test_cases: [{ test_number, label, title, passed, target_rows, actual_rows, diagnostic_hint }]`) |
 | `GET` | `/api/v1/progress` | Bearer | — | S1–S6 mastery matrix, XP, badges, recent submissions |
 | `GET` | `/api/v1/leaderboard/weekly` | Bearer | `?set_id` | Ranked scores for active/selected weekly set |
 | `GET` | `/api/v1/leaderboard/monthly` | Bearer | `?year&month` | Ranked scores across monthly & active published sets |
@@ -30,6 +30,8 @@
 ## 3. Admin Generation, Calibrated Review & Manual Authoring (`/api/v1/admin/*`)
 | Method | Endpoint | Payload / Query | Response Summary |
 | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/admin/users` | `?q&role&status&page&page_size` | Paginated `live.users` list |
+| `GET` | `/api/v1/admin/users/{user_id}` | — | Full user profile (`user_id`, `email`, `username`, `display_name`, `bio`, `role`, `status`, `stats`, `recent_submissions`) |
 | `POST` | `/api/v1/admin/generation-jobs` | `{ difficulty, skill_ids?, skill_quantities?, topic?, quantity?, auto_run? }` | Enqueues per-skill or pooled generation job(s) via `apithat.dev` (`202`) |
 | `POST` | `/api/v1/admin/generation-jobs/run-worker` | — | Runs synchronous worker cycle until queue idle (`200`) |
 | `GET` | `/api/v1/admin/drafts` | `?status&job_id&difficulty&page&page_size` | Paginated `draft.question_drafts` |

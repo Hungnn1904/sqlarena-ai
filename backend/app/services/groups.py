@@ -12,6 +12,10 @@ def _ensure_tables(conn: Connection | None = None) -> None:
     if conn is not None:
         if table_exists(conn, "live.question_groups") and table_exists(conn, "live.question_group_items"):
             return
+    else:
+        with begin() as c:
+            if table_exists(c, "live.question_groups") and table_exists(c, "live.question_group_items"):
+                return
     ensure_runtime_schema()
 
 

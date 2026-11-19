@@ -326,6 +326,9 @@ export const closeAdminWeeklySet = (setId: number) =>
 export const getAdminUsers = (params?: { role?: string; status?: string; q?: string }) =>
   api.get('/api/v1/admin/users', { params }).then((r) => r.data);
 
+export const getAdminUserDetail = (userId: number) =>
+  api.get(`/api/v1/admin/users/${userId}`).then((r) => r.data);
+
 export const updateAdminUser = (
   userId: number,
   data: { role?: 'learner' | 'admin'; status?: 'active' | 'locked' }

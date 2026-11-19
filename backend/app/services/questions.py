@@ -187,14 +187,21 @@ def create_manual(conn: Connection, admin: dict, payload: dict) -> dict:
     try:
         clean_sql = submissions.guard_select(payload["reference_sql"])
         exec_res = submissions.execute_sandbox_sql(clean_sql)
-    except ValueError as exc:
+    except Exception as exc:
         raise bad_request(f"reference_sql không hợp lệ: {exc}")
     rc = exec_res["row_count"]
     if rc <= 0:
         raise bad_request("reference_sql phải trả về ít nhất 1 dòng dữ liệu trên Enterprise DB")
 
     cols = exec_res["columns"]
-    mode = payload.get("compare_mode") or ("ordered" if re.search(r"\bORDER\s+BY\b", clean_sql, flags=re.IGNORECASE) else "unordered")
+    from .order_spec import sync_question_order_contract
+
+    synced_question, mode = sync_question_order_contract(
+        payload["question"].strip(),
+        clean_sql,
+        payload.get("compare_mode"),
+        cols,
+    )
     schema_tables = [t["table"] for t in (w["schema_description"] or {}).get("tables", [])]
     tables_used = [t for t in schema_tables if re.search(rf"\b{re.escape(t)}\b", clean_sql, flags=re.IGNORECASE)]
     schema_txt = f"-- Bảng sử dụng: {', '.join(tables_used)}" if tables_used else "-- Truy vấn thủ công"
@@ -207,7 +214,7 @@ def create_manual(conn: Connection, admin: dict, payload: dict) -> dict:
            RETURNING question_id""",
         w=w["world_id"],
         t=payload["title"].strip(),
-        q=payload["question"].strip(),
+        q=synced_question,
         sql=clean_sql,
         m=mode,
         d=payload["difficulty"],

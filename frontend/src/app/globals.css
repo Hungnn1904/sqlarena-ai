@@ -185,6 +185,7 @@ html[data-theme="dark"] {
 }
 
 html {
+  font-size: 80%;
   scroll-behavior: smooth;
   scrollbar-width: thin;
   caret-color: var(--green);
@@ -195,13 +196,13 @@ body {
   background-color: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.55;
   overflow-x: clip;
   min-height: 100svh;
 }
 
-/* ── EDITORIAL 48PX GRID BACKGROUND ── */
+/* ── EDITORIAL GRID BACKGROUND (80% SCALED VIA REM) ── */
 body::before {
   content: "";
   position: fixed;
@@ -209,7 +210,7 @@ body::before {
   background-image:
     linear-gradient(var(--grid) 1px, transparent 1px), /* taste-skill-ignore */
     linear-gradient(90deg, var(--grid) 1px, transparent 1px); /* taste-skill-ignore */
-  background-size: 48px 48px;
+  background-size: 3rem 3rem;
   pointer-events: none;
   z-index: 0;
 }
