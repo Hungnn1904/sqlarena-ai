@@ -260,3 +260,113 @@ def test_remove_item_from_published_or_draft_weekly_set_reindexes_cleanly(client
     assert rm.status_code == 200, rm.text
     cur = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
     assert [(it["position"], it["question_id"]) for it in cur["items"]] == [(1, q1), (2, q3)]
+
+
+def test_ai_promoted_integer_and_count_queries_grade_passed_without_type_mismatch(client, admin_id, admin_h, learner_h):
+    """Tái hiện lỗi từ thực tế: đề do AI (rv.norm_value) tạo lưu số nguyên/COUNT thành chuỗi ('13'), còn bài nộp trả int (13) hoặc float/interval -> phải chấm ĐÚNG 3/3 test case, đồng thời vẫn giữ phân biệt mã có số 0 đầu ('00123' != '123')."""
+    from decimal import Decimal
+    from fakes import GOOD_SQL
+    from app.services import submissions as sub_svc
+
+    # 1. Đề AI sinh thật qua worker (chứa cột employee_id kiểu int -> rv.norm_value lưu thành chuỗi trong live.test_cases)
+    eng.set_transport(FakeOllama())
+    enqueue_job(admin_id)
+    stats = new_worker().run_once()
+    assert stats["reviewed"] == [(1, "approved")]
+
+    with db.begin() as conn:
+        q_ai = db.q1(conn, "SELECT question_id FROM live.questions WHERE source_draft_id = 1")["question_id"]
+
+    # Ngoài ra tạo đúng câu COUNT(e.employee_id) + SUM(e.current_salary) lưu theo chuẩn rv.norm_rows của AI (unordered)
+    dept_sql_1 = (
+        "SELECT d.department_name, COUNT(e.employee_id) AS count_employee, "
+        "SUM(e.current_salary) AS sum_current_salary "
+        "FROM departments d JOIN employees e ON d.department_id = e.department_id "
+        "GROUP BY d.department_name HAVING SUM(e.current_salary) > 10000000"
+    )
+    dept_sql_2 = (
+        "SELECT d.department_name, COUNT(e.employee_id) AS count_employee, "
+        "SUM(e.current_salary) AS sum_current_salary "
+        "FROM departments d JOIN employees e ON d.department_id = e.department_id "
+        "GROUP BY d.department_id, d.department_name HAVING SUM(e.current_salary) > 10000000"
+    )
+    raw_exec = sub_svc.execute_sandbox_sql(dept_sql_1)
+    cols = raw_exec["columns"]
+    ai_norm_rows = eng.rv.norm_rows([[r[c] for c in cols] for r in raw_exec["rows"]])
+    # Chứng minh dữ liệu AI lưu trong live.test_cases đang biến count_employee thành str
+    assert isinstance(ai_norm_rows[0][1], str)
+
+    with db.begin() as conn:
+        world_id = db.q1(conn, "SELECT world_id FROM core.worlds LIMIT 1")["world_id"]
+        q_cnt = db.q1(
+            conn,
+            "INSERT INTO live.questions (world_id, title, question, reference_sql, compare_mode, difficulty, skill_ids, tables_used, schema_text, status) "
+            "VALUES (:w, 'Tính số nhân viên trong từng phòng ban có tổng thu nhập trên 10 triệu VND', "
+            "'Tính số nhân viên trong từng phòng ban có tổng thu nhập trên 10 triệu VND', :sql, 'unordered', 2, ARRAY[2,3], ARRAY['departments','employees'], '', 'ready') "
+            "RETURNING question_id",
+            w=world_id,
+            sql=dept_sql_1,
+        )["question_id"]
+        exp_payload = {
+            "columns": cols,
+            "rows": ai_norm_rows,
+            "row_count": len(ai_norm_rows),
+            "result_hash": eng.rv.result_hash(ai_norm_rows, "unordered"),
+            "compare_mode": "unordered",
+        }
+        import json as _json
+        db.ex(
+            conn,
+            "INSERT INTO live.test_cases (question_id, dataset_ref, dataset_version, type, expected_result, is_hidden) "
+            "VALUES (:q, 'enterprise/base', 1, 'standard', CAST(:e AS jsonb), false)",
+            q=q_cnt,
+            e=_json.dumps(exp_payload, ensure_ascii=False),
+        )
+
+    grp = client.post(
+        "/api/v1/admin/question-groups",
+        headers=admin_h,
+        json={"name": "Nhóm Kiểm Chứng Kiểu Số", "question_ids": [q_ai, q_cnt]},
+    )
+    assert grp.status_code == 201
+    assert client.post(
+        f"/api/v1/admin/question-groups/{grp.json()['group_id']}/publish",
+        headers=admin_h,
+        json={"mode": "new_weekly_set", "set_title": "Bộ Đề Kiểm Chứng Kiểu Số"},
+    ).status_code == 200
+
+    # Nộp đáp án chuẩn cho đề AI #1 (cột int employee_id) -> phải đạt 3/3 test case
+    sub_ai = client.post(
+        "/api/v1/submissions",
+        headers=learner_h,
+        json={"question_id": q_ai, "sql": GOOD_SQL},
+    )
+    assert sub_ai.status_code in (200, 201), sub_ai.text
+    assert sub_ai.json()["passed"] is True, sub_ai.json()
+    assert sub_ai.json()["passed_tests"] == 3
+
+    # Nộp cả 2 biến thể GROUP BY cho câu COUNT + SUM -> cả hai đều phải đạt 3/3 test case
+    for variant_sql in (dept_sql_1, dept_sql_2):
+        sub_cnt = client.post(
+            "/api/v1/submissions",
+            headers=learner_h,
+            json={"question_id": q_cnt, "sql": variant_sql},
+        )
+        assert sub_cnt.status_code in (200, 201), sub_cnt.text
+        body = sub_cnt.json()
+        assert body["passed"] is True, body
+        assert body["passed_tests"] == 3 and body["total_tests"] == 3
+
+    # Kiểm tra đồng nhất float8 / Decimal / timedelta và bảo toàn mã có số 0 đứng đầu ('00123' != '123')
+    assert sub_svc.compare_result(
+        {"columns": ["n", "avg_val", "span"], "rows": [{"n": 13, "avg_val": sub_svc.json_value(12.0), "span": sub_svc.json_value(timedelta(days=1))}], "row_count": 1},
+        {"columns": ["n", "avg_val", "span"], "rows": [["13", eng.rv.norm_value(Decimal("12.00")), eng.rv.norm_value(timedelta(days=1))]], "row_count": 1, "compare_mode": "unordered"},
+    ) is True
+    assert sub_svc.compare_result(
+        {"columns": ["sku"], "rows": [{"sku": "00123"}], "row_count": 1},
+        {"columns": ["sku"], "rows": [["123"]], "row_count": 1, "compare_mode": "unordered"},
+    ) is False
+    assert sub_svc.compare_result(
+        {"columns": ["phone"], "rows": [{"phone": "0912345678"}], "row_count": 1},
+        {"columns": ["phone"], "rows": [[912345678]], "row_count": 1, "compare_mode": "unordered"},
+    ) is False

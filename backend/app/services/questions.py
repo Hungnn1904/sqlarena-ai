@@ -230,7 +230,7 @@ def create_manual(conn: Connection, admin: dict, payload: dict) -> dict:
         st=schema_txt,
     )
     qid = qrow["question_id"]
-    norm_r = [[submissions.json_value(row.get(c)) for c in cols] for row in exec_res["rows"]]
+    norm_r = eng.rv.norm_rows([[row.get(c) for c in cols] for row in exec_res["rows"]])
     expected = {
         "columns": cols,
         "rows": norm_r,

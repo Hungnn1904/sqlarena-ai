@@ -375,7 +375,7 @@ def ensure_promoted_ready_question(draft_id: int) -> int | None:
 
     mode = d.get("compare_mode") or "ordered"
     cols = list(exec_res["columns"])
-    norm_rows = [[submissions.json_value(row.get(c)) for c in cols] for row in exec_res["rows"]]
+    norm_rows = rv.norm_rows([[row.get(c) for c in cols] for row in exec_res["rows"]])
     tcs = [{
         "dataset_ref": "enterprise/base",
         "dataset_version": ver,
@@ -426,7 +426,7 @@ def _admin_resolve(res: dict, datasets: list, draft: dict | None = None, sql: st
             raise bad_request(f"SQL không thực thi được trên enterprise_db: {exc}") from exc
         if exec_res["row_count"] > 0:
             mode = draft.get("compare_mode") or "ordered"
-            norm_r = [[submissions.json_value(row.get(c)) for c in exec_res["columns"]] for row in exec_res["rows"]]
+            norm_r = rv.norm_rows([[row.get(c) for c in exec_res["columns"]] for row in exec_res["rows"]])
             tcs = [{
                 "dataset_ref": "enterprise/base",
                 "dataset_version": 1,

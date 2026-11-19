@@ -7,8 +7,8 @@ import re
 import time
 from collections import Counter
 from contextlib import contextmanager
-from datetime import date, datetime, time as datetime_time
-from decimal import Decimal
+from datetime import date, datetime, time as datetime_time, timedelta
+from decimal import Decimal, InvalidOperation, localcontext
 
 import psycopg
 from psycopg.rows import dict_row
@@ -90,18 +90,66 @@ def enterprise_connection():
         yield conn
 
 
+_CANONICAL_NUM_RE = re.compile(r"^-?(?:0|[1-9]\d*)(?:\.\d+)?$")
+
+
+def _format_decimal(num: Decimal) -> str:
+    if not num.is_finite():
+        return str(num)
+    if num == 0:
+        return "0"
+    digits_len = len(num.as_tuple().digits)
+    with localcontext() as ctx:
+        ctx.prec = max(28, digits_len + 2)
+        return format(num.normalize(), "f")
+
+
 def json_value(value):
     if value is None or isinstance(value, (bool, str, int)):
         return value
     if isinstance(value, (datetime, date, datetime_time)):
         return value.isoformat()
     if isinstance(value, Decimal):
-        return format(value.normalize(), "f") if value else "0"
+        return _format_decimal(value)
+    if isinstance(value, float):
+        try:
+            return _format_decimal(Decimal(repr(round(value, 9))))
+        except (InvalidOperation, ValueError):
+            return str(value)
+    if isinstance(value, timedelta):
+        s = f"{value.total_seconds():.6f}".rstrip("0").rstrip(".")
+        return "0" if s == "-0" else s
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return bytes(value).hex()
     if isinstance(value, (list, tuple)):
         return [json_value(item) for item in value]
     if isinstance(value, dict):
         return {str(key): json_value(item) for key, item in value.items()}
     return str(value)
+
+
+def _canonical_cell(value):
+    """Chuẩn hóa giá trị ô khi chấm điểm để đồng nhất int/Decimal/float với chuỗi số chuẩn của ai/review.py,
+    nhưng giữ nguyên chuỗi có số 0 đứng đầu (mã SKU '00123', SĐT '0912345678')."""
+    v = json_value(value)
+    if v is None or isinstance(v, bool):
+        return v
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, str) and _CANONICAL_NUM_RE.fullmatch(v):
+        try:
+            return _format_decimal(Decimal(v))
+        except (InvalidOperation, ValueError):
+            return v
+    if isinstance(v, list):
+        return [_canonical_cell(item) for item in v]
+    if isinstance(v, dict):
+        return {str(k): _canonical_cell(item) for k, item in sorted(v.items(), key=lambda kv: str(kv[0]))}
+    return v
+
+
+def _canonical_row(row: dict) -> dict:
+    return {k: _canonical_cell(v) for k, v in row.items()}
 
 
 def stable_json(value) -> str:
@@ -210,12 +258,17 @@ def _normalize_expected_rows(expected: dict) -> list[dict]:
     return [{col: json_value(val) for col, val in zip(cols, r)} for r in raw_rows]
 
 
+def _canonical_pair(actual: dict, expected: dict) -> tuple[list[dict], list[dict]]:
+    act_rows = [_canonical_row(r) for r in (actual.get("rows") or [])]
+    exp_rows = [_canonical_row(r) for r in _normalize_expected_rows(expected)]
+    return act_rows, exp_rows
+
+
 def compare_result(actual: dict, expected: dict, compare_mode_override: str | None = None) -> bool:
     exp_cols = expected.get("columns") or []
     if actual["columns"] != exp_cols:
         return False
-    actual_rows = actual["rows"]
-    expected_rows = _normalize_expected_rows(expected)
+    actual_rows, expected_rows = _canonical_pair(actual, expected)
     mode = compare_mode_override or expected.get("compare_mode") or "unordered"
     if mode == "ordered":
         return [stable_json(r) for r in actual_rows] == [stable_json(r) for r in expected_rows]
@@ -230,8 +283,7 @@ def diagnose_mismatch(actual: dict, expected: dict, compare_mode_override: str |
             "reason_code": "COLUMN_MISMATCH",
             "hint": f"Sai tên hoặc thứ tự cột: cần {exp_cols}, nhưng truy vấn trả về {act_cols}.",
         }
-    expected_rows = _normalize_expected_rows(expected)
-    actual_rows = actual.get("rows") or []
+    actual_rows, expected_rows = _canonical_pair(actual, expected)
     exp_count = expected.get("row_count", len(expected_rows))
     act_count = actual.get("row_count", len(actual_rows))
     if act_count != exp_count:

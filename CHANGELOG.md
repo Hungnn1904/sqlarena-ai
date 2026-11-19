@@ -1,5 +1,14 @@
 # Changelog — SQLArena AI
 
+## [2.4.1] — 2026-11-20 (Đồng Bộ Kiểu Dữ Liệu Chấm Điểm `COUNT`/`INT`/`FLOAT`/`INTERVAL` & Kho Chờ `Approved` Chưa Lên Kệ)
+
+### Fixed
+- **Đồng nhất chuẩn hóa giá trị ô khi chấm bài (`_canonical_cell` trong `submissions.py`, `questions.py`, `drafts.py`)**: Sửa triệt để lỗi lệch kiểu dữ liệu giữa đáp án mẫu do `ai/review.py:norm_value()` lưu (ép `int`/`COUNT(...)` thành chuỗi `"13"`) và kết quả chạy bài nộp trực tiếp từ `psycopg` (`int` `13`, `float`, `Decimal`, `timedelta`/`INTERVAL`, `bytes`). Cả các `live.test_cases` cũ đã lưu dạng chuỗi trong PostgreSQL lẫn đề tạo mới đều chấm khớp `3/3 test case`, đồng thời bảo toàn tuyệt đối các chuỗi mã định danh có số `0` đứng đầu (`"00123" != "123"`, SĐT `"09..."`).
+- **Tách kho `Câu hỏi Approved chưa có trên kệ` khỏi kệ Học viên (`promotion.py`, `AdminPortal.tsx`)**: Đề vừa đạt `approved` (AI hoặc Admin duyệt) chỉ vào kho `ready` chờ biên tập bộ đề tuần, không tự động nhảy lên trang `Làm bài`; gỡ bỏ hoàn toàn thanh chuyển đổi `AI duyệt: Thông minh / Khắt khe`.
+- *Learned / Adapted From*: Báo cáo đối chiếu thực nghiệm `COUNT(e.employee_id)` + `SUM(e.current_salary)` của Đạt (nhóm PTIT) & chuẩn canonicalization `ai/review.py:norm_value`.
+
+---
+
 ## [2.3.1] — 2026-11-18 (Vá Lỗi `Network Error` & Tinh Gọn Luồng Soạn Bộ Đề Tuần Thủ Công)
 
 ### Fixed
