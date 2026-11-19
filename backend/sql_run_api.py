@@ -152,13 +152,9 @@ def question_schema(metadata: dict) -> list[dict]:
 
 
 def compare_result(actual: dict, expected: dict) -> bool:
-    if actual["columns"] != expected.get("columns", []):
-        return False
-    actual_rows = actual["rows"]
-    expected_rows = expected.get("rows", [])
-    if expected.get("compare_mode") == "ordered":
-        return actual_rows == expected_rows
-    return Counter(stable(row) for row in actual_rows) == Counter(stable(row) for row in expected_rows)
+    from app.services.submissions import compare_result as canonical_compare_result
+
+    return canonical_compare_result(actual, expected)
 
 
 def find_user(user_id: int) -> dict | None:

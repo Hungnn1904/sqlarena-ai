@@ -370,3 +370,30 @@ def test_ai_promoted_integer_and_count_queries_grade_passed_without_type_mismatc
         {"columns": ["phone"], "rows": [{"phone": "0912345678"}], "row_count": 1},
         {"columns": ["phone"], "rows": [[912345678]], "row_count": 1, "compare_mode": "unordered"},
     ) is False
+
+    # Câu 3 thực tế (Báo cáo phân cấp nhân viên — không có COUNT, có cột INTEGER employee_id + manager_name NULL):
+    # AI lưu employee_id='1' (str) và manager_name=None, bài nộp trả employee_id=1 (int) -> phải khớp 3/3 test case!
+    hierarchy_sql = (
+        "SELECT e.employee_id, e.full_name, e.job_title, "
+        "m.full_name AS manager_name, d.department_name "
+        "FROM employees e "
+        "LEFT JOIN employees m ON e.manager_id = m.employee_id "
+        "JOIN departments d ON e.department_id = d.department_id "
+        "ORDER BY e.employee_id ASC"
+    )
+    h_exec = sub_svc.execute_sandbox_sql(hierarchy_sql)
+    h_cols = h_exec["columns"]
+    h_ai_rows = eng.rv.norm_rows([[r[c] for c in h_cols] for r in h_exec["rows"]])
+    assert isinstance(h_ai_rows[0][0], str)  # employee_id bị AI ép thành chuỗi '1'
+    assert any(r[3] is None for r in h_ai_rows)  # có dòng manager_name là NULL
+
+    import sql_run_api
+    h_expected = {
+        "columns": h_cols,
+        "rows": h_ai_rows,
+        "row_count": len(h_ai_rows),
+        "result_hash": eng.rv.result_hash(h_ai_rows, "ordered"),
+        "compare_mode": "ordered",
+    }
+    assert sub_svc.compare_result(h_exec, h_expected, "ordered") is True
+    assert sql_run_api.compare_result(h_exec, h_expected) is True
