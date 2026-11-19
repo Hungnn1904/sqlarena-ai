@@ -191,13 +191,41 @@ def guard_sql(sql, schema):
     return tree, {"tables": sorted(resolver.tables), "output_columns": list(outputs), "features": sql_features(tree)}
 
 
+def _strip_ast_loc(node):
+    if isinstance(node, dict):
+        return {k: _strip_ast_loc(v) for k, v in node.items() if k != "location"}
+    if isinstance(node, list):
+        return [_strip_ast_loc(item) for item in node]
+    return node
+
+
+def _resolve_sort_node_key(query, node):
+    fields = [f["String"]["sval"] for f in node.get("ColumnRef", {}).get("fields", []) if "String" in f]
+    if fields:
+        return fields[-1]
+    targets = query.get("targetList") or []
+    ival = (node.get("A_Const") or {}).get("ival", {}).get("ival")
+    if isinstance(ival, int) and 1 <= ival <= len(targets):
+        rt = targets[ival - 1].get("ResTarget", {})
+        if rt.get("name"):
+            return rt["name"]
+        t_fields = [f["String"]["sval"] for f in (rt.get("val") or {}).get("ColumnRef", {}).get("fields", []) if "String" in f]
+        if t_fields:
+            return t_fields[-1]
+    clean_node = _strip_ast_loc(node)
+    for item in targets:
+        rt = item.get("ResTarget", {})
+        if rt.get("name") and rt.get("val") and _strip_ast_loc(rt["val"]) == clean_node:
+            return rt["name"]
+    return None
+
+
 def order_keys(tree):
     query = tree["SelectStmt"]
     keys = []
     for item in query.get("sortClause") or []:
         node = item["SortBy"]["node"]
-        fields = [f["String"]["sval"] for f in node.get("ColumnRef", {}).get("fields", []) if "String" in f]
-        keys.append(fields[-1] if fields else None)
+        keys.append(_resolve_sort_node_key(query, node))
     return keys
 
 
@@ -337,8 +365,8 @@ def actual_order_specs_full(tree):
     for item in query.get("sortClause") or []:
         sort = item.get("SortBy", {})
         node = sort.get("node", {})
-        fields = [f["String"]["sval"] for f in node.get("ColumnRef", {}).get("fields", []) if "String" in f]
-        key = fields[-1].lower() if fields else None
+        resolved = _resolve_sort_node_key(query, node)
+        key = resolved.lower() if resolved else None
         raw_dir = sort.get("sortby_dir", 0)
         if isinstance(raw_dir, str):
             direction = "desc" if "DESC" in raw_dir.upper() else "asc"
@@ -1474,17 +1502,35 @@ def _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action="nee
     if ordering_required(ctx):
         missing_order = [s["index"] for s in valid if not order_keys(s["tree"])]
         if missing_order:
-            out["stages"]["ordering_contract"] = {"passed": False, "missing_samples": missing_order}
-            out.update(status="needs_human", reasons=["required_order_by_missing"])
-            return out
+            ordered_valid = [s for s in valid if order_keys(s["tree"])]
+            all_unordered_same = all(
+                same_result(ordered_valid[0]["results"][ds.ref], s["results"][ds.ref], "unordered")
+                for s in valid for ds in datasets
+            ) if ordered_valid else False
+            if calibrated and len(ordered_valid) >= min_valid and all_unordered_same:
+                out["notes"].append({"ordering_outlier_dropped": missing_order})
+                valid = ordered_valid
+            else:
+                out["stages"]["ordering_contract"] = {"passed": False, "missing_samples": missing_order}
+                out.update(status="needs_human", reasons=["required_order_by_missing"])
+                return out
         required_specs = expected_order_specs_full(ctx)
         if required_specs:
             wrong_order = [s["index"] for s in valid if not order_specs_match(actual_order_specs_full(s["tree"]), required_specs)]
             if wrong_order:
-                out["stages"]["ordering_contract"] = {"passed": False, "required": required_specs,
-                                                         "mismatched_samples": wrong_order}
-                out.update(status="needs_human", reasons=["order_by_contract_mismatch"])
-                return out
+                spec_valid = [s for s in valid if order_specs_match(actual_order_specs_full(s["tree"]), required_specs)]
+                all_unordered_same = all(
+                    same_result(spec_valid[0]["results"][ds.ref], s["results"][ds.ref], "unordered")
+                    for s in valid for ds in datasets
+                ) if spec_valid else False
+                if calibrated and len(spec_valid) >= min_valid and all_unordered_same:
+                    out["notes"].append({"order_spec_outlier_dropped": wrong_order})
+                    valid = spec_valid
+                else:
+                    out["stages"]["ordering_contract"] = {"passed": False, "required": required_specs,
+                                                             "mismatched_samples": wrong_order}
+                    out.update(status="needs_human", reasons=["order_by_contract_mismatch"])
+                    return out
 
     # De yeu cau sap xep -> uu tien loi giai co ORDER BY (neu khong, tham chieu se mat thu tu cua de).
     pool = [s for s in valid if order_keys(s["tree"])] if ordering_required(ctx) else []
@@ -1500,6 +1546,22 @@ def _review_draft_once(ctx, datasets, solver, k, retries, zero_valid_action="nee
             unordered_ok = same_result(selected["results"][ds.ref], s["results"][ds.ref], "unordered")
             mismatches.setdefault(s["index"], {})[ds.ref] = (
                 {"order_only": True} if unordered_ok else diff_hint(selected["results"][ds.ref], s["results"][ds.ref], mode))
+    if mismatches and calibrated and all(v.get("order_only") for m in mismatches.values() for v in m.values()):
+        # Mọi mẫu hợp lệ đều khớp 100% tập dữ liệu unordered; kiểm tra cụm đa số >= min_valid mẫu khớp cả thứ tự ordered
+        for cand_s in sorted(pool or valid, key=lambda s: (s["info"]["features"]["ast_nodes"], len(s["sql"]), s["index"])):
+            cluster = [
+                s for s in valid
+                if all(same_result(cand_s["results"][ds.ref], s["results"][ds.ref], mode) for ds in datasets)
+            ]
+            if len(cluster) >= min_valid:
+                out["notes"].append({"order_tie_cluster_note": [s["index"] for s in cluster]})
+                valid = cluster
+                selected = cand_s
+                out["reference_sql"] = selected["sql"]
+                for s in out["samples"]:
+                    s["is_selected"] = s is selected
+                mismatches = {}
+                break
     out["stages"]["consensus"] = {"passed": not mismatches, "mismatches": mismatches}
     for s in valid:
         s["mismatch"] = mismatches.get(s["index"])

@@ -290,12 +290,23 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
     if marker in prompt and "\n\nOUTPUT OBJECT" in prompt:
         try:
             head, rest = prompt.split(marker, 1)
-            ctx_json_str, tail = rest.split("\n\nOUTPUT OBJECT", 1)
+            before_out, tail = rest.split("\n\nOUTPUT OBJECT", 1)
+            retry_block = ""
+            if "\n\nPREVIOUS ATTEMPT FAILED" in before_out:
+                ctx_json_str, retry_tail = before_out.split("\n\nPREVIOUS ATTEMPT FAILED", 1)
+                retry_block = "\n\nPREVIOUS ATTEMPT FAILED" + retry_tail
+            else:
+                ctx_json_str = before_out
             ctx_obj = json.loads(ctx_json_str)
             ws = ctx_obj.get("world_schema") or {}
             grp = ws.get("context_group") or {}
             t_cols = {t["table"]: [c["name"] for c in t.get("columns", [])] for t in ws.get("tables", [])}
             fks = [{"table_name": f["table_name"], "columns": f["columns"], "referenced_table": f["referenced_table"], "referenced_columns": f["referenced_columns"]} for f in ws.get("fk_relations", [])]
+            avoid_goals = [
+                r.get("goal_to_avoid")
+                for r in (ctx_obj.get("source_references") or [])
+                if isinstance(r, dict) and r.get("goal_to_avoid") and "Outside this topic group" not in str(r.get("goal_to_avoid"))
+            ][:5]
             task_line = next((l for l in head.splitlines() if l.startswith("TASK: ")), "")
             task_obj = json.loads(task_line[6:]) if task_line else {}
             skill = task_obj.get("skill", "S2")
@@ -304,14 +315,17 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
             min_t = grp.get("min_tables", 1)
             max_t = grp.get("max_tables", 2)
             prim_t = grp.get("primary_tables", [])
+            avoid_str = f" Avoid repeating these existing goals: {json.dumps(avoid_goals, ensure_ascii=False)}." if avoid_goals else ""
             prompt = (
                 f"Generate 1 Vietnamese PostgreSQL question JSON (no SQL code). "
                 f"difficulty={diff!r}, primary_skill_group={skill!r}, skills={[skill]!r}, business_domain={dom!r}. "
                 f"Use {min_t}..{max_t} connected tables from {list(t_cols.keys())} "
                 f"(must include at least one of {prim_t}). "
                 f"Columns per table: {json.dumps(t_cols, ensure_ascii=False)}. "
-                f"Allowed join_relations: {json.dumps(fks, ensure_ascii=False)}. "
-                f"Keep all string fields to 1-2 short sentences.\nOUTPUT OBJECT" + tail
+                f"Allowed join_relations: {json.dumps(fks, ensure_ascii=False)}."
+                f"{avoid_str} "
+                f"State exact output_columns and clear deterministic sorting ('Sắp xếp kết quả theo <column> tăng dần/giảm dần') in Vietnamese. "
+                f"Keep all string fields to 1-2 short sentences.{retry_block}\nOUTPUT OBJECT" + tail
             )
         except Exception:
             pass
@@ -331,15 +345,21 @@ def gateway_or_ollama_request(config: dict, path: str, body: dict | None = None)
             _, audit_json_str = prompt.split("AUDIT INPUT JSON:\n", 1)
             audit_obj = json.loads(audit_json_str)
             qc = audit_obj.get("query_contract") or {}
+            q_lines = qc.get("question_lines", [])
+            explicit_cols = rv.expected_columns_from_text("\n".join(str(x) for x in q_lines))
             compact_audit = {
-                "question_lines": qc.get("question_lines", []),
-                "required_output_columns": qc.get("required_output_columns", []),
+                "question_lines": q_lines,
+                "explicit_output_columns_in_question": explicit_cols,
                 "tables": audit_obj.get("allowed_tables_and_columns", {}),
+                "foreign_keys": audit_obj.get("foreign_keys", []),
+                "check_constraints": audit_obj.get("check_constraints", []),
                 "candidate_sql": audit_obj.get("candidate_sql", ""),
             }
             prompt = (
-                "Audit candidate_sql against question_lines. Return JSON with verdict ('pass' or 'needs_human'), issues ([] for pass), "
-                "and checks (5 items with status='pass' and requirement exactly matching the 5 required labels).\nINPUT:\n"
+                "Audit candidate_sql ONLY against explicit requirements in question_lines. "
+                "Ignore SQL column alias naming differences unless explicit_output_columns_in_question is non-empty. "
+                "Return JSON with verdict ('pass' when candidate_sql faithfully computes the answer, 'needs_human' only on a genuine logic defect), "
+                "issues ([] for pass), and checks (5 items with status='pass' and requirement matching the 5 required labels).\nINPUT:\n"
                 + json.dumps(compact_audit, ensure_ascii=False)
             )
         except Exception:

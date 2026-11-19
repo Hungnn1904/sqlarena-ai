@@ -49,7 +49,9 @@ def ensure_defaults(conn: Connection) -> None:
         ex(
             conn,
             "INSERT INTO core.system_settings(key, value, description) VALUES (:k, CAST(:v AS jsonb), :d) "
-            "ON CONFLICT (key) DO UPDATE SET description = EXCLUDED.description",
+            "ON CONFLICT (key) DO UPDATE SET "
+            "description = EXCLUDED.description, "
+            "value = CASE WHEN core.system_settings.key = 'review.approval_mode' THEN EXCLUDED.value ELSE core.system_settings.value END",
             k=key,
             v=json.dumps(spec.default),
             d=spec.description,

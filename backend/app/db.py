@@ -80,6 +80,10 @@ def ensure_runtime_schema() -> None:
                 );
                 """
             )
+        if table_exists(conn, "core.system_settings"):
+            from .services import settings_registry
+
+            settings_registry.ensure_defaults(conn)
         if table_exists(conn, "live.admin_overrides"):
             has_return = conn.execute(
                 text(

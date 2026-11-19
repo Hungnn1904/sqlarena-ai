@@ -135,6 +135,9 @@ class GenerationRunner:
         try:
             with begin() as conn:
                 data = load_engine_data(conn, world["name"])
+                existing_drafts = int(
+                    q1(conn, "SELECT COUNT(*) AS n FROM draft.question_drafts WHERE world_id=:w", w=job["world_id"])["n"]
+                )
             verify_catalog(self.config, data)
             rules = arena.read_rules(self.config)
         except ValueError as exc:
@@ -150,6 +153,7 @@ class GenerationRunner:
         domain = next((d for d in domains if d.casefold() == topic.casefold()), None) if topic else None
         extra = topic if topic and not domain else ""
 
+        slot_offset = max(existing_drafts, max(0, int(job.get("job_id") or 1) - 1))
         infra_streak = 0
         with Heartbeat("job", job["job_id"], self.worker_id, job["lease_version"], lease_s, hb_s) as hb:
             while True:
@@ -157,12 +161,12 @@ class GenerationRunner:
                 done = job["created_count"] + job["failed_count"]
                 if done >= job["requested_count"]:
                     break
-                index = done
-                request = {"count": 1, "difficulty": diff, "skill": skills[index % len(skills)], "domain": domain,
+                slot_index = slot_offset + done
+                request = {"count": 1, "difficulty": diff, "skill": skills[done % len(skills)], "domain": domain,
                            "preferred_tables": [], "extra": extra, "allowed_domains": domains,
                            "allowed_skills": [s["skill_id"] for s in data["skills"]]}
                 try:
-                    outcome = self._generate_slot(job, data, rules, request, index)
+                    outcome = self._generate_slot(job, data, rules, request, slot_index)
                 except eng.BudgetExceeded as exc:
                     return self._finish(job, "failed", f"budget: {exc}")
                 if outcome["ok"]:

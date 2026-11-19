@@ -647,4 +647,141 @@ def test_generation_jobs_skill_quantities_learner_code_search_and_clean_llm_labe
         assert m_low in ("model a", "model b")
 
 
+def test_calibrated_yield_heals_stale_strict_rotates_domains_and_resolves_expression_order_by(client, admin_id, admin_h):
+    """Kiểm chứng 4 điểm nghẽn làm giảm tỷ lệ Approved khi tắt chọn chủ đề và xoá thanh Khắt khe:
+    1) DB từng lưu review.approval_mode='strict' tự hồi phục về 'calibrated' khi khởi động (nhưng giữ nguyên tham số khác).
+    2) Nhiều job 1 câu với topic=None xoay vòng qua các miền nghiệp vụ khác nhau thay vì kẹt mãi ở Customer Management (index=0).
+    3) ORDER BY biểu thức tổng hợp (SUM(...) DESC khớp alias SELECT) và đa số >=2/3 mẫu đồng thuận thứ tự (0 lệch dữ liệu) được duyệt mượt ở chế độ calibrated, nhưng lệch dữ liệu thật vẫn chặn cứng needs_human."""
+    import json
+    from app.services import settings_registry as sr
+
+    # 1. Tự hồi phục review.approval_mode='strict' -> 'calibrated' trong ensure_runtime_schema()
+    client.put("/api/v1/admin/settings/review.approval_mode", json={"value": "strict"}, headers=admin_h)
+    client.put("/api/v1/admin/settings/generation.max_quantity", json={"value": 25}, headers=admin_h)
+    db.ensure_runtime_schema()
+    with db.begin() as conn:
+        assert sr.get(conn, "review.approval_mode") == "calibrated"
+        assert sr.get(conn, "generation.max_quantity") == 25
+
+    # 2. Hai job liên tiếp với topic=None phải xoay sang miền nghiệp vụ (context_group.domain) khác nhau
+    seen_domains: list[str] = []
+
+    class DomainAwareTransport:
+        def __call__(self, config, path, body=None):
+            if path == "/api/tags":
+                return {"models": [{"name": config["MODEL_NAME"]}]}
+            props = (body.get("format") or {}).get("properties", {}) if isinstance(body.get("format"), dict) else {}
+            meta = {"done": True, "done_reason": "stop", "prompt_eval_count": 50, "eval_count": 40, "total_duration": 1}
+            if "title" in props:
+                prompt = body.get("prompt", "")
+                ctx_str = prompt.split("CONTEXT:\n", 1)[1].split("\n\n", 1)[0]
+                ctx_obj = json.loads(ctx_str)
+                grp = ctx_obj["world_schema"]["context_group"]
+                dom = grp["domain"]
+                seen_domains.append(dom)
+                prim_tbl = grp["primary_tables"][0]
+                tbl_info = next(t for t in ctx_obj["world_schema"]["tables"] if t["table"] == prim_tbl)
+                pk_col = tbl_info["primary_key"][0]
+                cand = {
+                    "title": f"Kiểm kê bản ghi trên bảng {prim_tbl} ({len(seen_domains)})",
+                    "question": f"Liệt kê cột {pk_col} từ bảng {prim_tbl}. Sắp xếp theo {pk_col} tăng dần.",
+                    "business_domain": dom,
+                    "business_goal": f" Rà soát khóa định danh {pk_col} của {prim_tbl} đợt {len(seen_domains)}",
+                    "difficulty_reason": "Truy vấn trực tiếp trên một bảng.",
+                    "difficulty": "easy",
+                    "primary_skill_group": "S1",
+                    "skills": ["S1"],
+                    "tables_used": [prim_tbl],
+                    "output_columns": [pk_col],
+                    "required_columns": {prim_tbl: [pk_col]},
+                    "table_roles": {prim_tbl: f"Bảng chính {prim_tbl}"},
+                    "logic_signature": {
+                        "output_grain": f"Mỗi dòng một {prim_tbl}",
+                        "analysis_goal": f"Tra cứu {pk_col} đợt {len(seen_domains)}",
+                        "filter_pattern": "none",
+                        "aggregation_pattern": "none",
+                    },
+                    "join_relations": [],
+                }
+                return {"response": json.dumps(cand, ensure_ascii=False), **meta}
+            if "verdict" in props:
+                return {"response": json.dumps({"verdict": "pass", "issues": [], "checks": []}, ensure_ascii=False), **meta}
+            prompt = body.get("prompt", "")
+            m_tbl = next((t for t in ("customers", "payments", "operating_expenses", "employees", "products", "warehouses", "orders") if f"bảng {t}" in prompt), "employees")
+            pk_map = {
+                "customers": "customer_id",
+                "payments": "payment_id",
+                "operating_expenses": "expense_id",
+                "employees": "employee_id",
+                "products": "product_id",
+                "warehouses": "warehouse_id",
+                "orders": "order_id",
+            }
+            pk = pk_map[m_tbl]
+            return {"response": json.dumps({"sql": f"SELECT {pk} FROM {m_tbl} ORDER BY {pk} ASC"}, ensure_ascii=False), **meta}
+
+    eng.set_transport(DomainAwareTransport())
+    enqueue_job(admin_id, quantity=1, difficulty=1, code="S1", topic=None)
+    new_worker().run_once()
+    enqueue_job(admin_id, quantity=1, difficulty=1, code="S1", topic=None)
+    new_worker().run_once()
+    assert len(seen_domains) >= 2
+    assert seen_domains[0] != seen_domains[1], f"Expected domain rotation across topic=None jobs, got {seen_domains}"
+
+    # 3. ORDER BY biểu thức hàm gộp (ORDER BY SUM(...) DESC) + 2/3 mẫu đồng thuận thứ tự (mẫu thứ 3 quên ORDER BY nhưng cùng tập dữ liệu) -> approved!
+    agg_cand = {
+        "title": "Tổng quỹ lương hiện hành theo mã phòng ban",
+        "question": "Tính tổng lương hiện tại (total_salary) theo từng mã phòng ban (department_id) của nhân viên có department_id không rỗng. Sắp xếp giảm dần theo total_salary.",
+        "business_domain": "Human Resources",
+        "business_goal": "Tổng hợp quỹ lương từng mã phòng ban",
+        "difficulty_reason": "Gom nhóm GROUP BY trên một bảng.",
+        "difficulty": "easy",
+        "primary_skill_group": "S3",
+        "skills": ["S3"],
+        "tables_used": ["employees"],
+        "output_columns": ["department_id", "total_salary"],
+        "required_columns": {"employees": ["department_id", "current_salary"]},
+        "table_roles": {"employees": "Bảng nhân sự và mức lương"},
+        "logic_signature": {
+            "output_grain": "Mỗi dòng một mã phòng ban",
+            "analysis_goal": "Tổng hợp lương theo mã phòng ban",
+            "filter_pattern": "department_id IS NOT NULL",
+            "aggregation_pattern": "SUM(current_salary) GROUP BY department_id",
+        },
+        "join_relations": [],
+    }
+    sql_expr_order = "SELECT department_id, SUM(current_salary) AS total_salary FROM employees WHERE department_id IS NOT NULL GROUP BY department_id ORDER BY SUM(current_salary) DESC, department_id ASC"
+    sql_alias_order = "SELECT e.department_id, SUM(e.current_salary) AS total_salary FROM employees e WHERE e.department_id IS NOT NULL GROUP BY e.department_id ORDER BY total_salary DESC, e.department_id ASC"
+    sql_missing_order = "SELECT department_id, SUM(current_salary) AS total_salary FROM employees WHERE department_id IS NOT NULL GROUP BY department_id"
+    pass_audit = {"verdict": "pass", "issues": [], "checks": [{"requirement": "ordering and tie-breakers", "status": "pass", "finding": "OK"}]}
+
+    eng.set_transport(FakeOllama(model_a=agg_cand, solver_sqls=[sql_expr_order, sql_alias_order, sql_missing_order], audit=pass_audit))
+    enqueue_job(admin_id, quantity=1, difficulty=1, code="S3", topic="Human Resources")
+    new_worker().run_once()
+    with db.begin() as conn:
+        d_agg = db.q1(conn, "SELECT draft_id, status, status_reason FROM draft.question_drafts ORDER BY draft_id DESC LIMIT 1")
+    assert d_agg["status"] == "approved", d_agg
+
+    # Nhưng nếu mẫu thứ 3 ra tập dữ liệu KHÁC hẳn (lệch điều kiện lọc) -> bắt buộc chặn ở needs_human (consensus_disagreement)!
+    agg_cand_conflict = {
+        **agg_cand,
+        "title": "Đối chiếu lệch dữ liệu giữa các solver",
+        "question": "Thống kê tổng lương (total_salary) theo từng department_id khác NULL trong bảng employees. Sắp xếp giảm dần theo total_salary.",
+        "logic_signature": {
+            "output_grain": "Một phòng ban",
+            "analysis_goal": "Kiểm tra chặn lệch dữ liệu thật",
+            "filter_pattern": "department_id khac null",
+            "aggregation_pattern": "SUM theo department_id",
+        },
+    }
+    sql_wrong_data = "SELECT department_id, SUM(current_salary) AS total_salary FROM employees WHERE department_id IS NOT NULL AND department_id > 1 GROUP BY department_id ORDER BY total_salary DESC, department_id ASC"
+    eng.set_transport(FakeOllama(model_a=agg_cand_conflict, solver_sqls=[sql_expr_order, sql_alias_order, sql_wrong_data], audit=pass_audit))
+    enqueue_job(admin_id, quantity=1, difficulty=1, code="S3", topic="Human Resources")
+    new_worker().run_once()
+    with db.begin() as conn:
+        d_conf = db.q1(conn, "SELECT draft_id, status, status_reason FROM draft.question_drafts ORDER BY draft_id DESC LIMIT 1")
+    assert d_conf["draft_id"] > d_agg["draft_id"]
+    assert d_conf["status"] == "needs_human" and "consensus_disagreement" in (d_conf["status_reason"] or "")
+
+
 
