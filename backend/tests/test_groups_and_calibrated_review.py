@@ -9,8 +9,8 @@ from app.pipeline import engine as eng
 from app.seed import seed_demo_live
 
 
-def test_approved_draft_auto_publishes_to_active_set_and_return_or_reject_unpublishes_cleanly(client, admin_id, admin_h, learner_h):
-    """Khi có bộ đề published: đề approved tự lên kệ Học viên -> return-needs-human gỡ khỏi kệ -> approve lại lên kệ -> reject từ approved gỡ khỏi kệ & dồn lại position."""
+def test_approved_draft_stays_in_unassigned_pool_until_group_published_and_reverts_cleanly(client, admin_id, admin_h, learner_h):
+    """Khi có bộ đề published: đề approved (AI hoặc Admin) nằm trong 'Chưa có trên kệ' (chưa lên Web Học Viên) -> chỉ lên kệ khi publish nhóm/bộ đề -> return-needs-human hoặc reject gỡ khỏi kệ & dồn lại position."""
     q_init = make_question(1, title="Câu mở đầu tuần")
     with db.begin() as conn:
         ws = db.q1(
@@ -36,17 +36,26 @@ def test_approved_draft_auto_publishes_to_active_set_and_return_or_reject_unpubl
     assert promoted["status"] == "ready"
     new_qid = promoted["question_id"]
 
-    # 1. Đề approved tự động hiển thị trên Web Học Viên ở vị trí 2
+    # 1. Đề vừa đạt Approved nằm ở mục "Chưa có trên kệ" (unassigned), KHÔNG tự nhảy lên kệ Học viên
     cur = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
-    assert cur["total"] == 2
-    assert [(i["question_id"], i["position"]) for i in cur["items"]] == [(q_init, 1), (new_qid, 2)]
-    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 200
+    assert cur["total"] == 1
+    assert [(i["question_id"], i["position"]) for i in cur["items"]] == [(q_init, 1)]
+    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 404
 
-    # Gom câu đã nằm sẵn trên pub_set vào nhóm và publish append_active -> không lỗi, published_count == 1 (không trả 0)
+    unassigned = client.get(
+        "/api/v1/admin/questions",
+        params={"status": "ready", "unassigned_only": "true"},
+        headers=admin_h,
+    ).json()["items"]
+    unassigned_ids = {item["question_id"]: item for item in unassigned}
+    assert new_qid in unassigned_ids
+    assert unassigned_ids[new_qid]["in_published_set"] is False
+
+    # 1b. Admin gom câu từ mục "Chưa có trên kệ" vào nhóm và bấm Đăng (append_active) -> lúc này mới lên kệ ở vị trí 2
     grp = client.post(
         "/api/v1/admin/question-groups",
         headers=admin_h,
-        json={"name": "Nhóm câu đã lên kệ", "question_ids": [new_qid]},
+        json={"name": "Nhóm câu chờ lên kệ", "question_ids": [new_qid]},
     )
     assert grp.status_code == 201
     pub_grp = client.post(
@@ -55,6 +64,11 @@ def test_approved_draft_auto_publishes_to_active_set_and_return_or_reject_unpubl
         json={"mode": "append_active"},
     )
     assert pub_grp.status_code == 200 and pub_grp.json()["published_count"] == 1
+
+    cur_after_pub = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert cur_after_pub["total"] == 2
+    assert [(i["question_id"], i["position"]) for i in cur_after_pub["items"]] == [(q_init, 1), (new_qid, 2)]
+    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 200
 
     # 2. Admin chuyển ngược approved -> needs_human: gỡ khỏi kệ Học viên & chuyển câu hỏi sang retired
     ret_res = client.post(
@@ -74,17 +88,29 @@ def test_approved_draft_auto_publishes_to_active_set_and_return_or_reject_unpubl
         ov = db.q1(conn, "SELECT action, note FROM live.admin_overrides WHERE draft_id = 1 ORDER BY id DESC LIMIT 1")
     assert ov["action"] == "return_needs_human"
 
-    # 3. Admin bấm approve lại từ needs_human -> khôi phục status='ready' và tự lên kệ lại!
-    re_app = client.post("/api/v1/admin/drafts/1/approve", headers=admin_h, json={"note": "Đã kiểm tra chuẩn, cho lên lại"})
+    # 3. Admin bấm approve lại từ needs_human -> khôi phục status='ready' trong kho "Chưa có trên kệ", chưa tự lên kệ
+    re_app = client.post("/api/v1/admin/drafts/1/approve", headers=admin_h, json={"note": "Đã kiểm tra chuẩn"})
     assert re_app.status_code == 200, re_app.text
     assert re_app.json()["status"] == "approved"
     assert re_app.json()["promoted_question"]["status"] == "ready"
 
-    cur_re = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
-    assert [(i["question_id"], i["position"]) for i in cur_re["items"]] == [(q_init, 1), (new_qid, 2)]
-    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 200
+    cur_re_unassigned = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert [(i["question_id"], i["position"]) for i in cur_re_unassigned["items"]] == [(q_init, 1)]
+    assert client.get(f"/api/v1/questions/{new_qid}", headers=learner_h).status_code == 404
 
-    # 4. Thêm câu thứ 3 ở vị trí 3, sau đó reject trực tiếp draft đang approved -> gỡ new_qid và đánh lại position 1..2 liên tục!
+    # Đăng lại qua nhóm rồi thêm câu thứ 3 ở vị trí 3, sau đó reject trực tiếp draft đang approved -> gỡ new_qid và đánh lại position 1..2 liên tục!
+    grp2 = client.post(
+        "/api/v1/admin/question-groups",
+        headers=admin_h,
+        json={"name": "Nhóm đăng lại", "question_ids": [new_qid]},
+    )
+    assert grp2.status_code == 201
+    assert client.post(
+        f"/api/v1/admin/question-groups/{grp2.json()['group_id']}/publish",
+        headers=admin_h,
+        json={"mode": "append_active"},
+    ).status_code == 200
+
     q_tail = make_question(1, title="Câu cuối tuần")
     with db.begin() as conn:
         db.ex(conn, "INSERT INTO live.weekly_set_items (set_id, question_id, position) VALUES (:s, :q, 3)", s=ws["set_id"], q=q_tail)
@@ -261,8 +287,12 @@ def test_question_groups_crud_draft_auto_approve_and_publish_modes(client, admin
 
 def test_calibrated_review_approves_benign_formality_gaps_while_blocking_real_defects(client, admin_id, admin_h):
     """Chế độ calibrated duyệt mượt các lỗi hình thức vô hại nhưng vẫn chặn cứng lỗi sai kết quả/lệch tên cột tường minh/literal bịa."""
-    settings_map = {i["key"]: i["value"] for i in client.get("/api/v1/admin/settings", headers=admin_h).json()["items"]}
+    settings_payload = client.get("/api/v1/admin/settings", headers=admin_h).json()["items"]
+    settings_map = {i["key"]: i["value"] for i in settings_payload}
     assert settings_map["review.approval_mode"] == "calibrated"
+    for item in settings_payload:
+        desc_low = (item.get("description") or "").lower()
+        assert "khắt khe" not in desc_low and "thông minh" not in desc_low
     assert client.put("/api/v1/admin/settings/review.approval_mode", json={"value": "invalid"}, headers=admin_h).status_code == 400
 
     # Đề tiếng Việt tự nhiên (không ép tên cột tiếng Anh), blueprint có output_columns khác alias SQL,

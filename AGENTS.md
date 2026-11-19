@@ -35,5 +35,5 @@
 | `frontend/DESIGN.md` | Co-located visual design tokens (Editorial Sage & Warm Paper `#F5EDDC` / `#5C7F71`) |
 
 ## 4. Hard Boundaries & Project Learnings
-- **Reversible Live Approval**: Drafts reaching `approved` (via AI calibrated gate or Admin `Phê duyệt`) publish onto the active `published` weekly set immediately and refresh `live.test_cases`; reverting (`POST /admin/drafts/{id}/return-needs-human` or `/reject`) atomically detaches the question from active/draft weekly sets and re-indexes positions.
+- **Staged Pool Before Live Shelf & Reversible Approval**: Drafts reaching `approved` (via AI calibrated gate or Admin `Phê duyệt`) enter `live.questions (status='ready')` + `live.test_cases` in the unassigned pool (`Chưa có trên kệ`) and appear on Learner `Làm bài` **only** when published via `Bộ đề tuần`; reverting (`POST /admin/drafts/{id}/return-needs-human` or `/reject`) atomically detaches any published item from weekly sets and re-indexes positions.
 - **Role-Aware Isolation & Secret-Blind Law**: Learner accounts (`role=learner`) never see Admin tabs; Admin accounts (`role=admin`) retain `Quản trị` access on both `:3000` and `:4000`; `/api/*` routes same-origin via Nginx; never expose raw `APITHAT_API_KEY` or `"expected*"` test-case rows.

@@ -26,7 +26,7 @@ flowchart TD
 
 ### Giải thích Đời thực → Vận hành Kỹ thuật (`Real-Life Analogy -> Tech Operation`)
 - **Một Sảnh Lễ Tân Duy Nhất, Phân Tầng Bằng Thẻ Từ (`Unified Login + Path RBAC`)**: Sinh viên và Giảng viên đều bước vào cùng 1 sảnh đăng nhập (`http://<HOST>:3000/`). Hệ thống kiểm tra băm mật khẩu `PBKDF2-HMAC-SHA256` và vai trò trong `live.roles`: thẻ Học viên (`learner`) mở các tầng `/`, `/progress`, `/leaderboard` (tự động chặn `/admin`); thẻ Quản trị viên (`admin`) mở được toàn bộ các tầng luyện tập của học viên **cộng thêm** tầng điều hành `/admin` mà không cần cổng đăng nhập riêng.
-- **Công Tắc Hai Chiều An Toàn (`Approved <-> Needs_Human`)**: Đề vừa đạt `approved` (tự động hoặc bấm `Phê duyệt`) lập tức hiện lên cổng `:3000` cho sinh viên làm; nếu phát hiện cần chỉnh lại, Admin bấm `Chuyển về Cần duyệt` ở cổng `:4000` là đề được rút khỏi cổng `:3000` ngay trong tích tắc và đánh lại thứ tự liền mạch.
+- **Kho Chờ Lên Kệ & Công Tắc Thu Hồi An Toàn (`Unassigned Approved Pool <-> Published Shelf`)**: Đề đạt `approved` (do AI kiểm định hoặc Admin bấm `Phê duyệt`) được lưu vào kho `Chưa có trên kệ` (`live.questions` ở trạng thái `ready`, chưa gắn vào `live.weekly_set_items`) để Admin chủ động gom bộ và bấm `Đăng` trong mục `Bộ đề tuần`. Nếu một đề đã đăng cần chỉnh lại, Admin bấm `Chuyển về Cần duyệt` hoặc `Từ chối` là hệ thống tự động gỡ khỏi kệ Học viên và đánh lại thứ tự `1..N` liền mạch.
 
 ---
 

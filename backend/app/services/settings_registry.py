@@ -36,7 +36,7 @@ REGISTRY: dict[str, Spec] = {
     "review.approval_mode": Spec(
         str,
         "calibrated",
-        "Chế độ tự động duyệt đề: calibrated (cân bằng thực tế, giữ 100% chốt đúng/sai dữ liệu) hoặc strict (khắt khe hình thức)",
+        "Chế độ đối chiếu tự động của pipeline kiểm định (calibrated | strict)",
         choices=("calibrated", "strict"),
         mutable=True,
     ),
@@ -46,8 +46,14 @@ REGISTRY: dict[str, Spec] = {
 def ensure_defaults(conn: Connection) -> None:
     import json
     for key, spec in REGISTRY.items():
-        ex(conn, "INSERT INTO core.system_settings(key, value, description) VALUES (:k, CAST(:v AS jsonb), :d) ON CONFLICT (key) DO NOTHING",
-           k=key, v=json.dumps(spec.default), d=spec.description)
+        ex(
+            conn,
+            "INSERT INTO core.system_settings(key, value, description) VALUES (:k, CAST(:v AS jsonb), :d) "
+            "ON CONFLICT (key) DO UPDATE SET description = EXCLUDED.description",
+            k=key,
+            v=json.dumps(spec.default),
+            d=spec.description,
+        )
 
 
 def get(conn: Connection, key: str) -> Any:

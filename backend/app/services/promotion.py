@@ -14,7 +14,7 @@ def _j(v) -> str:
 
 
 def promote(conn: Connection, draft: dict, world_dataset_version: int, mode: str, reference_sql: str, testcases: list[dict]) -> int:
-    """Idempotent: source_draft_id UNIQUE. Gọi lại khôi phục status='ready' nếu từng bị gỡ, và tự đưa lên bộ đề tuần published hiện tại nếu có."""
+    """Idempotent: source_draft_id UNIQUE. Đưa câu hỏi vào kho ready (Chưa có trên kệ); chỉ lên kệ Học viên khi Admin phát hành Bộ đề tuần."""
     if not testcases:
         raise ValueError("Không có test case: không được promote (fail closed).")
     out_cols = list(testcases[0].get("expected_columns") or [])
@@ -53,18 +53,4 @@ def promote(conn: Connection, draft: dict, world_dataset_version: int, mode: str
                       expected_result = EXCLUDED.expected_result,
                       is_hidden = EXCLUDED.is_hidden""",
            q=qid, ref=t["dataset_ref"], ver=world_dataset_version, e=_j(expected), h=t["dataset_ref"] != BASE_REF)
-    pub = q1(conn, "SELECT set_id FROM live.weekly_sets WHERE status='published' ORDER BY set_id DESC LIMIT 1")
-    if pub:
-        ex(
-            conn,
-            """INSERT INTO live.weekly_set_items (set_id, question_id, position)
-               VALUES (
-                 :s,
-                 :q,
-                 (SELECT COALESCE(MAX(position), 0) + 1 FROM live.weekly_set_items WHERE set_id = :s)
-               )
-               ON CONFLICT (question_id) DO NOTHING""",
-            s=pub["set_id"],
-            q=qid,
-        )
     return qid

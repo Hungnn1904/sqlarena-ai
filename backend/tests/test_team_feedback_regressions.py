@@ -92,6 +92,20 @@ def test_reapprove_draft_with_custom_sql_refreshes_live_test_cases_for_grading(c
     assert re_app.status_code == 200, re_app.text
     qid = re_app.json()["promoted_question"]["question_id"]
 
+    # Câu vừa approve nằm ở kho chờ (chưa lên kệ) -> Học viên chưa chấm được cho tới khi Admin đăng bộ đề
+    assert client.get(f"/api/v1/questions/{qid}", headers=learner_h).status_code == 404
+    grp = client.post(
+        "/api/v1/admin/question-groups",
+        headers=admin_h,
+        json={"name": "Nhóm Chấm Lại", "question_ids": [qid]},
+    )
+    assert grp.status_code == 201
+    assert client.post(
+        f"/api/v1/admin/question-groups/{grp.json()['group_id']}/publish",
+        headers=admin_h,
+        json={"mode": "append_active"},
+    ).status_code == 200
+
     sub = client.post(
         "/api/v1/submissions",
         headers=learner_h,
@@ -101,8 +115,8 @@ def test_reapprove_draft_with_custom_sql_refreshes_live_test_cases_for_grading(c
     assert sub.json()["submission_status"] == "passed", sub.json()
 
 
-def test_group_publish_new_weekly_set_allows_auto_published_approved_drafts(client, admin_id, admin_h, learner_h):
-    """Câu hỏi vừa được AI/Admin approve (đã tự gắn vào tuần hiện tại) vẫn gom nhóm tạo Bộ đề tuần mới được mà không văng 409."""
+def test_group_publish_new_weekly_set_from_unassigned_approved_drafts(client, admin_id, admin_h, learner_h):
+    """Câu hỏi vừa được AI/Admin approve nằm ở kho 'Chưa có trên kệ' (không làm thay đổi kệ đang mở), sau đó gom nhóm phát hành Bộ đề tuần mới mượt mà."""
     q_old = make_question(1, title="Câu tuần cũ")
     with db.begin() as conn:
         ws = db.q1(
@@ -119,6 +133,9 @@ def test_group_publish_new_weekly_set_allows_auto_published_approved_drafts(clie
 
     with db.begin() as conn:
         q_approved = db.q1(conn, "SELECT question_id FROM live.questions WHERE source_draft_id = 1")["question_id"]
+
+    cur_before = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
+    assert [it["question_id"] for it in cur_before["items"]] == [q_old]
 
     grp = client.post(
         "/api/v1/admin/question-groups",
@@ -175,7 +192,7 @@ def test_unpromoted_approved_draft_adds_into_group_and_publishes_cleanly(client,
     grp = client.post(
         "/api/v1/admin/question-groups",
         headers=admin_h,
-        json={"name": "SQL tuần 6", "draft_ids": [d1]},
+        json={"name": "Nhóm Kiểm Thử Đợt A", "draft_ids": [d1]},
     )
     assert grp.status_code == 201, grp.text
     assert grp.json()["question_count"] == 1
@@ -192,7 +209,7 @@ def test_unpromoted_approved_draft_adds_into_group_and_publishes_cleanly(client,
     pub = client.post(
         f"/api/v1/admin/question-groups/{gid}/publish",
         headers=admin_h,
-        json={"mode": "new_weekly_set", "set_title": "SQL tuần 6"},
+        json={"mode": "new_weekly_set", "set_title": "Bộ Đề Kiểm Thử Đợt A"},
     )
     assert pub.status_code == 200, pub.text
     lq = client.get("/api/v1/weekly/current/questions", headers=learner_h).json()
@@ -211,7 +228,7 @@ def test_runtime_schema_self_heals_missing_question_groups_and_preserves_cors_on
     res = client.post(
         "/api/v1/admin/question-groups",
         headers={**admin_h, "Origin": "http://localhost:3000"},
-        json={"name": "SQL tuần 6"},
+        json={"name": "Nhóm Tự Phục Hồi Schema"},
     )
     assert res.status_code == 201, res.text
     assert res.headers.get("access-control-allow-origin") in ("*", "http://localhost:3000")
@@ -226,7 +243,7 @@ def test_remove_item_from_published_or_draft_weekly_set_reindexes_cleanly(client
         ws = db.q1(
             conn,
             "INSERT INTO live.weekly_sets (title, week_start, status, published_at) "
-            "VALUES ('Bộ đề tuần 6', :ws, 'published', now()) RETURNING set_id",
+            "VALUES ('Bộ Đề Đang Mở Kiểm Thử', :ws, 'published', now()) RETURNING set_id",
             ws=date.today() - timedelta(days=date.today().weekday()),
         )
         sid = ws["set_id"]

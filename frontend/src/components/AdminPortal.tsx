@@ -165,8 +165,6 @@ export default function AdminPortal({
   // Shared Skills & Schema
   const [skillOptions, setSkillOptions] = useState(SKILL_OPTIONS);
   const [schemaTables, setSchemaTables] = useState<any[]>([]);
-  const [approvalMode, setApprovalMode] = useState<'calibrated' | 'strict'>('calibrated');
-  const [savingApprovalMode, setSavingApprovalMode] = useState(false);
 
   // Tab 1: Users
   const [users, setUsers] = useState<any[]>([]);
@@ -293,17 +291,11 @@ export default function AdminPortal({
   const loadSettings = async () => {
     try {
       const s = await getAdminSettings();
-      const items = s?.items || [];
+      const items = (s?.items || []).filter((it: any) => it.key !== 'review.approval_mode');
       setSettingsList(items);
       const map: Record<string, string> = {};
       items.forEach((it: any) => {
         map[it.key] = typeof it.value === 'string' ? it.value : JSON.stringify(it.value);
-        if (it.key === 'review.approval_mode') {
-          const val = String(it.value).replace(/^"|"$/g, '');
-          if (val === 'strict' || val === 'calibrated') {
-            setApprovalMode(val);
-          }
-        }
       });
       setSettingEdits(map);
     } catch {}
@@ -603,27 +595,6 @@ export default function AdminPortal({
     }
   };
 
-  // Approval Mode Switch
-  const handleSwitchApprovalMode = async (nextMode: 'calibrated' | 'strict') => {
-    setSavingApprovalMode(true);
-    setErr(null);
-    setMsg(null);
-    try {
-      await updateAdminSetting('review.approval_mode', nextMode);
-      setApprovalMode(nextMode);
-      setMsg(
-        nextMode === 'calibrated'
-          ? 'Đã bật chế độ kiểm duyệt Thông minh (vẫn đảm bảo SQL chạy đúng kết quả thực tế).'
-          : 'Đã bật chế độ kiểm duyệt Khắt khe tuyệt đối.'
-      );
-      loadSettings();
-    } catch (e: any) {
-      setErr(extractApiError(e, 'Không thể đổi chế độ kiểm duyệt'));
-    } finally {
-      setSavingApprovalMode(false);
-    }
-  };
-
   // Ordered selected skills & per-skill quantities
   const sortedSelectedSkills = skillOptions.filter((sk) => jobSkills.includes(sk.id));
   const skillQuantitiesPayload = sortedSelectedSkills.map((sk) => ({
@@ -691,7 +662,7 @@ export default function AdminPortal({
         compare_mode: manualCompareMode,
       });
       setMsg(
-        `Đã kiểm tra trên Sandbox PostgreSQL 17 và lưu câu hỏi #${created.question_id} (${created.row_count} dòng kết quả) vào danh sách Approved.`
+        `Đã kiểm tra trên Sandbox PostgreSQL 17 và lưu câu hỏi #${created.question_id} (${created.row_count} dòng kết quả) vào mục Chưa có trên kệ.`
       );
       setManualTitle('');
       setManualQuestion('');
@@ -822,7 +793,9 @@ export default function AdminPortal({
       }
       const d = await approveAdminDraft(selectedDraft.draft_id, payload);
       setSelectedDraft(d);
-      setMsg(`Đã phê duyệt bản nháp #${d.draft_id} và đưa lên kệ bài tập Học viên.`);
+      setMsg(
+        `Đã phê duyệt bản nháp #${d.draft_id}. Câu hỏi đã vào mục Chưa có trên kệ trong Bộ đề tuần.`
+      );
       await Promise.all([loadDrafts(), loadReadyQuestions(), loadAllBankQuestions(), loadWeekly()]);
     } catch (e: any) {
       setErr(extractApiError(e, 'Không thể phê duyệt bản nháp này. Kiểm tra lại câu SQL đáp án.'));
@@ -1692,32 +1665,6 @@ export default function AdminPortal({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {createMode === 'ai' && (
-                <div className="flex items-center gap-1 bg-soft p-1 rounded-lg border border-line">
-                  <button
-                    type="button"
-                    disabled={savingApprovalMode}
-                    data-solid-btn={approvalMode === 'calibrated' ? 'true' : undefined}
-                    onClick={() => handleSwitchApprovalMode('calibrated')}
-                    className={`px-2.5 min-h-7 rounded-md text-xs font-semibold whitespace-nowrap ${
-                      approvalMode === 'calibrated' ? 'btn-primary' : 'text-text2 hover:text-ink'
-                    }`}
-                  >
-                    AI duyệt: Thông minh
-                  </button>
-                  <button
-                    type="button"
-                    disabled={savingApprovalMode}
-                    data-solid-btn={approvalMode === 'strict' ? 'true' : undefined}
-                    onClick={() => handleSwitchApprovalMode('strict')}
-                    className={`px-2.5 min-h-7 rounded-md text-xs font-semibold whitespace-nowrap ${
-                      approvalMode === 'strict' ? 'btn-primary' : 'text-text2 hover:text-ink'
-                    }`}
-                  >
-                    Khắt khe
-                  </button>
-                </div>
-              )}
               {gatewayStatus?.valid ? (
                 <span className="badge-easy px-2.5 py-1 rounded-full text-xs font-semibold">
                   API Thật (apithat.dev): {gatewayStatus.masked_key}
@@ -2127,7 +2074,7 @@ export default function AdminPortal({
                     required
                     value={manualTitle}
                     onChange={(e) => setManualTitle(e.target.value)}
-                    placeholder="Ví dụ: Thống kê số lượng nhân viên đang làm việc tại từng phòng ban"
+                    placeholder="Nhập tiêu đề bài tập SQL…"
                     className="w-full px-3.5 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink"
                   />
                 </div>
@@ -2632,7 +2579,7 @@ export default function AdminPortal({
       {activeTab === 'weekly' && (
         <div className="space-y-6">
           <div className="p-3.5 rounded-xl bg-surface border border-line text-xs text-text2 leading-relaxed">
-            <strong className="text-ink">Cách hoạt động:</strong> Đề đạt <span className="font-semibold text-brand">Approved</span> mặc định tự lên <strong>Bộ đề đang mở</strong>. Khi cần <strong>soạn Bộ đề thủ công theo đợt</strong> (ví dụ: <em>SQL tuần 6</em>), bạn tick chọn hoặc bấm <strong>+ Thêm</strong> các câu Approved bên trái sang khung bên phải rồi bấm <strong>Đăng toàn bộ</strong> 1 lần.
+            <strong className="text-ink">Cách hoạt động:</strong> Đề đạt <span className="font-semibold text-brand">Approved</span> (do AI tự duyệt hoặc Admin phê duyệt) sẽ nằm trong mục <strong>Câu hỏi Approved chưa có trên kệ</strong> bên dưới. Bạn tick chọn hoặc bấm <strong>+ Thêm</strong> các câu sang khung bên phải để soạn bộ đề rồi bấm <strong>Đăng</strong> lên kệ Học viên.
           </div>
 
           {/* SECTION A: APPROVED QUESTIONS POOL & 1-CLICK BATCH PUBLISH */}
@@ -2946,7 +2893,7 @@ export default function AdminPortal({
                     Soạn Bộ đề thủ công theo đợt &amp; Đăng 1 lần
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
-                    Nhập tên đợt đề (VD: SQL tuần 6), thêm câu hỏi từ cột trái, sắp xếp thứ tự rồi phát hành cùng lúc.
+                    Nhập tên bộ đề, thêm câu hỏi từ danh sách bên trái, sắp xếp thứ tự rồi phát hành cùng lúc.
                   </p>
                 </div>
 
@@ -2954,7 +2901,7 @@ export default function AdminPortal({
                   <input
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
-                    placeholder="Nhập tên bộ đề / nhóm đề (VD: SQL tuần 6)…"
+                    placeholder="Nhập tên bộ đề tuần hoặc nhóm câu hỏi…"
                     className="flex-1 min-w-[200px] px-3.5 min-h-9 rounded-lg bg-surface border border-line text-sm text-ink"
                   />
                   <button
