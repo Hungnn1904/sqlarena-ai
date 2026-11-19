@@ -323,8 +323,13 @@ export const publishAdminWeeklySet = (setId: number) =>
 export const closeAdminWeeklySet = (setId: number) =>
   api.post(`/api/v1/admin/weekly-sets/${setId}/close`).then((r) => r.data);
 
-export const getAdminUsers = (params?: { role?: string; status?: string; q?: string }) =>
-  api.get('/api/v1/admin/users', { params }).then((r) => r.data);
+export const getAdminUsers = (params?: {
+  role?: string;
+  status?: string;
+  q?: string;
+  page?: number;
+  page_size?: number;
+}) => api.get('/api/v1/admin/users', { params }).then((r) => r.data);
 
 export const getAdminUserDetail = (userId: number) =>
   api.get(`/api/v1/admin/users/${userId}`).then((r) => r.data);

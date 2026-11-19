@@ -142,9 +142,15 @@ def admin_list_users(conn: Connection, role: str | None, status: str | None, sea
         conds.append("r.name=:r"); p["r"] = role
     if status:
         conds.append("u.status=:st"); p["st"] = status
-    if search:
-        conds.append("(u.username ILIKE :q OR u.email ILIKE :q OR COALESCE(u.display_name,'') ILIKE :q)")
-        p["q"] = f"%{search}%"
+    if search and search.strip():
+        tokens = [tok for tok in search.strip().split() if tok]
+        for idx, tok in enumerate(tokens):
+            key = f"tk_{idx}"
+            esc = tok.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            p[key] = f"%{esc}%"
+            conds.append(
+                f"('#' || u.user_id::text ILIKE :{key} ESCAPE '\\' OR u.username ILIKE :{key} ESCAPE '\\' OR u.email ILIKE :{key} ESCAPE '\\' OR COALESCE(u.display_name,'') ILIKE :{key} ESCAPE '\\' OR r.name ILIKE :{key} ESCAPE '\\' OR u.status ILIKE :{key} ESCAPE '\\')"
+            )
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
     total = q1(conn, f"SELECT count(*) AS n FROM live.users u JOIN live.roles r USING (role_id) {where}", **p)["n"]
     rows = q(

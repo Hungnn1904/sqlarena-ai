@@ -27,6 +27,7 @@ import {
   submitGradingSql,
   extractApiError,
 } from '../lib/api';
+import { matchesVisibleRecord } from '../lib/search';
 import { useTheme } from './theme-provider';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
@@ -110,38 +111,30 @@ function buildStarterSql(detail: any): string {
   return `SELECT *\nFROM ${firstTable}\nLIMIT 10;`;
 }
 
-function normalizeVnSearch(text?: string | null): string {
-  if (!text) return '';
-  return String(text)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
-}
-
 function matchesQuestionSearch(q: any, rawQuery: string): boolean {
-  const trimmed = rawQuery.trim();
-  if (!trimmed) return true;
-  const kw = normalizeVnSearch(trimmed);
-  if (!kw) return true;
+  if (!rawQuery.trim()) return true;
 
   const displayPos = Number(q.position || q.question_id || 0);
-
-  const codeMatch = kw.match(/^(?:sql|q|cau|bai|#)?\s*[-_:#]?\s*0*(\d+)$/i);
-  if (codeMatch) {
-    const targetNum = Number(codeMatch[1]);
-    return displayPos === targetNum;
-  }
-
-  const tablesStr = Array.isArray(q.tables_used) ? q.tables_used.join(' ') : '';
+  const diffMeta = DIFF_META[q.difficulty] || DIFF_META[1];
+  const attempted = Boolean(q.attempted) || Number(q.attempt_count ?? q.submission_count ?? 0) > 0;
+  const statusLabel = q.solved ? 'Đã giải' : attempted ? 'Chưa làm được' : 'Chưa làm';
+  const tablesArr = Array.isArray(q.tables_used) ? q.tables_used : [];
+  const visibleTablesStr = [
+    ...tablesArr.slice(0, 2),
+    tablesArr.length > 2 ? `+${tablesArr.length - 2} bảng` : '',
+  ].join(' ');
   const skillsStr = Array.isArray(q.skills) ? q.skills.join(' ') : '';
-  const searchable = normalizeVnSearch(
-    `${q.title || ''} ${getDomainCategory(q)} ${tablesStr} ${skillsStr}`
-  );
 
-  return searchable.includes(kw);
+  return matchesVisibleRecord(
+    rawQuery,
+    `SQL${displayPos}`,
+    q.title || '',
+    getDomainCategory(q),
+    visibleTablesStr,
+    skillsStr,
+    diffMeta.shortLabel,
+    statusLabel
+  );
 }
 
 function getSubmissionVerdictBadge(sub: any): { label: string; cls: string } {
@@ -433,7 +426,7 @@ export default function LearnerWorkbench({
                   setSearchQ(e.target.value);
                   setAppliedSearchQ(e.target.value);
                 }}
-                placeholder="Tìm chính xác mã bài (ví dụ: SQL2) hoặc tiêu đề…"
+                placeholder="Lọc theo từ khóa bất kỳ (số bài, mã SQL, tiêu đề, bảng dữ liệu, kỹ năng…)"
                 className="w-full pl-9 pr-9 min-h-10 rounded-lg bg-canvas border border-line text-sm text-ink placeholder:text-muted"
               />
               {searchQ && (

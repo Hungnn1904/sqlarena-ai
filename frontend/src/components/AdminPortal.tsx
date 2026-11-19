@@ -64,6 +64,7 @@ import {
   getDatasetSchema,
   extractApiError,
 } from '../lib/api';
+import { matchesVisibleRecord } from '../lib/search';
 
 type AdminTabId = 'users' | 'generate' | 'drafts' | 'weekly' | 'bank' | 'settings';
 
@@ -209,6 +210,7 @@ export default function AdminPortal({
 
   // Tab 3: Draft Review
   const [draftStatusFilter, setDraftStatusFilter] = useState<string>('');
+  const [draftSearch, setDraftSearch] = useState<string>('');
   const [drafts, setDrafts] = useState<any[]>([]);
   const [selectedDraft, setSelectedDraft] = useState<any>(null);
   const [checkedDraftIds, setCheckedDraftIds] = useState<number[]>([]);
@@ -252,6 +254,7 @@ export default function AdminPortal({
 
   // Tab 5 & 6: Bank & Settings
   const [allBankStatusFilter, setAllBankStatusFilter] = useState<string>('');
+  const [bankSearch, setBankSearch] = useState<string>('');
   const [allBankQuestions, setAllBankQuestions] = useState<any[]>([]);
   const [settingsList, setSettingsList] = useState<any[]>([]);
   const [settingEdits, setSettingEdits] = useState<Record<string, string>>({});
@@ -447,9 +450,10 @@ export default function AdminPortal({
     } catch {}
   };
 
-  const loadUsers = async () => {
+  const loadUsers = async (queryOverride?: string) => {
     try {
-      const u = await getAdminUsers({ q: userSearch.trim() || undefined });
+      const qVal = (queryOverride !== undefined ? queryOverride : userSearch).trim();
+      const u = await getAdminUsers({ page_size: 100, q: qVal || undefined });
       setUsers(u?.items || []);
     } catch {}
   };
@@ -705,9 +709,36 @@ export default function AdminPortal({
   };
 
   // Draft Review Handlers
-  const filteredDrafts = draftStatusFilter
-    ? drafts.filter((d) => d.status === draftStatusFilter)
-    : drafts;
+  const filteredDrafts = drafts.filter((d) => {
+    if (draftStatusFilter && d.status !== draftStatusFilter) return false;
+    const stText = formatDraftStatusBadge(d.status).text;
+    const diffText = DIFF_LABELS[d.difficulty]?.text || `Mức ${d.difficulty}`;
+    return matchesVisibleRecord(draftSearch, `#${d.draft_id}`, diffText, stText, d.title);
+  });
+
+  const visibleUsers = users.filter((u) =>
+    matchesVisibleRecord(
+      userSearch,
+      `#${u.user_id}`,
+      u.display_name || u.username,
+      `@${u.username}`,
+      u.email,
+      u.role === 'admin' ? 'Admin' : 'Học viên',
+      u.status === 'active' ? 'Hoạt động' : 'Đã khóa'
+    )
+  );
+
+  const visibleBankQuestions = allBankQuestions.filter((q) =>
+    matchesVisibleRecord(
+      bankSearch,
+      `#${q.question_id}`,
+      q.title,
+      q.tables_used,
+      DIFF_LABELS[q.difficulty]?.text,
+      q.status,
+      q.in_published_set ? 'Đang mở trên kệ' : ''
+    )
+  );
 
   const toggleDraftCheckbox = (draftId: number) => {
     setCheckedDraftIds((prev) =>
@@ -898,27 +929,21 @@ export default function AdminPortal({
   const rawOnShelfPool = rawApprovedPool.filter((it) => it.in_published_set);
 
   const filterPoolItems = (list: typeof rawApprovedPool): UnifiedApprovedItem[] => {
-    const kwApproved = approvedSearch.trim().toLowerCase();
-    const codeNumMatch = kwApproved.match(/^(?:sql|q|#)?\s*-?\s*0*(\d+)$/i);
-    const targetCodeNum = codeNumMatch ? Number(codeNumMatch[1]) : null;
     return list.filter((it) => {
       if (approvedDiffFilter !== undefined && it.difficulty !== approvedDiffFilter) {
         return false;
       }
-      if (kwApproved) {
-        if (targetCodeNum !== null) {
-          if (
-            it.question_id !== targetCodeNum &&
-            it.draft_id !== targetCodeNum &&
-            it.weekly_position !== targetCodeNum
-          ) {
-            return false;
-          }
-        } else if (!String(it.title || '').toLowerCase().includes(kwApproved)) {
-          return false;
-        }
-      }
-      return true;
+      const visibleCode = it.question_id ? `#${it.question_id}` : `Nháp #${it.draft_id}`;
+      const visibleTables = Array.isArray(it.tables_used) ? it.tables_used.slice(0, 2) : [];
+      return matchesVisibleRecord(
+        approvedSearch,
+        visibleCode,
+        it.title,
+        visibleTables,
+        DIFF_LABELS[it.difficulty]?.text,
+        'Approved',
+        it.in_published_set ? 'Đang trên kệ' : ''
+      );
     });
   };
 
@@ -1320,7 +1345,7 @@ export default function AdminPortal({
         <div className="bg-surface border border-line rounded-xl overflow-hidden">
           <div className="px-5 py-4 bg-soft border-b border-line flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-bold text-ink">
-              Quản lý Người dùng &amp; Phân quyền ({users.length})
+              Quản lý Người dùng &amp; Phân quyền ({visibleUsers.length}/{users.length})
             </h2>
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -1328,18 +1353,23 @@ export default function AdminPortal({
                 <input
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && loadUsers()}
-                  placeholder="Tìm tài khoản hoặc email…"
+                  onKeyDown={(e) => e.key === 'Enter' && loadUsers(userSearch)}
+                  placeholder="Lọc ID, tên, tài khoản, email, vai trò…"
                   className="pl-9 pr-3 min-h-10 rounded-lg bg-surface border border-line text-sm text-ink"
                 />
               </div>
-              <button
-                type="button"
-                onClick={loadUsers}
-                className="btn-secondary px-3.5 min-h-10 rounded-lg text-sm font-semibold whitespace-nowrap"
-              >
-                Tìm kiếm
-              </button>
+              {userSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserSearch('');
+                    loadUsers('');
+                  }}
+                  className="btn-secondary px-3 min-h-10 rounded-lg text-xs font-semibold whitespace-nowrap"
+                >
+                  Xóa lọc
+                </button>
+              )}
             </div>
           </div>
 
@@ -1356,14 +1386,14 @@ export default function AdminPortal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {users.length === 0 ? (
+                {visibleUsers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-10 text-center text-sm text-muted">
                       Không tìm thấy tài khoản người dùng phù hợp.
                     </td>
                   </tr>
                 ) : (
-                  users.map((u) => (
+                  visibleUsers.map((u) => (
                     <tr
                       key={u.user_id}
                       onClick={() => inspectUser(u.user_id)}
@@ -2290,6 +2320,16 @@ export default function AdminPortal({
                   </button>
                 </div>
 
+                <div className="relative">
+                  <Search className="w-4 h-4 text-muted absolute left-3 top-2.5" />
+                  <input
+                    value={draftSearch}
+                    onChange={(e) => setDraftSearch(e.target.value)}
+                    placeholder="Lọc mã nháp, tiêu đề, bảng dữ liệu, độ khó…"
+                    className="w-full pl-9 pr-3 min-h-9 rounded-lg bg-surface border border-line text-sm text-ink"
+                  />
+                </div>
+
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     { val: '', label: `Tất cả (${drafts.length})` },
@@ -2702,7 +2742,7 @@ export default function AdminPortal({
                       value={approvedSearch}
                       onChange={(e) => setApprovedSearch(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && loadReadyQuestions()}
-                      placeholder="Tìm tiêu đề câu hỏi Approved…"
+                      placeholder="Lọc mã câu, số thứ tự, tiêu đề, bảng dữ liệu…"
                       className="w-full pl-9 pr-3 min-h-9 rounded-lg bg-surface border border-line text-sm text-ink"
                     />
                   </div>
@@ -3374,17 +3414,28 @@ export default function AdminPortal({
         <div className="bg-surface border border-line rounded-xl overflow-hidden">
           <div className="px-5 py-4 bg-soft border-b border-line flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-base font-bold text-ink">
-              Ngân hàng đề ({allBankQuestions.length} câu)
+              Ngân hàng đề ({visibleBankQuestions.length}/{allBankQuestions.length} câu)
             </h3>
-            <select
-              value={allBankStatusFilter}
-              onChange={(e) => setAllBankStatusFilter(e.target.value)}
-              className="px-3 min-h-10 rounded-lg bg-surface border border-line text-sm text-ink"
-            >
-              <option value="">Tất cả trạng thái</option>
-              <option value="ready">Đang sẵn sàng (ready)</option>
-              <option value="retired">Đã thu hồi (retired)</option>
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 text-muted absolute left-3 top-3" />
+                <input
+                  value={bankSearch}
+                  onChange={(e) => setBankSearch(e.target.value)}
+                  placeholder="Lọc ID, tiêu đề, bảng dữ liệu, độ khó…"
+                  className="pl-9 pr-3 min-h-10 rounded-lg bg-surface border border-line text-sm text-ink"
+                />
+              </div>
+              <select
+                value={allBankStatusFilter}
+                onChange={(e) => setAllBankStatusFilter(e.target.value)}
+                className="px-3 min-h-10 rounded-lg bg-surface border border-line text-sm text-ink"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="ready">Đang sẵn sàng (ready)</option>
+                <option value="retired">Đã thu hồi (retired)</option>
+              </select>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -3399,7 +3450,7 @@ export default function AdminPortal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {allBankQuestions.map((q: any) => {
+                {visibleBankQuestions.map((q: any) => {
                   const diff = DIFF_LABELS[q.difficulty] || DIFF_LABELS[1];
                   return (
                     <tr key={q.question_id} className="hover:bg-soft">

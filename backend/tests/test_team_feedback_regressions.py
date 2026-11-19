@@ -20,13 +20,15 @@ def test_auth_verify_password_never_accepts_hardcoded_plaintext_fallbacks():
 
 
 def test_learner_code_search_exact_position_never_matches_internal_question_id_or_prefix(client, learner_h):
-    """Tìm 'sql2', 'SQL02', '#2', '2' chỉ khớp đúng bài ở position=2 (SQL2), không dính position=20/22 hay câu có question_id=2 ở vị trí khác."""
+    """Lọc từ khóa '2' / 'sql2' khớp mọi bản ghi hiển thị có chứa từ khóa (SQL2, SQL20, SQL23, SQL24, tiêu đề), nhưng KHÔNG dính ngầm question_id=2 ở SQL9."""
     q_first = make_question(1, title="Nhân viên không có quản lý trực tiếp")
     q_second = make_question(1, title="Danh bạ địa chỉ mặc định")
     q_third = make_question(1, title="Quy mô khách hàng theo trạng thái")
     q_twenty = make_question(2, title="Chuỗi tăng lương liên tiếp")
+    q_twenty_three = make_question(2, title="Doanh thu thuần theo chi nhánh")
+    q_twenty_four = make_question(3, title="Tỷ trọng đơn hoàn trả")
 
-    # Đặt q_second (có question_id == 2) sang position=9 (SQL9), còn q_third đặt ở position=2 (SQL2), q_twenty ở position=20 (SQL20)
+    # Đặt q_second (có question_id == 2) sang position=9 (SQL9); các bài 2, 20, 23, 24 đều chứa chữ số '2' trên mã hiển thị
     with db.begin() as conn:
         ws = db.q1(
             conn,
@@ -37,21 +39,30 @@ def test_learner_code_search_exact_position_never_matches_internal_question_id_o
         db.ex(
             conn,
             "INSERT INTO live.weekly_set_items (set_id, question_id, position) "
-            "VALUES (:s, :q1, 1), (:s, :q3, 2), (:s, :q2, 9), (:s, :q20, 20)",
+            "VALUES (:s, :q1, 1), (:s, :q3, 2), (:s, :q2, 9), (:s, :q20, 20), (:s, :q23, 23), (:s, :q24, 24)",
             s=ws["set_id"],
             q1=q_first,
             q3=q_third,
             q2=q_second,
             q20=q_twenty,
+            q23=q_twenty_three,
+            q24=q_twenty_four,
         )
 
     assert q_second == 2 and q_third != 2
 
-    for query in ("sql2", "SQL2", "SQL02", "#2", "2"):
+    for query in ("2", "sql2", "SQL2"):
         res = client.get("/api/v1/weekly/current/questions", params={"q": query}, headers=learner_h)
         assert res.status_code == 200
         items = res.json()["items"]
-        assert [(it["position"], it["question_id"]) for it in items] == [(2, q_third)], f"Query={query!r} returned {items}"
+        positions = [it["position"] for it in items]
+        assert positions == [2, 20, 23, 24], f"Query={query!r} returned positions={positions}"
+        assert all(it["question_id"] != q_second for it in items)
+
+    # Tìm nhiều từ kết hợp (số thứ tự + từ trong tiêu đề)
+    combo = client.get("/api/v1/weekly/current/questions", params={"q": "23 doanh thu"}, headers=learner_h)
+    assert combo.status_code == 200
+    assert [it["position"] for it in combo.json()["items"]] == [23]
 
 
 def test_reapprove_draft_with_custom_sql_refreshes_live_test_cases_for_grading(client, admin_id, admin_h, learner_h):

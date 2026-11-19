@@ -362,14 +362,26 @@ def learner_questions(conn: Connection, difficulty, skill_id, solved, search, pa
     if skill_id:
         conds.append("qq.skill_ids @> ARRAY[:k]::int[]"); p["k"] = skill_id
     if search and search.strip():
-        s_clean = search.strip()
-        m_code = re.match(r"^(?:sql|q|câu|cau|bài|bai|#)?[\s#\-_:]*0*(\d+)$", s_clean, flags=re.IGNORECASE)
-        if m_code and int(m_code.group(1)) <= 2_147_483_647:
-            conds.append("i.position = :qnum")
-            p["qnum"] = int(m_code.group(1))
-        else:
-            conds.append("(qq.title ILIKE :t OR qq.question ILIKE :t)")
-            p["t"] = f"%{s_clean}%"
+        tokens = [tok for tok in search.strip().split() if tok]
+        for idx, tok in enumerate(tokens):
+            key = f"tk_{idx}"
+            esc = tok.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            p[key] = f"%{esc}%"
+            conds.append(
+                f"""(
+                  ('SQL' || i.position::text) ILIKE :{key} ESCAPE '\\'
+                  OR ('Q-' || i.position::text) ILIKE :{key} ESCAPE '\\'
+                  OR ('#' || i.position::text) ILIKE :{key} ESCAPE '\\'
+                  OR qq.title ILIKE :{key} ESCAPE '\\'
+                  OR qq.question ILIKE :{key} ESCAPE '\\'
+                  OR array_to_string(qq.tables_used, ' ') ILIKE :{key} ESCAPE '\\'
+                  OR EXISTS (
+                    SELECT 1 FROM core.skills sk
+                    WHERE sk.skill_id = ANY(qq.skill_ids)
+                      AND sk.name ILIKE :{key} ESCAPE '\\'
+                  )
+                )"""
+            )
     if solved is True:
         conds.append("EXISTS (SELECT 1 FROM live.submissions sub WHERE sub.user_id=:u AND sub.question_id=qq.question_id AND sub.submission_status='passed')")
     elif solved is False:

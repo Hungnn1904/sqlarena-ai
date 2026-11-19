@@ -43,20 +43,27 @@ def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int
     if skill_id:
         conds.append("q.skill_ids @> ARRAY[:s]::int[]"); p["s"] = skill_id
     if search and search.strip():
-        s_clean = search.strip()
-        import re
-        m_code = re.match(r"^(?:sql|q|#)\s*-?\s*0*(\d+)$|^0*(\d+)$", s_clean, flags=re.IGNORECASE)
-        if m_code:
-            qnum = int(m_code.group(1) or m_code.group(2))
+        tokens = [tok for tok in search.strip().split() if tok]
+        for idx, tok in enumerate(tokens):
+            key = f"tk_{idx}"
+            esc = tok.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            p[key] = f"%{esc}%"
             conds.append(
-                "(q.question_id = :qnum OR EXISTS ("
-                "SELECT 1 FROM live.weekly_set_items wsi JOIN live.weekly_sets ws USING (set_id) "
-                "WHERE wsi.question_id = q.question_id AND ws.status = 'published' AND wsi.position = :qnum))"
+                f"""(
+                  ('#' || q.question_id::text) ILIKE :{key} ESCAPE '\\'
+                  OR q.title ILIKE :{key} ESCAPE '\\'
+                  OR q.question ILIKE :{key} ESCAPE '\\'
+                  OR array_to_string(q.tables_used, ' ') ILIKE :{key} ESCAPE '\\'
+                  OR q.status ILIKE :{key} ESCAPE '\\'
+                  OR EXISTS (
+                    SELECT 1 FROM live.weekly_set_items wsi
+                    JOIN live.weekly_sets ws USING (set_id)
+                    WHERE wsi.question_id = q.question_id
+                      AND ws.status = 'published'
+                      AND ('SQL' || wsi.position::text) ILIKE :{key} ESCAPE '\\'
+                  )
+                )"""
             )
-            p["qnum"] = qnum
-        else:
-            conds.append("q.title ILIKE :t")
-            p["t"] = f"%{s_clean}%"
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
     total = q1(conn, f"SELECT count(*) AS n FROM live.questions q {where}", **p)["n"]
     has_groups_tbl = bool(conn.execute(q1.__globals__["text"]("SELECT to_regclass('live.question_group_items') IS NOT NULL")).scalar())
