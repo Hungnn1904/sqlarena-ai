@@ -182,9 +182,12 @@ def create(conn: Connection, admin: dict, p: dict, idempotency_key: str | None) 
 
 
 def public(job: dict) -> dict:
+    from . import draft_dossier
     keys = ("job_id", "world_id", "difficulty", "skill_ids", "topic", "requested_count", "created_count", "failed_count", "status",
             "error_message", "created_at", "started_at", "finished_at")
-    return {k: job[k] for k in keys}
+    out = {k: job[k] for k in keys}
+    out["error_message"] = draft_dossier.scrub_legacy_tokens(out.get("error_message"))
+    return out
 
 
 def detail(conn: Connection, job_id: int) -> dict:

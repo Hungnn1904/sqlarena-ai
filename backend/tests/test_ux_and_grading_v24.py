@@ -225,3 +225,138 @@ def test_bola_unpublished_question_and_admin_self_demotion_and_sql_parser_edges(
         adm_uid = db.q1(conn, "SELECT user_id FROM live.users WHERE email='admin@test.io'")["user_id"]
     demote_res = client.patch(f"/api/v1/admin/users/{adm_uid}", headers=admin_h, json={"role": "learner"})
     assert demote_res.status_code == 400
+
+
+def test_draft_live_progress_stepper_and_five_block_acceptance_dossier(client, admin_id, admin_h):
+    """Kiểm chứng Phần 1 (thanh tiến trình 5 bước + thông số mẫu giải/vòng sửa/lỗi trực tiếp) và Phần 2 (Hồ sơ nghiệm thu 5 khối khi bấm Xem đề)."""
+    from conftest import enqueue_job, new_worker
+    from fakes import FakeOllama, GOOD_SQL, GOOD_SQL_ALT, MODEL_A_GOOD, WRONG_SQL
+    from app.pipeline import engine as eng
+
+    # 1. Draft #1: đạt chuẩn 5/5 công đoạn -> approved
+    eng.set_transport(FakeOllama())
+    enqueue_job(admin_id, quantity=1, difficulty=1, code="S1", topic="Human Resources")
+    stats1 = new_worker().run_once()
+    assert stats1["reviewed"] == [(1, "approved")]
+
+    # 2. Draft #2: bất đồng kết quả giữa các mẫu giải -> tự sửa tối đa 2 vòng rồi dừng ở needs_human (consensus_disagreement)
+    conflict_cand = {
+        **MODEL_A_GOOD,
+        "title": "Đối soát nhân sự đang làm việc kèm kiểm tra đồng thuận",
+        "question": (
+            "Liệt kê nhân viên có status='active' và hire_date >= 2024-02-01. "
+            "Cột kết quả theo thứ tự: employee_id, full_name, job_title, hire_date. "
+            "Sắp xếp: hire_date giảm dần, employee_id tăng."
+        ),
+        "logic_signature": {
+            "output_grain": "Mỗi dòng 1 nhân sự",
+            "analysis_goal": "Kiểm chứng hồ sơ nghiệm thu khi lệch đồng thuận",
+            "filter_pattern": "status active tu 2024-02-01",
+            "aggregation_pattern": "none",
+        },
+    }
+    eng.set_transport(FakeOllama(model_a=conflict_cand, solver_sqls=[GOOD_SQL, GOOD_SQL_ALT, WRONG_SQL]))
+    enqueue_job(admin_id, quantity=1, difficulty=1, code="S1", topic="Human Resources")
+    stats2 = new_worker().run_once()
+    assert stats2["reviewed"][0][1] == "needs_human"
+    d2_id = stats2["reviewed"][0][0]
+
+    # Giả lập thêm 1 dòng lỗi HTTP 403 trên llm_call_ledger cho draft #2 để kiểm chứng cảnh báo lỗi trực tiếp
+    with db.begin() as conn:
+        db.ex(
+            conn,
+            """INSERT INTO draft.llm_call_ledger
+               (job_id, draft_id, stage, attempt_no, provider, model, prompt_name, prompt_version, prompt_hash, request_hash, status, error_code, latency_ms)
+               VALUES (2, :d, 'solve_b', 9, 'ollama', 'qwen2.5-coder:7b', 'solve_b:s2_k3_r1', 'v1', 'ph', 'rh', 'failed', 'http_403_quota_exceeded', 420)""",
+            d=d2_id,
+        )
+
+    # Kiểm tra Phần 1 trên GET /api/v1/admin/drafts
+    lst = client.get("/api/v1/admin/drafts", headers=admin_h).json()["items"]
+    by_id = {it["draft_id"]: it for it in lst}
+    lp1 = by_id[1]["live_progress"]
+    assert lp1["step"] == 5 and lp1["total_steps"] == 5
+    assert lp1["samples_done"] >= 3 and lp1["samples_total"] == 3
+    for banned in ("qwen", "llama", "deepseek", "ollama"):
+        assert banned not in (lp1["active_model"] or "").lower()
+
+    lp2 = by_id[d2_id]["live_progress"]
+    assert lp2["error_alert"] and "403" in lp2["error_alert"]
+    for banned in ("qwen", "llama", "deepseek", "ollama"):
+        assert banned not in (lp2["active_model"] or "").lower()
+
+    # Kiểm tra Phần 2 (5 khối hồ sơ nghiệm thu) trên GET /api/v1/admin/drafts/{id}
+    det1 = client.get("/api/v1/admin/drafts/1", headers=admin_h).json()
+    dos1 = det1["acceptance_dossier"]
+    # Khối 1: Verdict
+    assert dos1["verdict"]["status"] == "approved"
+    assert dos1["verdict"]["compare_mode"] in ("ordered", "unordered")
+    assert "5/5" in dos1["verdict"]["reason_summary"]
+    # Khối 2: Originality
+    orig1 = dos1["originality"]
+    assert 0 <= orig1["similarity_pct"] <= 100
+    assert round(orig1["similarity_pct"] + orig1["originality_pct"], 1) == 100.0
+    assert orig1["exact_duplicate"] is False and orig1["logic_duplicate"] is False
+    # Khối 3: Consensus & Matrix
+    cons1 = dos1["consensus"]
+    assert cons1["matching_count"] == 3 and cons1["total_samples"] == 3 and cons1["consensus_pct"] == 100.0
+    assert any(s["is_selected"] and s.get("selection_reason") for s in cons1["samples"])
+    assert all("result_hash" in s and "latency_ms" in s for s in cons1["samples"])
+    # Khối 4: 6-point Checklist
+    chk1 = dos1["checklist"]
+    assert len(chk1) == 6
+    assert all(c["passed"] is True for c in chk1)
+    # Khối 5: Repair History & Pedagogical Traps
+    rt1 = dos1["repair_and_traps"]
+    assert isinstance(rt1["traps"], list) and len(rt1["traps"]) >= 1
+
+    # Kiểm tra hồ sơ của Draft #2 (needs_human có lịch sử tự sửa vòng 1..2 + lý do consensus_disagreement)
+    det2 = client.get(f"/api/v1/admin/drafts/{d2_id}", headers=admin_h).json()
+    dos2 = det2["acceptance_dossier"]
+    assert dos2["verdict"]["status"] == "needs_human"
+    assert any(r["code"] == "consensus_disagreement" for r in dos2["verdict"]["reasons"])
+    assert dos2["repair_and_traps"]["repair_history"]["attempted"] >= 1
+    assert len(dos2["repair_and_traps"]["repair_history"]["rounds"]) >= 1
+
+    # 3. Khi Admin phê duyệt Draft #2 bằng custom_sql hợp lệ -> chu kỳ review mới không bị nhiễm lỗi/vòng sửa cũ
+    app_res = client.post(
+        f"/api/v1/admin/drafts/{d2_id}/approve",
+        headers=admin_h,
+        json={"custom_sql": GOOD_SQL, "note": "Chuẩn hóa đáp án"},
+    )
+    assert app_res.status_code == 200
+    dos2_after = client.get(f"/api/v1/admin/drafts/{d2_id}", headers=admin_h).json()["acceptance_dossier"]
+    assert dos2_after["verdict"]["status"] == "approved"
+    assert all(c["passed"] is True for c in dos2_after["checklist"])
+    assert dos2_after["repair_and_traps"]["repair_history"]["attempted"] == 0
+
+    # 4. In-sample retry trên vòng 0 (4 solver calls cho k=3 do sample 1 thử lại) -> repair_round vẫn bằng 0, samples_done = 3
+    retry_cand = {
+        **MODEL_A_GOOD,
+        "title": "Tra cứu danh sách nhân sự chính thức sau đầu năm 2024",
+        "question": (
+            "Hiển thị nhân sự đang có status='active' gia nhập từ ngày 2024-01-01 trở đi. "
+            "Cột kết quả theo thứ tự: employee_id, full_name, job_title, hire_date. "
+            "Sắp xếp: hire_date giảm dần, employee_id tăng."
+        ),
+        "logic_signature": {
+            "output_grain": "Một dòng cho mỗi nhân viên chính thức",
+            "analysis_goal": "Kiểm chứng retry nội bộ trong cùng 1 mẫu giải",
+            "filter_pattern": "status='active' AND hire_date >= 2024-01-01",
+            "aggregation_pattern": "none",
+        },
+    }
+    eng.set_transport(FakeOllama(model_a=retry_cand, solver_sqls=["SELECT broken_syntax FROM", GOOD_SQL, GOOD_SQL, GOOD_SQL]))
+    enqueue_job(admin_id, quantity=1, difficulty=1, code="S1", topic="Human Resources")
+    stats3 = new_worker().run_once()
+    d3_id = stats3["reviewed"][0][0]
+    lp3 = {it["draft_id"]: it for it in client.get("/api/v1/admin/drafts", headers=admin_h).json()["items"]}[d3_id]["live_progress"]
+    assert lp3["repair_round"] == 0 and lp3["samples_done"] == 3
+
+    # 5. Không rò rỉ tên local model (ollama/qwen/llama/deepseek) qua error_message của job hoặc sample error
+    eng.set_transport(FakeOllama(fail_with=ValueError("err_ollama_down: qwen2.5 timeout")))
+    fail_jid = enqueue_job(admin_id, quantity=2, difficulty=1, code="S1", topic="Human Resources")
+    new_worker().run_once()
+    jobs_payload = json.dumps(client.get("/api/v1/admin/generation-jobs", headers=admin_h).json()).lower()
+    for banned in ("qwen", "llama", "deepseek", "ollama"):
+        assert banned not in jobs_payload and fail_jid >= 1

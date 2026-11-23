@@ -9,7 +9,7 @@ from ..pipeline import engine as eng
 from ..pipeline import review as pr
 from ..pipeline.catalog import load_engine_data, verify_catalog
 from ..pipeline.leases import Heartbeat, LeaseLost
-from . import audit, promotion
+from . import audit, draft_dossier, promotion
 from . import settings_registry as sr
 
 rv = eng.rv
@@ -17,14 +17,8 @@ LIST_COLS = "draft_id, job_id, title, difficulty, skill_ids, status, status_reas
 _ATTEST = {"verdict": "pass", "issues": [], "checks": [{"requirement": r, "status": "pass", "finding": "admin_attested"} for r in (
     "output columns and aliases", "WHERE, HAVING, aggregate thresholds", "joins, row grain, EXISTS and correlated subqueries",
     "NULL, date, rounding, unit edge cases", "ordering and tie breakers")], "attested_by_admin": True}
-_LEGACY_MODEL_TOKENS = ("llama", "qwen", "deepseek", "ollama")
-
-
 def _clean_model_label(model_val: str | None, fallback: str) -> str:
-    raw = (model_val or "").strip()
-    if not raw or any(tok in raw.lower() for tok in _LEGACY_MODEL_TOKENS):
-        return fallback
-    return raw
+    return draft_dossier.clean_model_name(model_val, fallback)
 
 
 def list_drafts(conn: Connection, status, job_id, difficulty, page: int, size: int) -> dict:
@@ -48,6 +42,8 @@ def list_drafts(conn: Connection, status, job_id, difficulty, page: int, size: i
                        {where}
                        ORDER BY d.draft_id DESC LIMIT :l OFFSET :o""", l=size, o=(page - 1) * size, **p)
     items = [{**r, "gen_model": _clean_model_label(r.get("gen_model"), "Model A")} for r in rows]
+    k_samples = int(sr.get(conn, "solve.samples_k") or 3)
+    items = draft_dossier.attach_live_progress(conn, items, samples_k_default=k_samples)
     return {"items": items, "total": total, "page": page, "page_size": size}
 
 
@@ -60,7 +56,7 @@ def detail(conn: Connection, draft_id: int) -> dict:
     raw_runs = q(conn, "SELECT run_id, sample_index, model_sql, is_selected, matched_datasets, total_datasets, mismatch_detail, exec_status, row_count, "
                        "result_hash, error, review_model, review_round FROM draft.self_solve_runs WHERE draft_id=:i ORDER BY review_round, sample_index", i=draft_id)
     runs = [{**r, "review_model": _clean_model_label(r.get("review_model"), "Model B")} for r in raw_runs]
-    raw_logs = q(conn, "SELECT log_id, stage, passed, score, reasons, review_model, rubric_version, created_at FROM draft.review_logs WHERE draft_id=:i ORDER BY log_id", i=draft_id)
+    raw_logs = q(conn, "SELECT log_id, stage, passed, score, reasons, review_model, rubric_version, raw_output, created_at FROM draft.review_logs WHERE draft_id=:i ORDER BY log_id", i=draft_id)
     logs = [
         {**lg, "review_model": _clean_model_label(lg.get("review_model"), "Auditor" if lg.get("stage") in ("checklist", "checklist_b", "audit") else "Model B")}
         for lg in raw_logs
@@ -71,14 +67,18 @@ def detail(conn: Connection, draft_id: int) -> dict:
                            FROM live.questions lq WHERE lq.source_draft_id=:i""", i=draft_id)
     job_row = q1(conn, "SELECT job_id, topic, created_at FROM draft.generation_jobs WHERE job_id=:j", j=d["job_id"]) if d.get("job_id") else None
     skills = q(conn, "SELECT skill_id, code, name FROM core.skills WHERE skill_id = ANY(:s) ORDER BY skill_id", s=list(d["skill_ids"]))
+    dossier = draft_dossier.build_acceptance_dossier(conn, d, cand, d.get("validation_report"), runs, logs)
+    public_logs = [{k: v for k, v in lg.items() if k != "raw_output"} for lg in logs]
     out = {k: d[k] for k in ("draft_id", "world_id", "job_id", "title", "question", "reference_sql", "compare_mode", "difficulty", "tables_used", "schema_text",
                              "status", "status_reason", "gen_model", "gen_prompt_version", "retry_count", "review_attempts", "created_at", "updated_at")}
     out["gen_model"] = _clean_model_label(out.get("gen_model"), "Model A")
     out.update(skills=skills, source_question_ids=bp.get("source_question_ids", []),
                job_topic=job_row["topic"] if job_row else cand.get("business_domain"),
+               traps=dossier["repair_and_traps"]["traps"],
                blueprint={k: cand.get(k) for k in ("business_domain", "business_goal", "difficulty_reason", "output_columns", "required_columns",
                                                     "table_roles", "logic_signature", "join_relations")},
-               validation_report=d["validation_report"], self_solve_runs=runs, review_logs=logs, promoted_question=question)
+               validation_report=d["validation_report"], self_solve_runs=runs, review_logs=public_logs,
+               acceptance_dossier=dossier, promoted_question=question)
     return out
 
 

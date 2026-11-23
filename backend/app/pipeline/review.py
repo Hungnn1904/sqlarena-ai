@@ -136,10 +136,25 @@ class ReviewRunner:
         except (rv.InfraError, ValueError) as exc:
             return self._release(draft, f"infra: {exc}")
         base_solver, base_auditor = rv.make_solver(cfg), rv.make_auditor(cfg, calibrated=calibrated)
+        solve_counter = 0
 
         def solver(prompt, seed, temperature, model=None):
-            with eng.llm_context(job_id=draft["job_id"], draft_id=draft["draft_id"], stage="solve_b", prompt_name="solve_b",
-                                 prompt_version=rv.REVIEW_VERSION, attempt_no=1):
+            nonlocal solve_counter
+            solve_counter += 1
+            if isinstance(seed, int) and seed >= 0:
+                repair_no = min(seed // 10000, 2)
+                sample_no = min(((seed % 10000) // 100) + 1, max(k, 1))
+            else:
+                sample_no = ((solve_counter - 1) % max(k, 1)) + 1
+                repair_no = min((solve_counter - 1) // max(k, 1), 2)
+            with eng.llm_context(
+                job_id=draft["job_id"],
+                draft_id=draft["draft_id"],
+                stage="solve_b",
+                prompt_name=f"solve_b:s{sample_no}_k{k}_r{repair_no}",
+                prompt_version=rv.REVIEW_VERSION,
+                attempt_no=solve_counter,
+            ):
                 return base_solver(prompt, seed, temperature, model)
 
         def auditor(c, sql):

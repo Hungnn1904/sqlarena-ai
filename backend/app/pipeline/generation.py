@@ -178,7 +178,7 @@ class GenerationRunner:
                     self._bump(job, "failed_count")
                     job["failed_count"] += 1
                     if infra_streak >= 2:
-                        return self._finish(job, "failed", f"system: Ollama/Model A không phản hồi — {outcome['error'][:300]}")
+                        return self._finish(job, "failed", f"system: AI Gateway / Model A không phản hồi — {outcome['error'][:300]}")
         return self._finish(job, "done", None)
 
     # ------------------------------------------------------------------ slot
@@ -231,12 +231,15 @@ class GenerationRunner:
                 raise LeaseLost(f"job {job['job_id']}")
 
     def _insert_draft(self, job: dict, data: dict, outcome: dict) -> int:
+        from ..services.draft_dossier import derive_pedagogical_traps
+
         cand, report, ctx = outcome["candidate"], outcome["report"], outcome["context"]
         codes = [c for c in dict.fromkeys([cand.get("primary_skill_group"), *cand.get("skills", [])]) if c in data["skill_pk"]]
         schema_context = {**ctx["world_schema"], "tables_used": cand["tables_used"], "required_columns": cand["required_columns"],
                           "rules_source": ctx["rules_source"]}
         blueprint = {"source_question_ids": outcome["refs"], "context_group": ctx["world_schema"].get("context_group"),
                      "skill_contract": ctx["blueprint"]["skill_contract"], "candidate": cand}
+        traps = derive_pedagogical_traps(cand, ctx.get("world_schema"))
         with begin() as conn:
             n = ex(conn, f"UPDATE draft.generation_jobs SET created_count = created_count + 1 WHERE {self._fence_sql()} "
                          "AND created_count + failed_count < requested_count", id=job["job_id"], w=self.worker_id, v=job["lease_version"])
@@ -244,11 +247,11 @@ class GenerationRunner:
                 raise LeaseLost(f"job {job['job_id']}")
             ex(conn, """INSERT INTO draft.question_drafts (world_id, job_id, title, question, difficulty, skill_ids, blueprint, tables_used,
                         traps, schema_text, schema_context, validation_report, status, gen_model, gen_prompt_version, retry_count)
-                        VALUES (:w, :job, :t, :q, :d, :sk, CAST(:bp AS jsonb), :tu, '[]'::jsonb, :st, CAST(:sc AS jsonb),
+                        VALUES (:w, :job, :t, :q, :d, :sk, CAST(:bp AS jsonb), :tu, CAST(:tr AS jsonb), :st, CAST(:sc AS jsonb),
                                 CAST(:vr AS jsonb), 'pending', :gm, :gv, :rc)""",
                w=data["world"]["_pk"], job=job["job_id"], t=str(cand["title"])[:200], q=cand["question"],
                d=DIFF_NUM[cand["difficulty"]], sk=[data["skill_pk"][c] for c in codes], bp=_j(blueprint), tu=list(cand["tables_used"]),
-               st=arena.render_schema_text(ctx["world_schema"], cand["tables_used"]), sc=_j(schema_context), vr=_j(report),
+               tr=_j(traps), st=arena.render_schema_text(ctx["world_schema"], cand["tables_used"]), sc=_j(schema_context), vr=_j(report),
                gm=self.config["MODEL_NAME"], gv=arena.PROMPT_VERSION, rc=outcome["retry"])
         return 1
 
