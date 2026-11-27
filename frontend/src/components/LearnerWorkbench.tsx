@@ -29,6 +29,7 @@ import {
 } from '../lib/api';
 import { matchesVisibleRecord } from '../lib/search';
 import { useTheme } from './theme-provider';
+import { QuestionFeedbackBar } from './QuestionFeedbackBar';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -806,6 +807,18 @@ export default function LearnerWorkbench({
                 </div>
               </div>
             )}
+
+            <QuestionFeedbackBar
+              questionId={questionDetail?.question_id || selectedId}
+              feedback={questionDetail?.feedback}
+              onFeedbackUpdated={() => {
+                if (selectedId) {
+                  getQuestionDetail(selectedId)
+                    .then((d) => setQuestionDetail(d))
+                    .catch(() => {});
+                }
+              }}
+            />
 
             {/* Inline Schema Explorer right inside the Problem Statement Card */}
             <div className="pt-3 border-t border-line space-y-3">

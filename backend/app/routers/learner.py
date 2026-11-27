@@ -2,8 +2,9 @@
 from fastapi import APIRouter, Depends, Query
 
 from ..db import begin
-from ..schemas import AiCoachBody, SqlRunBody
+from ..schemas import AiCoachBody, QuestionReportBody, QuestionVoteBody, SqlRunBody
 from ..security import current_user
+from ..services import feedback
 from ..services import questions as qsvc
 from ..services import submissions as sub_svc
 from ..services import weekly
@@ -41,6 +42,18 @@ def weekly_history(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, 
 def get_question(question_id: int, user: dict = Depends(current_user)):
     with begin() as conn:
         return weekly.learner_question(conn, question_id, user["user_id"])
+
+
+@router.post("/questions/{question_id}/vote")
+def vote_question(question_id: int, body: QuestionVoteBody, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return feedback.cast_vote(conn, user["user_id"], question_id, body.vote)
+
+
+@router.post("/questions/{question_id}/reports", status_code=201)
+def report_question(question_id: int, body: QuestionReportBody, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return feedback.submit_report(conn, user["user_id"], question_id, body.reason_type, body.comment)
 
 
 @router.get("/questions/{question_id}/submissions", tags=["learner-sandbox"])

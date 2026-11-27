@@ -182,4 +182,24 @@ class AiCoachBody(BaseModel):
     error_context: str | None = Field(default=None, max_length=1000)
 
 
+class QuestionVoteBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    vote: int = Field(ge=-1, le=1)
+
+
+class QuestionReportBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason_type: str = Field(min_length=2, max_length=80)
+    comment: str = Field(min_length=3, max_length=1000)
+
+
+class ResolveReportBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: str = Field(pattern="^(rework|return_needs_human|retire|dismiss)$")
+    admin_note: str | None = Field(default=None, max_length=1000)
+    updated_title: str | None = Field(default=None, min_length=3, max_length=200)
+    updated_question: str | None = Field(default=None, min_length=10, max_length=4000)
+    updated_sql: str | None = Field(default=None, min_length=1, max_length=20000)
+
+
 

@@ -48,6 +48,37 @@ def table_exists(conn: Connection, qualified: str) -> bool:
     return bool(conn.execute(text("SELECT to_regclass(:t) IS NOT NULL"), {"t": qualified}).scalar())
 
 
+FEEDBACK_SCHEMA_DDL = """
+CREATE TABLE IF NOT EXISTS live.question_votes (
+  question_id int         NOT NULL REFERENCES live.questions (question_id) ON DELETE CASCADE,
+  user_id     int         NOT NULL REFERENCES live.users (user_id) ON DELETE CASCADE,
+  vote        smallint    NOT NULL CHECK (vote IN (1, -1)),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (question_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS live.question_reports (
+  report_id   serial      PRIMARY KEY,
+  question_id int         NOT NULL REFERENCES live.questions (question_id) ON DELETE CASCADE,
+  user_id     int         NOT NULL REFERENCES live.users (user_id) ON DELETE CASCADE,
+  reason_type varchar(40) NOT NULL CHECK (reason_type IN (
+    'ambiguous_prompt', 'wrong_difficulty', 'wrong_answer_or_testcase', 'typo_or_column_name', 'other'
+  )),
+  comment     text        NOT NULL,
+  status      varchar(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'dismissed')),
+  admin_note  text,
+  resolved_by int         REFERENCES live.users (user_id) ON DELETE SET NULL,
+  resolved_at timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_question_reports_one_open_per_user
+  ON live.question_reports (question_id, user_id) WHERE status = 'open';
+CREATE INDEX IF NOT EXISTS idx_question_reports_question_status
+  ON live.question_reports (question_id, status);
+"""
+
+
 def ensure_runtime_schema() -> None:
     """Đảm bảo các bảng & ràng buộc mới (0004_question_groups, 0005_admin_override) luôn tồn tại kể cả khi dev chạy uvicorn trực tiếp chưa qua alembic."""
     with begin() as conn:
@@ -80,6 +111,7 @@ def ensure_runtime_schema() -> None:
                 );
                 """
             )
+        conn.exec_driver_sql(FEEDBACK_SCHEMA_DDL)
         if table_exists(conn, "core.system_settings"):
             from .services import settings_registry
 

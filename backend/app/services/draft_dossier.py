@@ -237,7 +237,7 @@ def attach_live_progress(conn: Connection, items: list[dict], samples_k_default:
             "live_progress": {
                 "step": step,
                 "total_steps": 5,
-                "step_label": STEP_LABELS[step],
+                "step_label": "Đang chờ hàng đợi kiểm định..." if (st == "pending" and not running_call) else STEP_LABELS[step],
                 "is_running": st in ("pending", "reviewing") or running_call is not None,
                 "active_sample": active_sample,
                 "samples_done": min(samples_done, samples_total) if samples_done else (samples_total if st == "approved" else 0),

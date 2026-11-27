@@ -8,10 +8,10 @@ from ..errors import bad_request, not_found
 from ..pipeline import engine as eng
 from ..pipeline import ledger
 from ..schemas import (ApproveBody, BulkApproveBody, DraftEditBody, GatewayKeyBody, JobCreate, ManualQuestionBody, QuestionGroupAddItemsBody,
-                       QuestionGroupCreateBody, QuestionGroupItemsBody, QuestionGroupPublishBody, QuestionGroupUpdateBody, RejectBody, RequeueBody, RestoreBody,
-                       RetireBody, SettingBody, SourceBody, WeeklyItemsBody, WeeklySetCreate)
+                       QuestionGroupCreateBody, QuestionGroupItemsBody, QuestionGroupPublishBody, QuestionGroupUpdateBody, RejectBody, RequeueBody,
+                       ResolveReportBody, RestoreBody, RetireBody, SettingBody, SourceBody, WeeklyItemsBody, WeeklySetCreate)
 from ..security import require_admin
-from ..services import audit, drafts, groups, jobs, questions, weekly
+from ..services import audit, drafts, feedback, groups, jobs, questions, weekly
 from ..services import settings_registry as sr
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
@@ -129,9 +129,25 @@ def reject_draft(draft_id: int, body: RejectBody, admin: dict = Depends(require_
 @router.get("/questions", tags=["admin-questions"])
 def admin_questions(status: str | None = Query(None, pattern="^(ready|archived|retired)$"), difficulty: int | None = Query(None, ge=1, le=3),
                     skill_id: int | None = None, q: str | None = Query(None, max_length=100), unassigned_only: bool = Query(False),
-                    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
+                    has_reports: bool | None = Query(None), page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200)):
     with begin() as conn:
-        return questions.admin_list(conn, status, difficulty, skill_id, q, page, page_size, unassigned_only=unassigned_only)
+        return questions.admin_list(conn, status, difficulty, skill_id, q, page, page_size, unassigned_only=unassigned_only, has_reports=has_reports)
+
+
+@router.get("/questions/feedback", tags=["admin-questions"])
+def admin_questions_feedback(
+    status: str | None = Query(None, pattern="^(open|resolved|dismissed)$"),
+    question_id: int | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+):
+    with begin() as conn:
+        return feedback.list_admin_feedback(conn, status, question_id, page, page_size)
+
+
+@router.post("/reports/{report_id}/resolve", tags=["admin-questions"])
+def resolve_question_report(report_id: int, body: ResolveReportBody, admin: dict = Depends(require_admin)):
+    return feedback.resolve_report(admin, report_id, body.model_dump())
 
 
 @router.post("/questions/manual", status_code=201, tags=["admin-questions"])

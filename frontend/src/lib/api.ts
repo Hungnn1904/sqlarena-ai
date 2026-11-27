@@ -124,6 +124,14 @@ export const askAiSqlCoach = (payload: {
 export const submitGradingSql = (question_id: number, sql: string) =>
   api.post('/api/v1/submissions', { question_id, sql }).then((r) => r.data);
 
+export const voteQuestion = (questionId: number, vote: 1 | -1 | 0) =>
+  api.post(`/api/v1/questions/${questionId}/vote`, { vote }).then((r) => r.data);
+
+export const reportQuestion = (
+  questionId: number,
+  data: { reason_type: string; comment: string }
+) => api.post(`/api/v1/questions/${questionId}/reports`, data).then((r) => r.data);
+
 export const getMyProgress = () => api.get('/api/v1/progress').then((r) => r.data);
 
 export const getWeeklyLeaderboard = (set_id?: number) =>
@@ -194,7 +202,26 @@ export const getAdminQuestions = (params?: {
   page?: number;
   page_size?: number;
   unassigned_only?: boolean;
+  has_reports?: boolean;
 }) => api.get('/api/v1/admin/questions', { params }).then((r) => r.data);
+
+export const getAdminQuestionFeedback = (params?: {
+  status?: 'open' | 'resolved' | 'dismissed';
+  question_id?: number;
+  page?: number;
+  page_size?: number;
+}) => api.get('/api/v1/admin/questions/feedback', { params }).then((r) => r.data);
+
+export const resolveAdminQuestionReport = (
+  reportId: number,
+  data: {
+    action: 'rework' | 'return_needs_human' | 'retire' | 'dismiss';
+    admin_note?: string;
+    updated_title?: string;
+    updated_question?: string;
+    updated_sql?: string;
+  }
+) => api.post(`/api/v1/admin/reports/${reportId}/resolve`, data).then((r) => r.data);
 
 export const getAdminQuestionDetail = (questionId: number) =>
   api.get(`/api/v1/admin/questions/${questionId}`).then((r) => r.data);

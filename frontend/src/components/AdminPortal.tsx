@@ -20,6 +20,9 @@ import {
   Settings,
   Database,
   RotateCcw,
+  ThumbsUp,
+  ThumbsDown,
+  Flag,
   X,
 } from 'lucide-react';
 import {
@@ -70,6 +73,7 @@ import {
   DraftPipelineRowProgress,
   JobActivePipelineBanner,
 } from './DraftTelemetryViews';
+import { AdminQuestionFeedbackModal } from './AdminQuestionFeedbackModal';
 
 type AdminTabId = 'users' | 'generate' | 'drafts' | 'weekly' | 'bank' | 'settings';
 
@@ -247,6 +251,8 @@ export default function AdminPortal({
 
   // Tab 5 & 6: Bank & Settings
   const [allBankStatusFilter, setAllBankStatusFilter] = useState<string>('');
+  const [bankHasReportsOnly, setBankHasReportsOnly] = useState<boolean>(false);
+  const [selectedBankQuestionId, setSelectedBankQuestionId] = useState<number | null>(null);
   const [bankSearch, setBankSearch] = useState<string>('');
   const [allBankQuestions, setAllBankQuestions] = useState<any[]>([]);
   const [settingsList, setSettingsList] = useState<any[]>([]);
@@ -368,7 +374,8 @@ export default function AdminPortal({
     try {
       const res = await getAdminQuestions({
         status: allBankStatusFilter || undefined,
-        page_size: 100,
+        has_reports: bankHasReportsOnly ? true : undefined,
+        page_size: 200,
       });
       setAllBankQuestions(res?.items || []);
     } catch {}
@@ -487,6 +494,7 @@ export default function AdminPortal({
     loadJobs();
     loadGroups();
     loadReadyQuestions();
+    loadAllBankQuestions();
   }, [isAdmin]);
 
   useEffect(() => {
@@ -507,7 +515,7 @@ export default function AdminPortal({
     }
     if (activeTab === 'bank') loadAllBankQuestions();
     if (activeTab === 'settings') loadSettings();
-  }, [activeTab, allBankStatusFilter, isAdmin]);
+  }, [activeTab, allBankStatusFilter, bankHasReportsOnly, isAdmin]);
 
   // Real-time 2s polling whenever ANY job is queued/running OR ANY draft is pending/reviewing!
   const activeRunningJob = jobs.find(
@@ -1236,7 +1244,17 @@ export default function AdminPortal({
       icon: CalendarRange,
       badge: unassignedApprovedPool.length > 0 ? String(unassignedApprovedPool.length) : null,
     },
-    { id: 'bank', label: 'Ngân hàng đề', icon: Database },
+    {
+      id: 'bank',
+      label: 'Ngân hàng đề',
+      icon: Database,
+      badge:
+        allBankQuestions.reduce((acc, q) => acc + Number(q.open_reports_count || 0), 0) > 0
+          ? String(
+              allBankQuestions.reduce((acc, q) => acc + Number(q.open_reports_count || 0), 0)
+            )
+          : null,
+    },
     { id: 'settings', label: 'Cấu hình', icon: Settings },
   ];
 
@@ -3348,6 +3366,17 @@ export default function AdminPortal({
               Ngân hàng đề ({visibleBankQuestions.length}/{allBankQuestions.length} câu)
             </h3>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-solid-btn={bankHasReportsOnly ? 'true' : undefined}
+                onClick={() => setBankHasReportsOnly((v) => !v)}
+                className={`px-3 min-h-10 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  bankHasReportsOnly ? 'btn-primary' : 'btn-secondary'
+                }`}
+              >
+                <Flag className="w-4 h-4" />
+                <span>Có báo lỗi</span>
+              </button>
               <div className="relative">
                 <Search className="w-4 h-4 text-muted absolute left-3 top-3" />
                 <input
@@ -3373,16 +3402,18 @@ export default function AdminPortal({
             <table className="w-full text-left border-collapse text-sm tabular-nums">
               <thead>
                 <tr className="bg-canvas border-b border-line text-text2 font-semibold">
-                  <th className="py-3 px-4 w-24">ID</th>
+                  <th className="py-3 px-4 w-20">ID</th>
                   <th className="py-3 px-4">Tiêu đề câu hỏi</th>
-                  <th className="py-3 px-4 w-32">Độ khó</th>
-                  <th className="py-3 px-4 w-48">Bảng sử dụng</th>
-                  <th className="py-3 px-4 w-56">Thao tác</th>
+                  <th className="py-3 px-4 w-28">Độ khó</th>
+                  <th className="py-3 px-4 w-44">Đánh giá &amp; Báo lỗi</th>
+                  <th className="py-3 px-4 w-44">Bảng sử dụng</th>
+                  <th className="py-3 px-4 w-64">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {visibleBankQuestions.map((q: any) => {
                   const diff = DIFF_LABELS[q.difficulty] || DIFF_LABELS[1];
+                  const openReps = Number(q.open_reports_count || 0);
                   return (
                     <tr key={q.question_id} className="hover:bg-soft">
                       <td className="py-3 px-4 font-bold text-brand">
@@ -3400,11 +3431,41 @@ export default function AdminPortal({
                           {diff.text}
                         </span>
                       </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className="badge-neutral px-2 py-0.5 rounded font-semibold inline-flex items-center gap-1">
+                            <ThumbsUp className="w-3 h-3" /> {q.upvotes ?? 0}
+                          </span>
+                          <span className="badge-neutral px-2 py-0.5 rounded font-semibold inline-flex items-center gap-1">
+                            <ThumbsDown className="w-3 h-3" /> {q.downvotes ?? 0}
+                          </span>
+                          {openReps > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBankQuestionId(q.question_id)}
+                              className="badge-medium px-2 py-0.5 rounded font-semibold inline-flex items-center gap-1 whitespace-nowrap"
+                            >
+                              <AlertTriangle className="w-3 h-3" />
+                              <span>{openReps} báo lỗi</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-xs text-text2">
                         {Array.isArray(q.tables_used) ? q.tables_used.join(', ') : '-'}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBankQuestionId(q.question_id)}
+                            className={`px-2.5 min-h-8 rounded-md text-xs font-semibold whitespace-nowrap ${
+                              openReps > 0 ? 'badge-medium' : 'btn-secondary'
+                            }`}
+                          >
+                            Xem góp ý
+                          </button>
+
                           <button
                             type="button"
                             onClick={() =>
@@ -3464,6 +3525,18 @@ export default function AdminPortal({
               </tbody>
             </table>
           </div>
+
+          <AdminQuestionFeedbackModal
+            questionId={selectedBankQuestionId}
+            onClose={() => setSelectedBankQuestionId(null)}
+            onResolved={(actionMsg) => {
+              setMsg(actionMsg);
+              loadAllBankQuestions();
+              loadReadyQuestions();
+              loadDrafts();
+              loadWeekly();
+            }}
+          />
         </div>
       )}
 

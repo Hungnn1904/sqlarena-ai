@@ -31,11 +31,17 @@ def dataset_schema(conn: Connection) -> dict:
     return {"name": w["name"], "version": w["dataset_version"], "tables": tables}
 
 
-def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int, size: int, unassigned_only: bool = False) -> dict:
+def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int, size: int, unassigned_only: bool = False, has_reports: bool | None = None) -> dict:
+    from . import feedback
+    feedback._ensure_tables(conn)
     conds, p = [], {}
     if unassigned_only:
         conds.append("q.status='ready'")
         conds.append("NOT EXISTS (SELECT 1 FROM live.weekly_set_items wsi WHERE wsi.question_id = q.question_id)")
+    if has_reports is True:
+        conds.append("EXISTS (SELECT 1 FROM live.question_reports qr WHERE qr.question_id = q.question_id AND qr.status = 'open')")
+    elif has_reports is False:
+        conds.append("NOT EXISTS (SELECT 1 FROM live.question_reports qr WHERE qr.question_id = q.question_id AND qr.status = 'open')")
     if status:
         conds.append("q.status=:st"); p["st"] = status
     if difficulty:
@@ -113,6 +119,7 @@ def admin_list(conn: Connection, status, difficulty, skill_id, search, page: int
             "skill_codes": [smap[i]["code"] for i in sids if i in smap],
             "skills": [smap[i]["name"] for i in sids if i in smap],
         })
+    items = feedback.attach_admin_feedback_counts(conn, items)
     return {"items": items, "total": total, "page": page, "page_size": size}
 
 
@@ -145,6 +152,8 @@ def admin_detail(conn: Connection, question_id: int) -> dict:
     r["test_cases"] = tests
     r["weekly"] = q1(conn, "SELECT i.set_id, i.position, i.is_voided, s.status AS set_status FROM live.weekly_set_items i JOIN live.weekly_sets s USING (set_id) "
                            "WHERE i.question_id=:i", i=question_id)
+    from . import feedback
+    r["feedback"] = feedback.question_feedback_detail(conn, question_id)
     return r
 
 

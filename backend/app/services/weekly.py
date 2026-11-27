@@ -450,13 +450,15 @@ def learner_question(conn: Connection, question_id: int, user_id: int | None = N
     )
     out_cols = list(tc["cols"]) if (tc and isinstance(tc.get("cols"), list)) else []
     domain_category, topic = _infer_domain_and_topic(r["tables_used"], r["job_topic"], r["blueprint_domain"])
+    from . import feedback
+    fb = feedback.learner_feedback_for_question(conn, question_id, user_id, int(r["attempt_count"] or 0))
     return {"question_id": r["question_id"], "position": r["position"], "title": r["title"], "question": r["question"], "difficulty": r["difficulty"],
             "skills": [smap[i]["name"] for i in sids if i in smap], "skill_codes": [smap[i]["code"] for i in sids if i in smap],
             "tables_used": r["tables_used"] or [], "schema_text": r["schema_text"], "output_columns": out_cols,
             "source_type": "ai_generated" if r["source_draft_id"] is not None else "seed",
             "source_draft_id": r["source_draft_id"], "job_id": r["job_id"], "job_topic": r["job_topic"],
             "topic": topic, "domain_category": domain_category, "created_at": r["created_at"],
-            "solved": bool(r["solved"]), "is_voided": r["is_voided"], "attempt_count": r["attempt_count"]}
+            "solved": bool(r["solved"]), "is_voided": r["is_voided"], "attempt_count": r["attempt_count"], "feedback": fb}
 
 
 def learner_history(conn: Connection, page: int, size: int) -> dict:
