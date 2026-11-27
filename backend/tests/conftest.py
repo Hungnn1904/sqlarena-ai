@@ -57,7 +57,7 @@ def database():
 def clean():
     """Mỗi test bắt đầu với hàng đợi/câu hỏi trống và cấu hình mặc định."""
     with db.begin() as conn:
-        conn.exec_driver_sql("TRUNCATE live.question_reports, live.question_votes, live.question_group_items, live.question_groups, live.submissions, live.weekly_set_items, live.weekly_sets, draft.llm_call_ledger, draft.review_logs, draft.self_solve_runs, live.test_cases, live.questions, "
+        conn.exec_driver_sql("TRUNCATE live.question_comments, live.question_reports, live.question_votes, live.question_group_items, live.question_groups, live.submissions, live.weekly_set_items, live.weekly_sets, draft.llm_call_ledger, draft.review_logs, draft.self_solve_runs, live.test_cases, live.questions, "
                              "draft.question_drafts, draft.generation_jobs, live.admin_overrides, live.audit_logs RESTART IDENTITY CASCADE")
         conn.exec_driver_sql("DELETE FROM core.system_settings")
         from app.services import settings_registry

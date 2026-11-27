@@ -132,6 +132,17 @@ export const reportQuestion = (
   data: { reason_type: string; comment: string }
 ) => api.post(`/api/v1/questions/${questionId}/reports`, data).then((r) => r.data);
 
+export const getQuestionComments = (questionId: number) =>
+  api.get(`/api/v1/questions/${questionId}/comments`).then((r) => r.data);
+
+export const postQuestionComment = (
+  questionId: number,
+  data: { content: string; parent_comment_id?: number | null }
+) => api.post(`/api/v1/questions/${questionId}/comments`, data).then((r) => r.data);
+
+export const deleteQuestionComment = (questionId: number, commentId: number) =>
+  api.delete(`/api/v1/questions/${questionId}/comments/${commentId}`).then((r) => r.data);
+
 export const getMyProgress = () => api.get('/api/v1/progress').then((r) => r.data);
 
 export const getWeeklyLeaderboard = (set_id?: number) =>

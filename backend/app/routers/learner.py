@@ -2,9 +2,9 @@
 from fastapi import APIRouter, Depends, Query
 
 from ..db import begin
-from ..schemas import AiCoachBody, QuestionReportBody, QuestionVoteBody, SqlRunBody
+from ..schemas import AiCoachBody, QuestionCommentBody, QuestionReportBody, QuestionVoteBody, SqlRunBody
 from ..security import current_user
-from ..services import feedback
+from ..services import comments, feedback
 from ..services import questions as qsvc
 from ..services import submissions as sub_svc
 from ..services import weekly
@@ -54,6 +54,24 @@ def vote_question(question_id: int, body: QuestionVoteBody, user: dict = Depends
 def report_question(question_id: int, body: QuestionReportBody, user: dict = Depends(current_user)):
     with begin() as conn:
         return feedback.submit_report(conn, user["user_id"], question_id, body.reason_type, body.comment)
+
+
+@router.get("/questions/{question_id}/comments", tags=["learner-comments"])
+def get_question_comments(question_id: int, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return comments.list_comments(conn, user, question_id)
+
+
+@router.post("/questions/{question_id}/comments", status_code=201, tags=["learner-comments"])
+def post_question_comment(question_id: int, body: QuestionCommentBody, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return comments.create_comment(conn, user, question_id, body.content, body.parent_comment_id)
+
+
+@router.delete("/questions/{question_id}/comments/{comment_id}", tags=["learner-comments"])
+def remove_question_comment(question_id: int, comment_id: int, user: dict = Depends(current_user)):
+    with begin() as conn:
+        return comments.delete_comment(conn, user, question_id, comment_id)
 
 
 @router.get("/questions/{question_id}/submissions", tags=["learner-sandbox"])

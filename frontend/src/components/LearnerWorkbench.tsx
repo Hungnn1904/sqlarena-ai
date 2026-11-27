@@ -30,6 +30,7 @@ import {
 import { matchesVisibleRecord } from '../lib/search';
 import { useTheme } from './theme-provider';
 import { QuestionFeedbackBar } from './QuestionFeedbackBar';
+import { QuestionDiscussionCard } from './QuestionDiscussionCard';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -809,8 +810,12 @@ export default function LearnerWorkbench({
             )}
 
             <QuestionFeedbackBar
-              questionId={questionDetail?.question_id || selectedId}
-              feedback={questionDetail?.feedback}
+              questionId={selectedId || questionDetail?.question_id}
+              feedback={
+                questionDetail?.question_id === selectedId
+                  ? questionDetail?.feedback
+                  : null
+              }
               onFeedbackUpdated={() => {
                 if (selectedId) {
                   getQuestionDetail(selectedId)
@@ -1278,6 +1283,17 @@ export default function LearnerWorkbench({
           </div>
         </div>
       </div>
+
+      {/* Independent Bottom-of-Page Per-Question Discussion Card */}
+      <QuestionDiscussionCard
+        questionId={selectedId || questionDetail?.question_id}
+        refreshToken={
+          qSubs.length +
+          (questionDetail?.question_id === selectedId
+            ? Number(questionDetail?.attempt_count || 0)
+            : 0)
+        }
+      />
     </div>
   );
 }

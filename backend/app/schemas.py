@@ -193,6 +193,12 @@ class QuestionReportBody(BaseModel):
     comment: str = Field(min_length=3, max_length=1000)
 
 
+class QuestionCommentBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    content: str = Field(min_length=2, max_length=2000)
+    parent_comment_id: int | None = None
+
+
 class ResolveReportBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: str = Field(pattern="^(rework|return_needs_human|retire|dismiss)$")

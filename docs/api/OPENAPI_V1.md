@@ -24,6 +24,9 @@
 | `GET` | `/api/v1/questions/{question_id}` | Bearer | — | Question detail + **`output_columns: string[]`** + `feedback: { upvotes, downvotes, my_vote, can_vote, my_open_report }` |
 | `POST` | `/api/v1/questions/{question_id}/vote` | Bearer | `{ vote: 1 \| -1 \| 0 }` | Casts/switches/clears learner vote (requires `live.submissions >= 1`, `409 SUBMISSION_REQUIRED`) |
 | `POST` | `/api/v1/questions/{question_id}/reports` | Bearer | `{ reason_type, comment }` | Submits Human-in-the-loop feedback (`201`; max 1 `open` report per user/question -> `409 OPEN_REPORT_EXISTS`) |
+| `GET` | `/api/v1/questions/{question_id}/comments` | Bearer | — | Lists 1-level threaded discussion comments + `total_count`, `can_comment`, `author_solved`, `author_badge` |
+| `POST` | `/api/v1/questions/{question_id}/comments` | Bearer | `{ content, parent_comment_id? }` | Posts root comment or 1-level reply (`201`; blocks `409 SUBMISSION_REQUIRED` unless `role=='admin'`) |
+| `DELETE` | `/api/v1/questions/{question_id}/comments/{comment_id}` | Bearer | — | Deletes comment/reply (`200`; allowed only for comment owner or `role=='admin'`) |
 | `GET` | `/api/v1/dataset/schema` | Bearer | — | 13 Enterprise tables with `columns: [{ name, type, pk, references? }]` |
 | `POST` | `/api/v1/sql/run` | Bearer | `{ question_id, sql }` | Read-only sandbox execution (`columns`, `rows`, `row_count`, `runtime_ms`; strips `--` & `/* */` comments safely) |
 | `POST` | `/api/v1/sql/explain` | Bearer | `{ question_id, sql }` | `EXPLAIN` plan analysis (`plan_nodes`, `estimated_cost`) |
